@@ -1,0 +1,10 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+
+[project]
+name = "bytemaker"
+version = "0.8.0+2023.11.23"
+authors = [{name= "D. Estes McKnight", email= "contact-2@demcknight.com"}]
+description = "A sub-byte-struct-supporting Python serialization/deserialization library for Python 3.8."
+readme = "README.md"
+requires-python = ">=3.8"
