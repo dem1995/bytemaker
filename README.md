@@ -3,7 +3,7 @@
 
 # bytemaker
 ## What is it?
-`bytemaker` is a Python 3.8-compatible zero-dependency package for byte serialization/deserialization. Its goal is to port C bitfield functionality over to Python in version 3.8, as there are applications out there that have not made the jump to 3.9 for Windows 7 compatibility reasons. For a Python 3.10+ projec
+`bytemaker` is a Python 3.8-compatible zero-dependency package for byte serialization/deserialization. Its goal is to port C bitfield functionality over to Python in version 3.8, as there are applications out there that have not made the jump to 3.9 for Windows 7 compatibility reasons.
 
 ## What can you do with it?
 `bytemaker` gives you the following:
