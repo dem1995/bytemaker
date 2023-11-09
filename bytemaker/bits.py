@@ -1,8 +1,8 @@
 from __future__ import annotations
-from typing import Iterable, Optional, Protocol, runtime_checkable
-from utils import ByteConvertible
-import typing
 import operator
+import typing
+from typing import Iterable, Optional, Protocol, runtime_checkable
+from bytemaker.utils import ByteConvertible
 
 
 @runtime_checkable
