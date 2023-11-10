@@ -2,6 +2,7 @@
 from ctypes import _SimpleCData, Structure, Union, Array
 import typing
 from bytemaker.utils import is_instance_of_union, is_subclass_of_union
+from bytemaker.bits import Bits
 
 
 CType = typing.Union[_SimpleCData, Structure, Union, Array]
@@ -32,6 +33,22 @@ def ctype_to_bytes(ctype_obj: CType, reverse_endianness=False) -> bytes:
     return retbytes
 
 
+def ctype_to_bits(ctype_obj: CType, reverse_endianness=False) -> Bits:
+    """
+    Function to convert ctypes into Bits objects
+
+    Args:
+        ctype_obj (ctypes._SimpleCData | ctypes.Structure | ctypes.Union | ctypes.Array):
+            The ctypes object to convert to Bits
+        reverse_endianness (bool, optional):
+            Whether to reverse the endianness of the Bits after converting. Defaults to False.
+
+    Returns:
+        Bits: The Bits representation of the ctypes object
+    """
+    return Bits(ctype_to_bytes(ctype_obj, reverse_endianness=reverse_endianness))
+
+
 def bytes_to_ctype(bytes_obj: bytes,
                    ctype_type: type,
                    reverse_endianness=False) -> CType:
@@ -58,3 +75,24 @@ def bytes_to_ctype(bytes_obj: bytes,
             f"bytes_to_ctype only accepts _SimpleCData, Structure, Union, and Array types, not {ctype_type}"
         )
     return ctype_type.from_buffer_copy(bytes_obj)
+
+
+def bits_to_ctype(
+        bits_obj: Bits,
+        ctype_type: type,
+        reverse_endianness=False) -> CType:
+    """
+    Function to convert bits into ctypes objects
+
+    Args:
+        bits_obj (Bits): The bits object to convert to a ctypes object
+        ctype_type (type): The type of the ctypes object to convert to.
+            Must be a member of CType
+        reverse_endianness (bool, optional): Whether to reverse the endianness
+            of the bits before converting. Defaults to False.
+
+    Returns:
+        ctypes._SimpleCData | ctypes.Structure | ctypes.Union | ctypes.Array:
+            The ctypes object representation of the bits
+    """
+    return bytes_to_ctype(bits_obj.to_bytes(), ctype_type, reverse_endianness=reverse_endianness)
