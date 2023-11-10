@@ -284,6 +284,8 @@ class Bits:
         Converts a string to a Bits object.
         The string must be all binary or of the form '0b', '0o', or '0x' followed by digits.
         """
+        if "_" in string:
+            string = string.replace("_", "")
         if string.startswith('0b'):
             binstring = string[2:]
         elif string.startswith('0o'):

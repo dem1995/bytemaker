@@ -94,6 +94,16 @@ def test_bits_from_bytes():
     assert (bits.bitlist == bits_right)
 
 
+def test_bits_from_str():
+    bits = Bits('0b101')
+    assert bits.bitlist == [1, 0, 1]
+    bits = Bits('0b1_01')
+    assert bits.bitlist == [1, 0, 1]
+
+    bits = Bits('0xFE')
+    assert bits.bitlist == [1, 1, 1, 1, 1, 1, 1, 0]
+
+
 # Test the to_int method
 def test_bits_to_int(byte_bits):
     assert byte_bits.to_int() == 160
