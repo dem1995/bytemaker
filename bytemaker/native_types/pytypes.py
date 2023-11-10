@@ -3,7 +3,7 @@ import typing
 import struct
 from dataclasses import dataclass
 from typing import Callable
-from bytemaker.utils import is_subclass_of_union, twos_complement_bit_length
+from bytemaker.utils import is_subclass_of_union
 from bytemaker.bits import Bits
 
 
@@ -130,15 +130,16 @@ _string_conversion_info = ConversionInfo(
     from_bits=lambda bits: bits.to_bytes().decode('utf-8'),
     num_bits=lambda string: len(string.encode('utf-8')) * 8
 )
-ConversionConfig.set_conversion_info(_string_conversion_info)
+# ConversionConfig.set_conversion_info(_string_conversion_info)
 
 for bytesish in [bytes, bytearray, memoryview]:
-    ConversionConfig.set_conversion_info(ConversionInfo(
+    conversion_info = ConversionInfo(
         pytype=bytesish,
         to_bits=lambda bys: Bits(bys),
         from_bits=lambda bits: bits.to_bytes(),
         num_bits=lambda bys: len(bys) * 8
-    ))
+    )
+    # ConversionConfig.set_conversion_info(conversion_info)
 
 bool_conversion_info = ConversionInfo(
     pytype=bool,
@@ -157,9 +158,9 @@ ConversionConfig.set_conversion_info(bool_conversion_info)
 
 int_conversion_info = ConversionInfo(
     pytype=int,
-    to_bits=lambda num: Bits.from_int(num),
+    to_bits=lambda num: Bits.from_int(num, size=32),
     from_bits=lambda bits: bits.to_int(),
-    num_bits=lambda num: twos_complement_bit_length(num)
+    num_bits=32
 )
 ConversionConfig.set_conversion_info(int_conversion_info)
 
