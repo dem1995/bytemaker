@@ -27,7 +27,7 @@ def test_bits_init(empty_bits, some_bits):
     assert empty_bits.to_int() == 0
 
     # Test with some bit data
-    assert some_bits.to_int() == 5
+    assert some_bits.to_int() == -3
 
 
 # Test the string representation of Bits
@@ -105,8 +105,17 @@ def test_bits_from_str():
 
 
 # Test the to_int method
-def test_bits_to_int(byte_bits):
-    assert byte_bits.to_int() == 160
+def test_bits_to_int():
+    pos_num = Bits('0b0101')
+    assert pos_num.to_int() == 5
+
+    neg_num = Bits('0b101')
+    assert Bits(neg_num).to_int() == -3
+
+    neg_num = Bits('0b10101')
+    assert Bits(neg_num).to_int() == -11
+
+    assert Bits('0b1_01').to_int() == -3
 
 
 # Test the equality method

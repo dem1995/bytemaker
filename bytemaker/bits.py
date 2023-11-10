@@ -1,4 +1,5 @@
 from __future__ import annotations
+from math import ceil
 import operator
 import typing
 from typing import Iterable, Protocol, runtime_checkable
@@ -321,20 +322,25 @@ class Bits:
             raise ValueError(
                 f"Cannot convert {integer} to Bits with size {size},"
                 f" because it requires {integer.bit_length()} bits to represent.")
-
+        
         bitlist = list()
         for index in range(size):
             bitlist.insert(0, (integer >> index) & 1)
 
         return cls(bitlist)
 
-    def to_int(self, endianness='little', signed=False) -> int:
+    def to_int(self, endianness='little', signed=True) -> int:
         """
         Converts a Bits object to an integer. It does this
             by casting the Bits to bytes, and then converting the bytes to an integer
             using the provided endianness and signedness.
         """
-        return int.from_bytes(self.to_bytes(), byteorder=endianness, signed=signed)
+        copy = Bits(self.bitlist, deep=True)
+        if signed and len(copy) > 0 and copy[0] == 1:
+            next_multiple_of_8 = ceil(len(self.bitlist) / 8) * 8
+            copy.padleft(up_to_size=next_multiple_of_8, value=1, inplace=True)
+
+        return int.from_bytes(copy.to_bytes(), byteorder=endianness, signed=signed)
 
     def shrinkequals(self, other_bits: Bits) -> bool:
         """
