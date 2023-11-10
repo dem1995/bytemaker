@@ -82,25 +82,6 @@ class ByteConvertibleMeta(type):
 class ByteConvertible(metaclass=ByteConvertibleMeta):
     pass
 
-# class BitConvertibleMeta(type):
-#     """
-#     This is used to create IsBitConvertible, a type to allow checking
-#        whether an object can be converted to a Bits object using isinstance or issubclass.
-#     """
-#     def __instancecheck__(self, __instance: Any) -> bool:
-#         try:
-#             Bits(__instance)
-#             return True
-#         except:
-#             return False
-
-# class BitConvertible(metaclass=BitConvertibleMeta):
-#     """
-#     When used with isinstance or issubclass, this class allows checking
-#        whether an object can be converted to a Bits object.
-#     """
-#     pass
-
 
 def twos_complement_bit_length(n: int):
     """
@@ -123,3 +104,17 @@ def twos_complement_bit_length(n: int):
         return ceil(log2(abs_val + 1)) + 1  # Account for extra at negative extreme
     else:
         return int(log2(abs_val)) + 1
+
+
+def twos_complement(number, n_bits=32):
+    """
+    Convert an integer to its two's complement representation.
+
+    :param number: The integer to convert.
+    :param bits: The bit width for the two's complement representation.
+    :return: A string representing the two's complement of the number.
+    """
+    if number < 0:
+        number = (1 << n_bits) + number
+    format_string = '{:0' + str(n_bits) + 'b}'
+    return format_string.format(number)
