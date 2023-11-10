@@ -1,5 +1,5 @@
 import pytest
-from bytemaker.native_types.pytypes import py_primitive_to_bits, bits_to_pytype, ConversionConfig, PyType
+from bytemaker.native_types.pytypes import pytype_to_bits, bits_to_pytype, ConversionConfig, PyType
 from bytemaker.bits import Bits
 from bytemaker.utils import is_subclass_of_union
 
@@ -22,9 +22,9 @@ test_data = [
 
 
 @pytest.mark.parametrize("python_value, value_type, expected_bits", test_data)
-def test_py_primitive_to_bits(python_value, value_type, expected_bits):
+def test_pytype_to_bits(python_value, value_type, expected_bits):
     print(ConversionConfig._implemented_conversions)
-    assert py_primitive_to_bits(python_value) == expected_bits
+    assert pytype_to_bits(python_value) == expected_bits
 
 
 @pytest.mark.parametrize("python_value, value_type, bits_value", test_data)
@@ -44,9 +44,9 @@ epsilon = 1e-6
 
 
 @pytest.mark.parametrize("python_value, value_type, expected_bits", test_data_approx)
-def test_py_primitive_to_bits_approx(python_value, value_type, expected_bits):
+def test_pytype_to_bits_approx(python_value, value_type, expected_bits):
     print(ConversionConfig._implemented_conversions)
-    assert py_primitive_to_bits(python_value) == expected_bits
+    assert pytype_to_bits(python_value) == expected_bits
 
 
 @pytest.mark.parametrize("python_value, value_type, bits_value", test_data_approx)
@@ -84,7 +84,7 @@ def test_subclass_pytype():
     assert issubclass(ThreeInt, PyType)
 
     testval = ThreeInt(5)
-    assert py_primitive_to_bits(testval) == Bits([0, 1, 1])
+    assert pytype_to_bits(testval) == Bits([0, 1, 1])
     assert bits_to_pytype(Bits([0, 0, 0, 1, 1]), ThreeInt) == 3
 
     assert ConversionConfig._known_furthest_descendant_mappings[ThreeInt] == int

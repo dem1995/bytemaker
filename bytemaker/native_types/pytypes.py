@@ -173,7 +173,7 @@ float_conversion_info = ConversionInfo(
 ConversionConfig.set_conversion_info(float_conversion_info)
 
 
-def py_primitive_to_bits(py_prim: type) -> Bits:
+def pytype_to_bits(py_prim: type) -> Bits:
     """
     Function to convert Python instances into a default number of Bits.
         Uses the conversions in ConversionConfig.
@@ -194,7 +194,7 @@ def py_primitive_to_bits(py_prim: type) -> Bits:
     return conversion.to_bits(py_prim)
 
 
-def py_primitive_to_bytes(py_prim: type, reverse_endianness: bool = False) -> bytes:
+def pytype_to_bytes(py_prim: type, reverse_endianness: bool = False) -> bytes:
     """
     Function to convert Python instances into a default number of bytes.
         Uses the conversions in ConversionConfig.
@@ -205,7 +205,7 @@ def py_primitive_to_bytes(py_prim: type, reverse_endianness: bool = False) -> by
     Returns:
         bytes: The bytes representation of the python instance
     """
-    retval = py_primitive_to_bits(py_prim).to_bytes()
+    retval = pytype_to_bits(py_prim).to_bytes()
     if reverse_endianness:
         retval = retval[::-1]
     return retval
