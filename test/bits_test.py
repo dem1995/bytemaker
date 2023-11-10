@@ -41,6 +41,17 @@ def test_bits_append(some_bits):
     assert str(some_bits) == '0b1011'
 
 
+# Test padding
+def test_bits_padright(some_bits):
+    some_bits.padright(2)
+    assert str(some_bits) == '0b10100'
+
+
+def test_bits_padleft(some_bits):
+    some_bits.padleft(2)
+    assert str(some_bits) == '0b00101'
+
+
 # Test the pop method
 def test_bits_pop(some_bits):
     bit = some_bits.pop()

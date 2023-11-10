@@ -2,7 +2,7 @@ from __future__ import annotations
 import operator
 import typing
 from typing import Iterable, Optional, Protocol, runtime_checkable
-from bytemaker.utils import ByteConvertible
+from bytemaker.utils import ByteConvertible, twos_complement_bit_length
 
 
 @runtime_checkable
@@ -224,6 +224,24 @@ class Bits:
             raise ValueError('Bits can only be 1 or 0')
         self.bitlist.append(value)
 
+    def padleft(self, up_to_size: int, value: int = 0):
+        num_bits_to_add = up_to_size - len(self)
+        if num_bits_to_add < 0:
+            return self
+
+        bits_to_add = [value] * num_bits_to_add
+        self.bitlist = bits_to_add + self.bitlist
+        return self
+
+    def padright(self, up_to_size: int, value: int = 0):
+        num_bits_to_add = up_to_size - len(self)
+        if num_bits_to_add < 0:
+            return self
+
+        bits_to_add = [value] * num_bits_to_add
+        self.bitlist = self.bitlist + bits_to_add
+        return self
+
     def pop(self, index: Optional[int] = None) -> int:
         if index is not None:
             return self.bitlist.pop(index)
@@ -284,7 +302,7 @@ class Bits:
         If size is not provided, the number of bits required to represent the integer is used.
         """
         if size is None:
-            size = integer.bit_length()
+            size = twos_complement_bit_length(integer)
         if integer.bit_length() > size:
             raise ValueError(
                 f"Cannot convert {integer} to Bits with size {size},"
