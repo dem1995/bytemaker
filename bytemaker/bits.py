@@ -322,7 +322,7 @@ class Bits:
             raise ValueError(
                 f"Cannot convert {integer} to Bits with size {size},"
                 f" because it requires {integer.bit_length()} bits to represent.")
-        
+
         bitlist = list()
         for index in range(size):
             bitlist.insert(0, (integer >> index) & 1)
