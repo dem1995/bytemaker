@@ -56,7 +56,7 @@ def test_bits_padright(some_bits):
 
 
 def test_bits_padleft(some_bits):
-    new_some_bits = some_bits.padleft(up_to_size=5)
+    new_some_bits = some_bits.padleft(up_to_size=5, inplace=False)
     assert str(new_some_bits) == '0b00101'
     assert str(some_bits) == '0b101'
 
