@@ -1,3 +1,4 @@
+import dataclasses
 import typing
 import warnings
 from typing import Any
@@ -80,6 +81,19 @@ class ByteConvertibleMeta(type):
 
 
 class ByteConvertible(metaclass=ByteConvertibleMeta):
+    pass
+
+
+# Aggregate type to bytes
+class DataClassTypeMeta(type):
+    def __instancecheck__(cls, instance):
+        return dataclasses.is_dataclass(instance)
+
+    def __subclasscheck__(cls, subclass):
+        return dataclasses.is_dataclass(subclass)
+
+
+class DataClassType(metaclass=DataClassTypeMeta):
     pass
 
 

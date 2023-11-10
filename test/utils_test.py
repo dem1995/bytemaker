@@ -1,6 +1,7 @@
 
+from dataclasses import dataclass
 import typing
-from bytemaker.utils import is_instance_of_union, is_subclass_of_union, ByteConvertible, twos_complement_bit_length
+from bytemaker.utils import DataClassType, is_instance_of_union, is_subclass_of_union, ByteConvertible, twos_complement_bit_length
 import pytest
 
 
@@ -55,3 +56,14 @@ def test_byte_convertible_subclass():
 ])
 def test_twos_complement_bit_length(integer, expected):
     assert twos_complement_bit_length(integer) == expected
+
+
+# Test dataclass type
+def test_dataclass_type():
+
+    @dataclass
+    class TestClass:
+        a: int
+        b: int
+
+    assert isinstance(TestClass, DataClassType)
