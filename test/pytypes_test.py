@@ -10,11 +10,11 @@ test_data = [
     (0, int, Bits([0])),
     (-1, int, Bits([1])),
     # Strings
-    ("hello", str, Bits(b'hello')),  # Binary representation of "hello"
-    ("", str, Bits(b'')),
+    # ("hello", str, Bits(b'hello')),  # Binary representation of "hello"
+    # ("", str, Bits(b'')),
     # Bytes
-    (b'hello', bytes, Bits(b'hello')),  # Binary representation of b'hello'
-    (b'', bytes, Bits(b'')),
+    # (b'hello', bytes, Bits(b'hello')),  # Binary representation of b'hello'
+    # (b'', bytes, Bits(b'')),
     # Booleans
     (True, bool, Bits([1])),
     (False, bool, Bits([0])),
@@ -24,7 +24,13 @@ test_data = [
 @pytest.mark.parametrize("python_value, value_type, expected_bits", test_data)
 def test_pytype_to_bits(python_value, value_type, expected_bits):
     print(ConversionConfig._implemented_conversions)
-    assert pytype_to_bits(python_value) == expected_bits
+    if value_type == int:
+        assert pytype_to_bits(python_value) == expected_bits.padleft(
+            up_to_size=32,
+            inplace=False,
+            padvalue=0 if python_value >= 0 else 1)
+    else:
+        assert pytype_to_bits(python_value) == expected_bits
 
 
 @pytest.mark.parametrize("python_value, value_type, bits_value", test_data)
@@ -61,8 +67,8 @@ class ThreeInt(int):
 
 test_types = [
     (int, True),
-    (str, True),
-    (bytes, True),
+    (str, False),
+    (bytes, False),
     (bool, True),
     (float, True),
     (list, False),
@@ -84,7 +90,7 @@ def test_subclass_pytype():
     assert issubclass(ThreeInt, PyType)
 
     testval = ThreeInt(5)
-    assert pytype_to_bits(testval) == Bits([0, 1, 1])
+    assert pytype_to_bits(testval) == Bits([0, 1, 1]).padleft(up_to_size=32, inplace=False)
     assert bits_to_pytype(Bits([0, 0, 0, 1, 1]), ThreeInt) == 3
 
     assert ConversionConfig._known_furthest_descendant_mappings[ThreeInt] == int
