@@ -37,24 +37,44 @@ def test_bits_str(some_bits):
 
 # Test the append method
 def test_bits_append(some_bits):
-    some_bits.append(1)
+    new_some_bits = some_bits.append(1, inplace=False)
+    assert str(new_some_bits) == '0b1011'
+    assert str(some_bits) == '0b101'
+
+    some_bits.append(1, inplace=True)
     assert str(some_bits) == '0b1011'
 
 
 # Test padding
 def test_bits_padright(some_bits):
-    some_bits.padright(up_to_size=5)
+    new_some_bits = some_bits.padright(up_to_size=5, inplace=False)
+    assert str(new_some_bits) == '0b10100'
+    assert str(some_bits) == '0b101'
+
+    some_bits.padright(up_to_size=5, inplace=True)
     assert str(some_bits) == '0b10100'
 
 
 def test_bits_padleft(some_bits):
-    some_bits.padleft(up_to_size=5)
+    new_some_bits = some_bits.padleft(up_to_size=5)
+    assert str(new_some_bits) == '0b00101'
+    assert str(some_bits) == '0b101'
+
+    some_bits.padleft(up_to_size=5, inplace=True)
     assert str(some_bits) == '0b00101'
 
 
 # Test the pop method
-def test_bits_pop(some_bits):
-    bit = some_bits.pop()
+def test_bits_pop(some_bits, byte_bits):
+    bit = some_bits.pop(inplace=False)
+    assert bit == 1
+    assert str(some_bits) == '0b101'
+
+    bit = byte_bits.pop(2, inplace=False)
+    assert bit == 1
+    assert str(byte_bits) == '0b10100000'
+
+    bit = some_bits.pop(inplace=True)
     assert bit == 1
     assert str(some_bits) == '0b10'
 

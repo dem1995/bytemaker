@@ -218,35 +218,47 @@ class Bits:
     def __Bits__(self) -> Bits:
         return self
 
-    def append(self, value: int):
+    def append(self, value: int, inplace=True):
         value = int(value)
         if value not in [0, 1]:
             raise ValueError('Bits can only be 1 or 0')
-        self.bitlist.append(value)
-
-    def padleft(self, *, up_to_size: int, value: int = 0):
-        num_bits_to_add = up_to_size - len(self)
-        if num_bits_to_add < 0:
+        if inplace:
+            self.bitlist.append(value)
             return self
-
-        bits_to_add = [value] * num_bits_to_add
-        self.bitlist = bits_to_add + self.bitlist
-        return self
-
-    def padright(self, *, up_to_size: int, value: int = 0):
-        num_bits_to_add = up_to_size - len(self)
-        if num_bits_to_add < 0:
-            return self
-
-        bits_to_add = [value] * num_bits_to_add
-        self.bitlist = self.bitlist + bits_to_add
-        return self
-
-    def pop(self, index: Optional[int] = None) -> int:
-        if index is not None:
-            return self.bitlist.pop(index)
         else:
-            return self.bitlist.pop()
+            return Bits(self.bitlist + [value])
+
+    def padleft(self, *, up_to_size: int, value: int = 0, inplace=True):
+        num_bits_to_add = up_to_size - len(self)
+        if num_bits_to_add < 0:
+            return self
+
+        bits_to_add = [value] * num_bits_to_add
+        if inplace:
+            self.bitlist = bits_to_add + self.bitlist
+            return self
+        else:
+            return Bits(bits_to_add + self.bitlist)
+
+    def padright(self, *, up_to_size: int, value: int = 0, inplace=True):
+        num_bits_to_add = up_to_size - len(self)
+        if num_bits_to_add < 0:
+            return self
+
+        bits_to_add = [value] * num_bits_to_add
+        if inplace:
+            self.bitlist = self.bitlist + bits_to_add
+            return self
+        else:
+            return Bits(self.bitlist + bits_to_add)
+
+    def pop(self, index: int = -1, inplace=True) -> int:
+        if not inplace:
+            bits_obj_to_act_on = Bits(self.bitlist, deep=True)
+        else:
+            bits_obj_to_act_on = self
+
+        return bits_obj_to_act_on.bitlist.pop(index)
 
     def to_bytes(self) -> bytes:
         byte_arr = bytearray()
