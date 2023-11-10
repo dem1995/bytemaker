@@ -241,12 +241,12 @@ class Bits:
         else:
             return Bits(bits_to_add + self.bitlist)
 
-    def padright(self, *, up_to_size: int, value: int = 0, inplace=True):
+    def padright(self, *, up_to_size: int, padvalue: int = 0, inplace=True):
         num_bits_to_add = up_to_size - len(self)
         if num_bits_to_add < 0:
             return self
 
-        bits_to_add = [value] * num_bits_to_add
+        bits_to_add = [padvalue] * num_bits_to_add
         if inplace:
             self.bitlist = self.bitlist + bits_to_add
             return self
