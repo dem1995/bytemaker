@@ -224,7 +224,7 @@ class Bits:
             raise ValueError('Bits can only be 1 or 0')
         self.bitlist.append(value)
 
-    def padleft(self, up_to_size: int, value: int = 0):
+    def padleft(self, *, up_to_size: int, value: int = 0):
         num_bits_to_add = up_to_size - len(self)
         if num_bits_to_add < 0:
             return self
@@ -233,7 +233,7 @@ class Bits:
         self.bitlist = bits_to_add + self.bitlist
         return self
 
-    def padright(self, up_to_size: int, value: int = 0):
+    def padright(self, *, up_to_size: int, value: int = 0):
         num_bits_to_add = up_to_size - len(self)
         if num_bits_to_add < 0:
             return self

@@ -43,12 +43,12 @@ def test_bits_append(some_bits):
 
 # Test padding
 def test_bits_padright(some_bits):
-    some_bits.padright(2)
+    some_bits.padright(up_to_size=5)
     assert str(some_bits) == '0b10100'
 
 
 def test_bits_padleft(some_bits):
-    some_bits.padleft(2)
+    some_bits.padleft(up_to_size=5)
     assert str(some_bits) == '0b00101'
 
 
