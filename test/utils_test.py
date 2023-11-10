@@ -1,7 +1,8 @@
 
 from dataclasses import dataclass
 import typing
-from bytemaker.utils import DataClassType, is_instance_of_union, is_subclass_of_union, ByteConvertible, twos_complement_bit_length
+from bytemaker.utils import DataClassType, is_instance_of_union, is_subclass_of_union
+from bytemaker.utils import ByteConvertible, twos_complement_bit_length
 import pytest
 
 
