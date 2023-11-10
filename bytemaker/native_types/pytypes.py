@@ -2,11 +2,25 @@ from __future__ import annotations
 import typing
 import struct
 from dataclasses import dataclass
-from typing import Callable, TypeVar
+from typing import Callable
 from bytemaker.utils import is_subclass_of_union, twos_complement_bit_length
 from bytemaker.bits import Bits
 
-PyType = TypeVar('PyType')
+
+class PyTypeMeta(type):
+    """
+    This is used to create IsByteConvertible, a type to allow checking \
+        whether an object or instances of a class can be converted to a bytes object using isinstance or issubclass.
+    """
+    def __instancecheck__(self, __instance) -> bool:
+        return ConversionConfig.has_suitable_conversion(type(__instance))
+
+    def __subclasscheck__(self, __subclass: type) -> bool:
+        return ConversionConfig.has_suitable_conversion(__subclass)
+
+
+class PyType(metaclass=PyTypeMeta):
+    pass
 
 
 # PyType Handling
