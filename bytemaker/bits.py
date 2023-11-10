@@ -1,7 +1,7 @@
 from __future__ import annotations
 import operator
 import typing
-from typing import Iterable, Optional, Protocol, runtime_checkable
+from typing import Iterable, Protocol, runtime_checkable
 from bytemaker.utils import ByteConvertible, twos_complement_bit_length
 
 
