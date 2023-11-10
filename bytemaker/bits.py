@@ -229,12 +229,12 @@ class Bits:
         else:
             return Bits(self.bitlist + [value])
 
-    def padleft(self, *, up_to_size: int, value: int = 0, inplace=True):
+    def padleft(self, *, up_to_size: int, padvalue: int = 0, inplace=True):
         num_bits_to_add = up_to_size - len(self)
         if num_bits_to_add < 0:
             return self
 
-        bits_to_add = [value] * num_bits_to_add
+        bits_to_add = [padvalue] * num_bits_to_add
         if inplace:
             self.bitlist = bits_to_add + self.bitlist
             return self
@@ -338,7 +338,7 @@ class Bits:
         copy = Bits(self.bitlist, deep=True)
         if signed and len(copy) > 0 and copy[0] == 1:
             next_multiple_of_8 = ceil(len(self.bitlist) / 8) * 8
-            copy.padleft(up_to_size=next_multiple_of_8, value=1, inplace=True)
+            copy.padleft(up_to_size=next_multiple_of_8, padvalue=1, inplace=True)
 
         return int.from_bytes(copy.to_bytes(), byteorder=endianness, signed=signed)
 
