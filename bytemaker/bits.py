@@ -261,7 +261,7 @@ class Bits:
 
         return bits_obj_to_act_on.bitlist.pop(index)
 
-    def to_bytes(self) -> bytes:
+    def to_bytes(self, reverse_endianness=False) -> bytes:
         byte_arr = bytearray()
         for i in range(0, len(self.bitlist), 8):
             byte = 0
@@ -270,6 +270,8 @@ class Bits:
                 byte = (byte << 1) | bit
             byte_arr.append(byte)
 
+        if reverse_endianness:
+            byte_arr = reversed(byte_arr)
         return bytes(byte_arr)
 
     @classmethod
