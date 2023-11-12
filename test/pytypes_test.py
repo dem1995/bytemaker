@@ -11,7 +11,7 @@ test_data = [
     (-1, int, Bits([1])),
     # Strings
     # ("hello", str, Bits(b'hello')),  # Binary representation of "hello"
-    # ("", str, Bits(b'')),
+    ("a", str, Bits(b'a')),
     # Bytes
     # (b'hello', bytes, Bits(b'hello')),  # Binary representation of b'hello'
     # (b'', bytes, Bits(b'')),
@@ -67,7 +67,7 @@ class ThreeInt(int):
 
 test_types = [
     (int, True),
-    (str, False),
+    (str, True),
     (bytes, False),
     (bool, True),
     (float, True),

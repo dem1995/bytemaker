@@ -124,13 +124,21 @@ class ConversionConfig:
         return None
 
 
-_string_conversion_info = ConversionInfo(
+# _string_conversion_info = ConversionInfo(
+#     pytype=str,
+#     to_bits=lambda string: Bits(string.encode('utf-8')),
+#     from_bits=lambda bits: bits.to_bytes().decode('utf-8'),
+#     num_bits=lambda string: len(string.encode('utf-8')) * 8
+# )
+# ConversionConfig.set_conversion_info(_string_conversion_info)
+
+_char_conversion_info = ConversionInfo(
     pytype=str,
     to_bits=lambda string: Bits(string.encode('utf-8')),
     from_bits=lambda bits: bits.to_bytes().decode('utf-8'),
-    num_bits=lambda string: len(string.encode('utf-8')) * 8
+    num_bits=8
 )
-# ConversionConfig.set_conversion_info(_string_conversion_info)
+ConversionConfig.set_conversion_info(_char_conversion_info)
 
 for bytesish in [bytes, bytearray, memoryview]:
     conversion_info = ConversionInfo(
