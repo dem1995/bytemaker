@@ -8,7 +8,7 @@
 ## What can you do with it?
 `bytemaker` gives you the following:
 - A `Bits` class analogous to Python's `bytes` and `bytearray` classes, but for sub-byte bit quantities. `Bits` readily supports conversion from and to both, as well as lists and bit/octet/hex strings.
-- A set of `ytypes` classes, including various-sized Bit classes, various-sized Byte classes, common C types (U8, U16, U32, U64, S8, S16..., and Float16, Float32, Float64), and factories to hold these and chararrays to arbitrary bitcounts. All of these can be instantiated from their respective types, derive from `Bits` (and thus can be instantiated in the same way `Bits` objects can), and can be cast into each other in additional ways as needed.
+- A set of `ytypes` classes, including various-sized Bit classes, various-sized Byte classes, common C types (U8, U16, U32, U64, S8, S16..., and Float16, Float32, Float64), and factories to create these and chararrays to arbitrary bitcounts. All of these can be instantiated from their respective types, derive from `Bits` (and thus can be instantiated in the same way `Bits` objects can), and can be cast into each other in additional ways as needed.
 - Support for serializing/deserializing @dataclass annotated classes, where the annotations can be `ytypes`, Python `ctypes`, or Python native types `pytypes`. Nested serialization? No problem!
 
 ## How to install it?
