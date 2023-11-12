@@ -29,6 +29,8 @@ def test_bits_init(empty_bits, some_bits):
     # Test with some bit data
     assert some_bits.to_int() == -3
 
+    assert Bits().bitlist == []
+
 
 # Test the string representation of Bits
 def test_bits_str(some_bits):
@@ -132,3 +134,44 @@ def test_bits_shrinkequals():
     bits1 = Bits([1, 1, 0, 0])
     bits2 = Bits([0, 1, 1, 1])
     assert not bits1.shrinkequals(bits2)
+
+
+# def test_bits_join():
+#     bits0 = Bits([1, 0, 1, 1, 0])
+#     bits1 = Bits([1, 1, 0, 0])
+#     bits2 = Bits([0, 1, 1, 1])
+
+#     bits3 = Bits().join(bits0, bits1, bits2)
+#     assert bits3.bitlist == [1, 0, 1, 1, 0, 1, 1, 0, 0, 0, 1, 1]
+
+#     bits4 = Bits().join()
+#     assert bits4.bitlist == []
+
+#     bits5 = Bits().join(bits0)
+#     assert bits5.bitlist == [1, 0, 1, 1, 0]
+
+#     bits6 = bits0.join(bits1, bits2, bits1)
+#     assert bits6.bitlist == [
+#         1,1,0,0,
+#         1,0,1,1,0,
+#         0,1,1,1,
+#         1,0,1,1,0,
+#         1,1,0,0
+#     ]
+
+
+# def test_bits_concat():
+#     bits1 = Bits([1, 1, 0, 0])
+#     bits2 = Bits([0, 1, 1, 1])
+
+#     bits2_5 = bits1.concat(bits2)
+#     assert bits2_5.bitlist == [1, 1, 0, 0, 0, 1, 1, 1]
+
+#     bits3 = Bits.concat(bits1, bits2)
+#     assert bits3.bitlist == [1, 1, 0, 0, 0, 1, 1, 1]
+
+#     bits4 = Bits.concat(bits3, bits3, bits3)
+#     assert bits4.bitlist == [1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1]
+
+#     bits5 = Bits.concat()
+#     assert bits5.bitlist == []
