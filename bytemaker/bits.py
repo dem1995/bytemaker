@@ -2,7 +2,7 @@ from __future__ import annotations
 from math import ceil
 import operator
 import typing
-from typing import Iterable, Protocol, Tuple, runtime_checkable
+from typing import Iterable, Protocol, runtime_checkable
 from bytemaker.utils import ByteConvertible, twos_complement_bit_length
 
 
@@ -19,10 +19,10 @@ class Bits:
     """
     A class for storing and manipulating bits.
     """
-    def __init__(self, initial_data: BitsConstructorType=None, size=None, deep=False):
+    def __init__(self, initial_data: BitsConstructorType = None, size=None, deep=False):
         if initial_data is None:
             initial_data = list()
-        
+
         bitlist: list[int] = None
 
         if isinstance(initial_data, Bits):
