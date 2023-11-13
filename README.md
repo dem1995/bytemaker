@@ -16,3 +16,7 @@ Run `python -m pip install bytemaker`.
 
 ## Project intent
 The main goal of the project is to ease development of projects working with compiled code (e.g. ROM hacking). As such, streaming features are currently deemphasized, although I may implement them at some later date. 
+
+## Errata
+At present, bytemaker assumes big-endianness (à la N64). Full support for reading from and writing to little-endian ROMs will come very soon.
+`ctypes` support currently assumes development is done on a little-endian machine. This is the vast, vast, vast majority of consumer hardware today, unless you run a bi-endian machine and have set it to big-endian mode.
