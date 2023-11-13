@@ -104,9 +104,17 @@ def test_bits_from_str():
 
     bits = Bits('0xFE')
     assert bits.bitlist == [1, 1, 1, 1, 1, 1, 1, 0]
+    
+    bits1 = Bits('0x0000_0F0F')
+    bits2 = Bits('0x00000F0F')
+    assert bits1 == bits2
 
-    bits = Bits('0x0f0f')
-    assert bits.bitlist == [0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1]
+    bits = Bits('0x00000f0f')
+    assert bits.bitlist == [
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1]
+    assert bits.to_hex().replace("_", "") == '0x00000f0f'
 
     bits = Bits('0o707')
     assert bits.bitlist == [1, 1, 1, 0, 0, 0, 1, 1, 1]
@@ -133,6 +141,9 @@ def test_bits_eq(some_bits):
 
     bits3 = Bits([0, 1, 1])
     assert some_bits != bits3
+
+    nonbits = 51
+    assert some_bits != nonbits
 
 
 # Test the shrinkequals method

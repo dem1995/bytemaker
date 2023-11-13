@@ -365,6 +365,8 @@ class Bits:
         return self | other_bits == self & other_bits
 
     def __eq__(self, other: Bits):
+        if not isinstance(other, Bits):
+            return False
         return self.bitlist == other.bitlist
 
     def join(self, bitobjs: Iterable[Bits]) -> Bits:
