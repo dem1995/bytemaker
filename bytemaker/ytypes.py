@@ -5,7 +5,7 @@ import math
 import struct
 from typing import Any, Callable, Optional
 from bytemaker.bits import Bits, BitsConstructorType
-from bytemaker.utils import classproperty, ByteConvertible
+from bytemaker.utils import classproperty, ByteConvertible, is_instance_of_union
 
 
 class CustomTypeTracker:
@@ -124,7 +124,7 @@ class YType(ABC):
                 self._value = self.from_bits(value).value
             elif isinstance(value, (bytes, bytearray)):
                 self._value = self.from_bytes(value).value
-            elif isinstance(value, BitsConstructorType):
+            elif is_instance_of_union(value, BitsConstructorType):
                 self._value = self.from_bits(Bits(value)).value
             elif isinstance(value, ByteConvertible):
                 self._value = self.from_bytes(bytes(value)).value
@@ -290,7 +290,7 @@ class YType(ABC):
                 both_nans = both_floats and math.isnan(self.value) and math.isnan(other.value)
                 if not both_nans:
                     return self.value == other.value
-        elif isinstance(other, BitsConstructorType):
+        elif is_instance_of_union(other, BitsConstructorType):
             return Bits(self) == other.bits
         elif isinstance(other, ByteConvertible):
             return bytes(self) == bytes(other)
