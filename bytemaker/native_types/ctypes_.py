@@ -1,5 +1,6 @@
 # CType Handling
 from ctypes import _SimpleCData, Structure, Union, Array
+import ctypes
 import typing
 from bytemaker.utils import is_instance_of_union, is_subclass_of_union
 from bytemaker.bits import Bits
@@ -8,7 +9,38 @@ from bytemaker.bits import Bits
 CType = typing.Union[_SimpleCData, Structure, Union, Array]
 
 
-def ctype_to_bytes(ctype_obj: CType, reverse_endianness=False) -> bytes:
+def reverse_bytes_unit(unit: _SimpleCData):
+    """ Reverse the byte order of the given value. """
+    unit_type = type(unit)
+    bytes_value = bytearray(unit)
+    bytes_value.reverse()
+    return unit_type.from_buffer_copy(bytes_value)
+
+
+def reverse_ctype_endianness(ctype_instance: CType) -> None:
+    """ Process each field of the structure. """
+
+    if isinstance(ctype_instance, _SimpleCData):
+        # Reverse the byte order for single, multi-byte objects
+        byte_size = ctypes.sizeof(ctype_instance)
+        if byte_size > 1:
+            ctype_instance = reverse_bytes_unit(ctype_instance)
+
+    if isinstance(ctype_instance, Array):
+        for i in range(len(ctype_instance)):
+            ctype_instance[i] = reverse_ctype_endianness(ctype_instance[i])
+
+    if isinstance(ctype_instance, Structure):
+        for field_name, field_type in ctype_instance._fields_:
+            field_value = getattr(ctype_instance, field_name)
+            print(field_name, field_value, type(field_value))
+            reversed_unit = reverse_ctype_endianness(field_type(field_value))
+            setattr(ctype_instance, field_name, reversed_unit)
+
+    return ctype_instance
+
+
+def ctype_to_bytes(ctype_obj: CType, reverse_endianness=True) -> bytes:
     """
     Function to convert ctypes into bytes objects
 
@@ -25,15 +57,16 @@ def ctype_to_bytes(ctype_obj: CType, reverse_endianness=False) -> bytes:
         raise TypeError(
             f"ctype_to_bytes only accepts _SimpleCData, Structure, Union, and Array objects, not {type(ctype_obj)}"
         )
+    
+    if reverse_endianness:
+        ctype_obj = reverse_ctype_endianness(ctype_obj)
 
     retbytes = bytes(ctype_obj)
-    if reverse_endianness:
-        retbytes = retbytes[::-1]
 
     return retbytes
 
 
-def ctype_to_bits(ctype_obj: CType, reverse_endianness=False) -> Bits:
+def ctype_to_bits(ctype_obj: CType, reverse_endianness=True) -> Bits:
     """
     Function to convert ctypes into Bits objects
 
@@ -51,7 +84,7 @@ def ctype_to_bits(ctype_obj: CType, reverse_endianness=False) -> Bits:
 
 def bytes_to_ctype(bytes_obj: bytes,
                    ctype_type: type,
-                   reverse_endianness=False) -> CType:
+                   reverse_endianness=True) -> CType:
     """
     Function to convert bytes into ctypes objects
 
@@ -67,20 +100,22 @@ def bytes_to_ctype(bytes_obj: bytes,
             The ctypes object representation of the bytes
     """
 
-    if reverse_endianness:
-        bytes_obj = bytes_obj[::-1]
-
     if not is_subclass_of_union(ctype_type, CType):
         raise TypeError(
             f"bytes_to_ctype only accepts _SimpleCData, Structure, Union, and Array types, not {ctype_type}"
         )
-    return ctype_type.from_buffer_copy(bytes_obj)
+
+    ctype_obj = ctype_type.from_buffer_copy(bytes_obj)
+    if reverse_endianness:
+        ctype_obj = reverse_ctype_endianness(ctype_obj)
+
+    return ctype_obj
 
 
 def bits_to_ctype(
         bits_obj: Bits,
         ctype_type: type,
-        reverse_endianness=False) -> CType:
+        reverse_endianness=True) -> CType:
     """
     Function to convert bits into ctypes objects
 
