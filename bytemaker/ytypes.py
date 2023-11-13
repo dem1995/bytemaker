@@ -315,7 +315,7 @@ class StructPackedYType(YType):
     Abstract base class for all YType objects that involve using struct for packing/unpacking.
     """
 
-    def to_bits(self, *args, endianness='little', **kwargs):
+    def to_bits(self, *args, endianness='big', **kwargs):
         """
         Returns the bytes representation of the object.
 
@@ -329,7 +329,7 @@ class StructPackedYType(YType):
         return Bits(struct.pack(packing_format, self.value, *args))
 
     @classmethod
-    def from_bits(cls, the_bits, *args, endianness='little', **kwargs):
+    def from_bits(cls, the_bits, *args, endianness='big', **kwargs):
         """
         Returns the StructPackedYType object from the bytes representation.
 
@@ -356,7 +356,7 @@ class StructPackedYType(YType):
         return cls.get_packing_format_letter()
 
     @classmethod
-    def get_packing_format(cls, endianness='little'):
+    def get_packing_format(cls, endianness='big'):
         """
         Returns the packing format for the class.
 
