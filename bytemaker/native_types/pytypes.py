@@ -175,8 +175,8 @@ ConversionConfig.set_conversion_info(int_conversion_info)
 
 float_conversion_info = ConversionInfo(
     pytype=float,
-    to_bits=lambda fl: Bits(struct.pack('<f', fl)),
-    from_bits=lambda bits: struct.unpack('<f', bits.to_bytes())[0],
+    to_bits=lambda fl: Bits(struct.pack('>f', fl)),
+    from_bits=lambda bits: struct.unpack('>f', bits.to_bytes())[0],
     num_bits=lambda fl: 32
 )
 ConversionConfig.set_conversion_info(float_conversion_info)

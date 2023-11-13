@@ -41,8 +41,10 @@ def test_bits_to_pytype(python_value, value_type, bits_value):
 # Test cases for different types and values, including edge cases and subtypes
 test_data_approx = [
     # Floats
-    (3.14, float,  # Binary representation of 3.14 as a float
-     Bits('0b11000011_11110101_01001000_01000000').padleft(up_to_size=32, inplace=False)),
+    (
+        3.14, float,  # Binary representation of 3.14 as a float
+        Bits('0b01000000_01001000_11110101_11000011').padleft(up_to_size=32, inplace=False)
+    ),
     (0.0, float, Bits('0b0').padleft(up_to_size=32, inplace=False)),
 ]
 
