@@ -312,7 +312,9 @@ class Bits:
                 f"Strings passed should be all binary or of the form '0b', '0o', or '0x' followed by digits."
             )
 
+        print("binstring: ", binstring)
         bin_list = [int(bit) for bit in binstring]
+        print(bin_list)
         return cls(bin_list)
 
     @classmethod
@@ -346,6 +348,15 @@ class Bits:
             copy.padleft(up_to_size=next_multiple_of_8, padvalue=1, inplace=True)
 
         return int.from_bytes(copy.to_bytes(), byteorder=endianness, signed=signed)
+
+    def to_bin(self) -> str:
+        return self.str_(format_spec='b')
+    
+    def to_oct(self) -> str:
+        return self.str_(format_spec='o')
+    
+    def to_hex(self) -> str:
+        return self.str_(format_spec='x')
 
     def shrinkequals(self, other_bits: Bits) -> bool:
         """
