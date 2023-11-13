@@ -151,7 +151,7 @@ def from_bytes_individual(unitbytes: bytes, unittype: type, reverse_endianness: 
                         f" because the unit type is not a CType, YType, or PyType")
 
 
-AggregateTypeByteConvertible = Union[Iterable, DataClassType]
+AggregateTypeByteConvertible = Union[DataClassType, YType, CType, PyType, Iterable]
 
 
 def trycast(obj, type_):
@@ -161,31 +161,45 @@ def trycast(obj, type_):
         return obj
 
 
-def to_bits_aggregate(units: AggregateTypeByteConvertible) -> Bits:
+def to_bits_aggregate(convertible_object: AggregateTypeByteConvertible) -> Bits:
+    """
+    Function to convert fixed-byte Python types (int, float, char), ctypes, and YTypes into Bits.
+        Also converts dataclasses annotated with these types into bits (this support is recursive).
+        Technically supports Iterables as well, but note that from_bits_aggregate will not work on Iterables.
+
+    Args:
+        units (DataClassType | YType | CType | PyType | Iterable): The object to convert to Bits
+
+    Returns:
+        Bits: The Bits representation of the object
+    """
 
     ret_bits = Bits()
 
-    print("to_bits_aggregate", units)
-    print("type(units)", type(units))
-    print("isinstance(units, DataClassType)", isinstance(units, DataClassType))
+    print("to_bits_aggregate", convertible_object)
+    print("type(units)", type(convertible_object))
+    print("isinstance(units, DataClassType)", isinstance(convertible_object, DataClassType))
 
     if (
-        is_instance_of_union(units, UnitType) and not
-        (isinstance(units, str) and len(units) > 1)
+        is_instance_of_union(convertible_object, UnitType) and not
+        (isinstance(convertible_object, str) and len(convertible_object) > 1)
     ):
-        ret_bits = to_bits_individual(units)
-    elif isinstance(units, DataClassType):
-        fields = dataclasses.fields(units)
-        field_values = [getattr(units, field.name) for field in fields]
+        ret_bits = to_bits_individual(convertible_object)
+    elif isinstance(convertible_object, DataClassType):
+        fields = dataclasses.fields(convertible_object)
+        field_values = [getattr(convertible_object, field.name) for field in fields]
         field_types = [field.type if not isinstance(field.type, str) else eval(field.type) for field in fields]
         print("types", field_types)
         print("type_is_dataclass", [isinstance(field_type, DataClassType) for field_type in field_types])
         field_values = [trycast(field_value, field_type) for field_type, field_value in zip(field_types, field_values)]
         field_value_bits = [to_bits_aggregate(field_value) for field_value in field_values]
         ret_bits = Bits().join(field_value_bits)
-    elif isinstance(units, Iterable):
-        for unit in units:
+    elif isinstance(convertible_object, Iterable):
+        for unit in convertible_object:
             ret_bits.extend(to_bits_aggregate(unit))
+    else:
+        raise Exception(f"Cannot convert {convertible_object} to bits, as it is not a CType, YType, or PyType;"
+                        f" or a Dataclass or Iterable of such types. It is a {type(convertible_object)}.")
 
     return ret_bits
 
