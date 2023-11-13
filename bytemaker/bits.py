@@ -297,12 +297,12 @@ class Bits:
         elif string.startswith('0o'):
             nonzeros = string[2:].lstrip('0')
             nonzeros_as_bin = bin(int(nonzeros, 8))[2:]
-            leading_zeros_as_bin = '0' * (len(string[2:]) - len(nonzeros_as_bin)) * 3
+            leading_zeros_as_bin = '0' * (len(string[2:]) * 3 - len(nonzeros_as_bin))
             binstring = leading_zeros_as_bin + nonzeros_as_bin
         elif string.startswith('0x'):
             nonzeros = string[2:].lstrip('0')
             nonzeros_as_bin = bin(int(nonzeros, 16))[2:]
-            leading_zeros_as_bin = '0' * (len(string[2:]) - len(nonzeros_as_bin)) * 4
+            leading_zeros_as_bin = '0' * (len(string[2:]) * 4 - len(nonzeros_as_bin))
             binstring = leading_zeros_as_bin + nonzeros_as_bin
         elif all(char in '01' for char in string):
             pass
