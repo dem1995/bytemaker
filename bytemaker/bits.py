@@ -351,10 +351,10 @@ class Bits:
 
     def to_bin(self) -> str:
         return self.str_(format_spec='b')
-    
+
     def to_oct(self) -> str:
         return self.str_(format_spec='o')
-    
+
     def to_hex(self) -> str:
         return self.str_(format_spec='x')
 

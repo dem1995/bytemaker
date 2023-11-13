@@ -104,7 +104,7 @@ def test_bits_from_str():
 
     bits = Bits('0xFE')
     assert bits.bitlist == [1, 1, 1, 1, 1, 1, 1, 0]
-    
+
     bits1 = Bits('0x0000_0F0F')
     bits2 = Bits('0x00000F0F')
     assert bits1 == bits2

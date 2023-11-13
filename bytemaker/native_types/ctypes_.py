@@ -57,7 +57,7 @@ def ctype_to_bytes(ctype_obj: CType, reverse_endianness=True) -> bytes:
         raise TypeError(
             f"ctype_to_bytes only accepts _SimpleCData, Structure, Union, and Array objects, not {type(ctype_obj)}"
         )
-    
+
     if reverse_endianness:
         ctype_obj = reverse_ctype_endianness(ctype_obj)
 
