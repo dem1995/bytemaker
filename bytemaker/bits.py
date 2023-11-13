@@ -334,7 +334,7 @@ class Bits:
 
         return cls(bitlist)
 
-    def to_int(self, endianness='little', signed=True) -> int:
+    def to_int(self, endianness='big', signed=True) -> int:
         """
         Converts a Bits object to an integer. It does this
             by casting the Bits to bytes, and then converting the bytes to an integer
