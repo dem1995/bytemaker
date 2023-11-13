@@ -96,3 +96,15 @@ def test_subclass_pytype():
     assert bits_to_pytype(Bits([0, 0, 0, 1, 1]), ThreeInt) == 3
 
     assert ConversionConfig._known_furthest_descendant_mappings[ThreeInt] == int
+
+
+type_sizes = [
+    (int, 32),
+    (str, 8),
+    (float, 32),
+    (bool, 1),
+]
+
+@pytest.mark.parametrize("a_type, size", type_sizes)
+def test_type_sizes(a_type, size):
+    assert ConversionConfig.get_conversion_info(a_type).num_bits == size
