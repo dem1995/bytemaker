@@ -26,8 +26,6 @@ def is_instance_of_union(obj, union_type: type):
     Returns:
         bool: Whether the object is an instance of the union type
     """
-    print(union_type)
-    print(typing.get_args(union_type))
 
     if typing.get_origin(union_type) is not typing.Union:
         warnings.warn(
@@ -48,6 +46,7 @@ def is_subclass_of_union(obj_type: type, union_type: type):
     Returns:
         bool: Whether the object is a subclass of the union type
     """
+
     if typing.get_origin(union_type) is not typing.Union:
         warnings.warn(f"Checking for subclass of a union type with the non-union type {union_type}."
                       f"Falling back on issubclass.")
