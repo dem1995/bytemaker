@@ -136,28 +136,28 @@ def test_bits_shrinkequals():
     assert not bits1.shrinkequals(bits2)
 
 
-# def test_bits_join():
-#     bits0 = Bits([1, 0, 1, 1, 0])
-#     bits1 = Bits([1, 1, 0, 0])
-#     bits2 = Bits([0, 1, 1, 1])
+def test_bits_join():
+    bits0 = Bits([1, 0, 1, 1, 0])
+    bits1 = Bits([1, 1, 0, 0])
+    bits2 = Bits([0, 1, 1, 1])
 
-#     bits3 = Bits().join(bits0, bits1, bits2)
-#     assert bits3.bitlist == [1, 0, 1, 1, 0, 1, 1, 0, 0, 0, 1, 1]
+    bits3 = Bits().join([bits0, bits1, bits2])
+    assert bits3.bitlist == [1, 0, 1, 1, 0, 1, 1, 0, 0, 0, 1, 1, 1]
 
-#     bits4 = Bits().join()
-#     assert bits4.bitlist == []
+    bits4 = Bits().join([])
+    assert bits4.bitlist == []
 
-#     bits5 = Bits().join(bits0)
-#     assert bits5.bitlist == [1, 0, 1, 1, 0]
+    bits5 = Bits().join([bits0])
+    assert bits5.bitlist == [1, 0, 1, 1, 0]
 
-#     bits6 = bits0.join(bits1, bits2, bits1)
-#     assert bits6.bitlist == [
-#         1,1,0,0,
-#         1,0,1,1,0,
-#         0,1,1,1,
-#         1,0,1,1,0,
-#         1,1,0,0
-#     ]
+    bits6 = bits0.join([bits1, bits2, bits1])
+    assert bits6.bitlist == [
+        1, 1, 0, 0,
+        1, 0, 1, 1, 0,
+        0, 1, 1, 1,
+        1, 0, 1, 1, 0,
+        1, 1, 0, 0
+    ]
 
 
 # def test_bits_concat():

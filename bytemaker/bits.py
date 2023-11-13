@@ -356,17 +356,17 @@ class Bits:
     def __eq__(self, other: Bits):
         return self.bitlist == other.bitlist
 
-    # def join(self, *bitobjs:Tuple[Bits]) -> Bits:
-    #     """
-    #     Joins multiple Bits objects together with self in between each.
-    #     """
+    def join(self, bitobjs: Iterable[Bits]) -> Bits:
+        """
+        Joins multiple Bits objects together with self in between each.
+        """
 
-    #     if len(self) == 0:
-    #         fin_bit_list = [bit for bitobj in bitobjs for bit in bitobj]
-    #         return Bits(fin_bit_list)
-    #     else:
-    #         ret_bits  = Bits()
-    #         for bitobj in list(bitobjs)[0:-1]:
-    #             ret_bits = ret_bits + bitobj + self
-    #         ret_bits = ret_bits + bitobjs[-1]
-    #         return ret_bits
+        if len(self) == 0:
+            fin_bit_list = [bit for bitobj in bitobjs for bit in bitobj]
+            return Bits(fin_bit_list)
+        else:
+            ret_bits = Bits()
+            for bitobj in list(bitobjs)[0:-1]:
+                ret_bits = ret_bits + bitobj + self
+            ret_bits = ret_bits + bitobjs[-1]
+            return ret_bits
