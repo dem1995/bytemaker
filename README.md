@@ -1,9 +1,10 @@
 [![python-app](https://github.com/dem1995/bytemaker/actions/workflows/python-app.yml/badge.svg)](https://github.com/dem1995/bytemaker/actions/workflows/python-app.yml)
 [![PEP8](https://img.shields.io/badge/code%20style-pep8-orange.svg)](https://www.python.org/dev/peps/pep-0008/)
+[![docs](https://readthedocs.org/projects/bytemaker/badge/?version=latest)(https://readthedocs.org/projects/bytemaker/)]
 
 # bytemaker
 ## What is it?
-`bytemaker` is a Python 3.8-compatible zero-dependency package for byte serialization/deserialization. Its goal is to port C bitfield functionality over to Python in version 3.8, as there are applications out there that have not made the jump to 3.9 for Windows 7 compatibility reasons.
+`bytemaker` is a Python 3.8-compatible zero-dependency package for byte serialization/deserialization. It ports C bitfield functionality over to Python in version 3.8 through `dataclass`-decorated class annotations and provides a convenient `Bits` class.
 
 ## What can you do with it?
 `bytemaker` gives you the following:
@@ -12,7 +13,7 @@
 - Support for serializing/deserializing `@dataclass` annotated classes, where the annotations can be `ytypes`, Python `ctypes` (`c_uint8`, `ctypes.STRUCTURE`, etc.), or Python native types `pytypes` (`int`, `bool`, `char`, `float`). Nested types? No problem!
 - Automagic support for handling any of the aforementioned objects via `aggregate_types.to_bits_aggregate` and `aggregate_types.from_bits_aggregate`.
 
-## How to install it?
+## How do I install it?
 Run `python -m pip install bytemaker`.
 
 ## Project intent
