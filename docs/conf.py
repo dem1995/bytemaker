@@ -22,7 +22,7 @@ author = 'DEMcKnight'
 
 extensions = [
     'sphinx.ext.viewcode',
-    'sphinxcontrib.napoleon'
+    'sphinx.ext.napoleon'
 ]
 
 templates_path = ['_templates']
