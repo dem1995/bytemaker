@@ -1,0 +1,6 @@
+span.viewcode-link {
+    float: right; /* Removes any floating behavior */
+    /* display: block; Ensures the link appears on its own line */
+    /* text-align: right; */
+    /* margin-top: 10px; Adds some space above the link, adjust as needed */
+}
