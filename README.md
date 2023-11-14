@@ -1,4 +1,5 @@
 [![python-app](https://github.com/dem1995/bytemaker/actions/workflows/python-app.yml/badge.svg)](https://github.com/dem1995/bytemaker/actions/workflows/python-app.yml)
+[![PyPI version](https://badge.fury.io/py/bytemaker.svg)](https://badge.fury.io/py/bytemaker)
 [![PEP8](https://img.shields.io/badge/code%20style-pep8-orange.svg)](https://www.python.org/dev/peps/pep-0008/)
 [![docs](https://readthedocs.org/projects/bytemaker/badge/?version=latest)](https://readthedocs.org/projects/bytemaker/)
 
