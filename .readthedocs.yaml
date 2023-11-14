@@ -12,7 +12,8 @@ build:
     python: "3.8"
   jobs:
     pre_build:
-      - sphinx-apidoc -o .\source\ ..\bytemaker\ --implicit-namespaces -e
+      - sphinx-apidoc -o docs/source ./bytemaker --implicit-namespaces -e --force
+
 
 python:
   install:
