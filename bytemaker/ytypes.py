@@ -875,10 +875,10 @@ def StrTypeFactory(
             diff = self.num_bits - str_len
             default_bits = Bits(encode_method(self.value), *args, **kwargs)
 
-            print("before", len(default_bits))
+            # print("before", len(default_bits))
             if diff > 0:
                 default_bits = default_bits + [0] * diff
-            print(len(default_bits))
+            # print(len(default_bits))
             return default_bits
 
         def get_encoding_method(cls):

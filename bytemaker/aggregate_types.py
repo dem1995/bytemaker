@@ -24,13 +24,13 @@ def count_bits_in_unit_type(unit_type: UnitType) -> int:
     Function to count the number of bits in a UnitType- a Python, type, ctype, or YType (bytemaker type).
     """
 
-    print("Counting bits in unit type", unit_type)
+    # print("Counting bits in unit type", unit_type)
     if is_subclass_of_union(unit_type, CType):
         return ctypes.sizeof(unit_type) * 8
     elif is_subclass_of_union(unit_type, YType):
         return unit_type.num_bits
     elif is_subclass_of_union(unit_type, PyType):
-        print(ConversionConfig.get_conversion_info(unit_type).num_bits)
+        # print(ConversionConfig.get_conversion_info(unit_type).num_bits)
         return ConversionConfig.get_conversion_info(unit_type).num_bits
     elif is_subclass_of_union(unit_type, DataClassType):
         size_in_bits = 0
@@ -176,9 +176,9 @@ def to_bits_aggregate(convertible_object: AggregateTypeByteConvertible) -> Bits:
 
     ret_bits = Bits()
 
-    print("to_bits_aggregate", convertible_object)
-    print("type(units)", type(convertible_object))
-    print("isinstance(units, DataClassType)", isinstance(convertible_object, DataClassType))
+    # print("to_bits_aggregate", convertible_object)
+    # print("type(units)", type(convertible_object))
+    # print("isinstance(units, DataClassType)", isinstance(convertible_object, DataClassType))
 
     if (
         is_instance_of_union(convertible_object, UnitType) and not
@@ -189,8 +189,8 @@ def to_bits_aggregate(convertible_object: AggregateTypeByteConvertible) -> Bits:
         fields = dataclasses.fields(convertible_object)
         field_values = [getattr(convertible_object, field.name) for field in fields]
         field_types = [field.type if not isinstance(field.type, str) else eval(field.type) for field in fields]
-        print("types", field_types)
-        print("type_is_dataclass", [isinstance(field_type, DataClassType) for field_type in field_types])
+        # print("types", field_types)
+        # print("type_is_dataclass", [isinstance(field_type, DataClassType) for field_type in field_types])
         field_values = [trycast(field_value, field_type) for field_type, field_value in zip(field_types, field_values)]
         field_value_bits = [to_bits_aggregate(field_value) for field_value in field_values]
         ret_bits = Bits().join(field_value_bits)
@@ -209,8 +209,8 @@ def from_bits_aggregate(unitbits: Bits, aggregate_type: type) -> Union[UnitType,
         return from_bits_individual(unitbits, aggregate_type)
     else:
         size_in_bits = count_bits_in_aggregate_type(aggregate_type)
-        print("unitbits type", type(unitbits))
-        print(unitbits)
+        # print("unitbits type", type(unitbits))
+        # print(unitbits)
         if len(unitbits) != size_in_bits:
             raise Exception(f"Cannot convert {unitbits} to {aggregate_type}"
                             f" because the number of bits in the bits object ({unitbits.num_bits})"
@@ -245,40 +245,40 @@ def to_bytes_aggregate(units: AggregateTypeByteConvertible, reverse_endianness: 
     ret_bytes = bytearray()
 
     if is_instance_of_union(units, UnitType):
-        print("Is unit", type(units))
+        # print("Is unit", type(units))
         ret_bytes = to_bytes_individual(units, reverse_endianness=reverse_endianness)
 
     elif isinstance(units, DataClassType):
-        print("Is dataclass", type(units))
+        # print("Is dataclass", type(units))
 
         for field in dataclasses.fields(units):
             field_type = field.type
             if isinstance(field.type, str):
                 field_type = eval(field_type)
             field_value = getattr(units, field.name)
-            print(field_type)
+            # print(field_type)
             field_value = field_type(field_value)
-            print("-----")
+            # print("-----")
             try:
                 field_value = field_type(field_value)
             except TypeError:
-                print("Couldn't get field value")
+                # print("Couldn't get field value")
                 pass
-            print(field)
-            print(field_value)
-            print(field_type)
-            print(type(field_value))
-            print("-----")
+            # print(field)
+            # print(field_value)
+            # print(field_type)
+            # print(type(field_value))
+            # print("-----")
             field_value_bytes = to_bytes_aggregate(field_value, reverse_endianness=reverse_endianness)
-            print(field_value_bytes)
+            # print(field_value_bytes)
 
             ret_bytes.extend(field_value_bytes)
 
     elif isinstance(units, Iterable):
-        print("Is iterable")
-        print("Units:", units)
+        # print("Is iterable")
+        # print("Units:", units)
         for unit in units:
-            print(unit)
+            # print(unit)
             ret_bytes.extend(to_bytes_aggregate(unit, reverse_endianness=reverse_endianness))
 
     return bytes(ret_bytes)

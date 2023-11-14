@@ -33,7 +33,7 @@ def reverse_ctype_endianness(ctype_instance: CType) -> None:
     if isinstance(ctype_instance, Structure):
         for field_name, field_type in ctype_instance._fields_:
             field_value = getattr(ctype_instance, field_name)
-            print(field_name, field_value, type(field_value))
+            # print(field_name, field_value, type(field_value))
             reversed_unit = reverse_ctype_endianness(field_type(field_value))
             setattr(ctype_instance, field_name, reversed_unit)
 

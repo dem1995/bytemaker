@@ -312,9 +312,9 @@ class Bits:
                 f"Strings passed should be all binary or of the form '0b', '0o', or '0x' followed by digits."
             )
 
-        print("binstring: ", binstring)
+        # print("binstring: ", binstring)
         bin_list = [int(bit) for bit in binstring]
-        print(bin_list)
+        # print(bin_list)
         return cls(bin_list)
 
     @classmethod
