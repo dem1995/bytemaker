@@ -5,7 +5,7 @@
 [![docs](https://readthedocs.org/projects/bytemaker/badge/?version=latest)](https://readthedocs.org/projects/bytemaker/)
 
 ## What is it?
-`bytemaker` is a Python 3.8-compatible zero-dependency package for byte serialization/deserialization. It ports C bitfield functionality over to Python in version 3.8 through `dataclass`-decorated class annotations and provides a convenient `Bits` class.
+bytemaker is a Python 3.8-compatible zero-dependency library for byte serialization/deserialization. It brings C bitfield functionality over to Python version 3.8+. To that end, it provides methods and types for converting @dataclass-decorated classes.
 
 ## What can you do with it?
 `bytemaker` gives you the following:
