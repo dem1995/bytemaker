@@ -19,7 +19,7 @@ class Bits:
     """
     A class for storing and manipulating bits.
     """
-    def __init__(self, initial_data: BitsConstructorType = None, size=None, deep=False):
+    def __init__(self, initial_data: BitsConstructorType = None, from_int_size:int =None, deepcopy: bool =False):
         if initial_data is None:
             initial_data = list()
 
@@ -30,7 +30,7 @@ class Bits:
 
         else:
             if isinstance(initial_data, int):
-                bitlist = self.from_int(initial_data, size).bitlist
+                bitlist = self.from_int(initial_data, from_int_size).bitlist
             elif isinstance(initial_data, BitsCastable):
                 if isinstance(initial_data, Bits):
                     bitlist = initial_data.bitlist
@@ -58,7 +58,7 @@ class Bits:
                 (f"Bits can only be 1 or 0. The provided data produced bits other than 0 or 1."
                  f"Final bitlist: {self.bitlist} Initial data: {initial_data}")
 
-        if deep:
+        if deepcopy:
             self.bitlist = self.bitlist.copy()
 
     @property
@@ -258,7 +258,7 @@ class Bits:
 
     def pop(self, index: int = -1, inplace=True) -> int:
         if not inplace:
-            bits_obj_to_act_on = Bits(self.bitlist, deep=True)
+            bits_obj_to_act_on = Bits(self.bitlist, deepcopy=True)
         else:
             bits_obj_to_act_on = self
 
@@ -342,7 +342,7 @@ class Bits:
             by casting the Bits to bytes, and then converting the bytes to an integer
             using the provided endianness and signedness.
         """
-        copy = Bits(self.bitlist, deep=True)
+        copy = Bits(self.bitlist, deepcopy=True)
         if signed and len(copy) > 0 and copy[0] == 1:
             next_multiple_of_8 = ceil(len(self.bitlist) / 8) * 8
             copy.padleft(up_to_size=next_multiple_of_8, padvalue=1, inplace=True)
