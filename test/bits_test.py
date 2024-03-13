@@ -119,6 +119,18 @@ def test_bits_from_str():
     bits = Bits('0o707')
     assert bits.bitlist == [1, 1, 1, 0, 0, 0, 1, 1, 1]
 
+def test_bits_from_int():
+    integer = 5
+    bits = Bits.from_int(integer)
+    assert bits.bitlist == [0, 1, 0, 1]
+
+    bits = Bits.from_int(integer, 32)
+    assert bits.bitlist == [
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 1, 0, 1
+    ]
 
 # Test the to_int method
 def test_bits_to_int():

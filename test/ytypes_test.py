@@ -2,7 +2,8 @@ import pytest
 from bytemaker.ytypes import (
     UInt8, UInt16, UInt32, UInt64,
     SInt8, SInt16, SInt32, SInt64,
-    Float32, Float64, Str8
+    Float32, Float64, Str8,
+    Bit4, Bit8, Bit16, Bit32, Bit64
 )
 from bytemaker.bits import Bits
 
@@ -79,5 +80,24 @@ def test_float_serialization_and_deserialization(ytype_class, input_value):
 def test_str_serialization_and_deserialization(ytype_class, input_value, expected_bits_length):
     ytype_instance = ytype_class(input_value)
     assert len(ytype_instance.to_bits()) == expected_bits_length
+    deserialized_value = ytype_class.from_bits(ytype_instance.to_bits()).value
+    assert deserialized_value == input_value
+
+@pytest.mark.parametrize(
+    "ytype_class, input_value, expected_bits_length",
+    [
+        (Bit4, Bits([0, 1, 1, 1]), Bits([0, 1, 1, 1])),
+        (Bit8, Bits([0, 1, 1, 1, 0, 1, 0, 1]), Bits([0, 1, 1, 1, 0, 1, 0, 1])),
+        (Bit16, Bits([0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1]), Bits([0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1])),
+        (Bit32, Bits([0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1]), Bits([0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1])),
+        (Bit64, Bits([0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1]), Bits([0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1])),
+    ]
+)
+def test_bit_serialization_and_deserialization(ytype_class, input_value, expected_bits_length):
+    ytype_instance = ytype_class(input_value)
+    ytype_instance_type = type(ytype_instance)
+    print("YType instance is:", ytype_instance)
+    print("YType instance type is:", ytype_instance_type)
+    assert ytype_instance.to_bits() == expected_bits_length
     deserialized_value = ytype_class.from_bits(ytype_instance.to_bits()).value
     assert deserialized_value == input_value

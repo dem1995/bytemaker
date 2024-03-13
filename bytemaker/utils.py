@@ -27,12 +27,46 @@ def is_instance_of_union(obj, union_type: type):
         bool: Whether the object is an instance of the union type
     """
 
-    if typing.get_origin(union_type) is not typing.Union:
-        warnings.warn(
-            f"Checking for instance of a union type with the non-union type {union_type}"
-            f" with origin {typing.get_origin(union_type)}. Falling back on isinstance")
+    type_origin = typing.get_origin(union_type)
+
+    try:
         return isinstance(obj, union_type)
-    return any(isinstance(obj, union_component_type) for union_component_type in typing.get_args(union_type))
+    except TypeError:
+        type_args = typing.get_args(union_type)
+
+        if type_origin is typing.Union:
+            constituent_types = typing.get_args(union_type)
+            return any(is_instance_of_union(obj, constituent_type) for constituent_type in constituent_types)
+        elif type_origin is not None and isinstance(obj, type_origin):
+                type_args = typing.get_args(union_type)
+                if len(type_args) == 1 and isinstance(obj, typing.Iterable):
+                    return all([is_instance_of_union(obj_el, type_args[0]) for obj_el in obj])
+                else:
+                    raise ValueError(f"(Generic?) type {union_type} has origin {type_origin} and type args {type_args}."
+                                    "Types with multiple subscripts are not supported.")
+        else:
+            return False
+                
+
+
+
+
+    # if typing.get_origin(union_type) is not typing.Union:
+    #     warnings.warn(
+    #         f"Checking for instance of a union type with the non-union type {union_type}"
+    #         f" with origin {typing.get_origin(union_type)}. Falling back on isinstance")
+    #     return isinstance(obj, union_type)
+    
+
+    # for constituent_type in constituent_types:
+    #     return any(is_instance_of_union(obj, constituent_type))
+
+
+
+    # for union_component_type in gotten_type_args:
+    #     if isinstance(obj, union_component_type):
+    #         return True
+    # return any(isinstance(obj, union_component_type) for union_component_type in typing.get_args(union_type))
 
 
 def is_subclass_of_union(obj_type: type, union_type: type):
@@ -58,7 +92,7 @@ def is_subclass_of_union(obj_type: type, union_type: type):
 
 # Byte-related operations
 
-class ByteConvertibleMeta(type):
+class _ByteConvertibleMeta(type):
     """
     This is used to create IsByteConvertible, a type to allow checking \
         whether an object or instances of a class can be converted to a bytes object using isinstance or issubclass.
@@ -79,7 +113,11 @@ class ByteConvertibleMeta(type):
         )
 
 
-class ByteConvertible(metaclass=ByteConvertibleMeta):
+class ByteConvertible(metaclass=_ByteConvertibleMeta):
+    """
+    Has __instancecheck__ and __subclasscheck__ methods to allow checking whether an object can be converted to a bytes object
+        using :class:`python:bytes`
+    """
     pass
 
 

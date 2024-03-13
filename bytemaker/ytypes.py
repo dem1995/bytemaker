@@ -112,29 +112,28 @@ class YType(ABC):
         - test_creation: a boolean indicating whether to test the creation of the object.
             If true, calls to_bytes() to test if the object is properly convertible to bytes.
         """
-
+        print("print")
         super().__init__()
 
-        if self.value is None:
-            if isinstance(value, self.value_type):
-                self._value = value
-            elif isinstance(value, YType) and self.value_type == value.value_type:
-                self._value = value.value
-            elif isinstance(value, Bits):
-                self._value = self.from_bits(value).value
-            elif isinstance(value, (bytes, bytearray)):
-                self._value = self.from_bytes(value).value
-            elif is_instance_of_union(value, BitsConstructorType):
-                self._value = self.from_bits(Bits(value)).value
-            elif isinstance(value, ByteConvertible):
-                self._value = self.from_bytes(bytes(value)).value
-            else:
-                try:
-                    newvalue = self.value_type(value)
-                    self._value = newvalue
-                except Exception as e:
-                    raise TypeError(f"Expecting {self.value_type}, got {type(value)}"
-                                    f"Exception details: {e}")
+        if isinstance(value, self.value_type):
+            self._value = value
+        elif isinstance(value, YType) and self.value_type == value.value_type:
+            self._value = value.value
+        elif isinstance(value, Bits):
+            self._value = self.from_bits(value).value
+        elif isinstance(value, (bytes, bytearray)):
+            self._value = self.from_bytes(value).value
+        elif is_instance_of_union(value, BitsConstructorType):
+            self._value = self.from_bits(Bits(value)).value
+        elif isinstance(value, ByteConvertible):
+            self._value = self.from_bytes(bytes(value)).value
+        else:
+            try:
+                newvalue = self.value_type(value)
+                self._value = newvalue
+            except Exception as e:
+                raise TypeError(f"Expecting {self.value_type}, got {type(value)}"
+                                f"Exception details: {e}")
 
         if test_creation:
             self.validate_value(value)
@@ -197,7 +196,9 @@ class YType(ABC):
         if hasattr(self, '_value'):
             return self._value
         else:
-            return None
+            raise AttributeError(f"Object of type {type(self)} has no attribute '_value'."
+                                 f"All YType objects should have an attribute '_value' that yields"
+                                 f" the represented value of the object.")
 
     @property
     def value(self):
@@ -267,7 +268,7 @@ class YType(ABC):
         """
         Returns a bitstring.Bits representation of the bytes representation of the value represented by the object.
         """
-        return Bits(bytes(self))
+        return Bits(self)
 
     # Operators
     def __eq__(self, other) -> bool:
@@ -381,17 +382,18 @@ class BitYType(YType):
     Abstract base class for all YType objects that represent bit values.
     """
     def to_bits(self, *args, **kwargs) -> Bits:
-        default_bits = Bits(self, size=self.num_bits, *args, **kwargs)
-        diff = self.num_bits - len(default_bits)
-        if diff > 0:
-            return default_bits + Bits([0] * diff)
-        elif diff < 0:
-            raise ValueError(
-                f"Cannot convert {self} to Bits"
-                f"because the number of bits in the object ({self.num_bits})"
-                f"is greater than the number of bits in the object ({len(default_bits)})")
-        else:
-            return default_bits
+        return self.value
+        # default_bits = Bits.from_int(self.value, size=self.num_bits, *args, **kwargs)
+        # diff = self.num_bits - len(default_bits)
+        # if diff > 0:
+        #     return default_bits + Bits([0] * diff)
+        # elif diff < 0:
+        #     raise ValueError(
+        #         f"Cannot convert {self} to Bits"
+        #         f"because the number of bits in the object ({self.num_bits})"
+        #         f"is greater than the number of bits in the object ({len(default_bits)})")
+        # else:
+        #     return default_bits
 
     @classmethod
     def from_bits(cls, the_bits: Bits, *args, **kwargs):
@@ -421,7 +423,7 @@ def BitsTypeFactory(size_in_bits: int):
         cur_type_count += 1
         cur_type_name = f"{init_type_name}{cur_type_count}"
 
-    class NewBitYType(Bits, BitYType):
+    class NewBitYType(BitYType):
         @classmethod
         def get_num_bits(cls) -> int:
             return size_in_bits
@@ -431,91 +433,91 @@ def BitsTypeFactory(size_in_bits: int):
     return NewBitYType
 
 
-class Bit1(Bits, BitYType):
+class Bit1(BitYType):
     @classmethod
     def get_num_bits(cls) -> int:
         return 1
     pass
 
 
-class Bit2(Bits, BitYType):
+class Bit2(BitYType):
     @classmethod
     def get_num_bits(cls) -> int:
         return 2
     pass
 
 
-class Bit3(Bits, BitYType):
+class Bit3(BitYType):
     @classmethod
     def get_num_bits(cls) -> int:
         return 3
     pass
 
 
-class Bit4(Bits, BitYType):
+class Bit4(BitYType):
     @classmethod
     def get_num_bits(cls) -> int:
         return 4
     pass
 
 
-class Bit5(Bits, BitYType):
+class Bit5(BitYType):
     @classmethod
     def get_num_bits(cls) -> int:
         return 5
     pass
 
 
-class Bit6(Bits, BitYType):
+class Bit6(BitYType):
     @classmethod
     def get_num_bits(cls) -> int:
         return 6
     pass
 
 
-class Bit7(Bits, BitYType):
+class Bit7(BitYType):
     @classmethod
     def get_num_bits(cls) -> int:
         return 7
     pass
 
 
-class Bit8(Bits, BitYType):
+class Bit8(BitYType):
     @classmethod
     def get_num_bits(cls) -> int:
         return 8
     pass
 
 
-class Bit16(Bits, BitYType):
+class Bit16(BitYType):
     @classmethod
     def get_num_bits(cls) -> int:
         return 16
     pass
 
 
-class Bit24(Bits, BitYType):
+class Bit24(BitYType):
     @classmethod
     def get_num_bits(cls) -> int:
         return 24
     pass
 
 
-class Bit32(Bits, BitYType):
+class Bit32(BitYType):
     @classmethod
     def get_num_bits(cls) -> int:
         return 32
     pass
 
 
-class Bit64(Bits, BitYType):
+class Bit64(BitYType):
     @classmethod
     def get_num_bits(cls) -> int:
         return 64
     pass
 
 
-class Bit128(Bits, BitYType):
+class Bit128(BitYType):
     @classmethod
     def get_num_bits(cls) -> int:
         return 128
@@ -763,6 +765,8 @@ class FloatYType(YType):
 
     def __float__(self):
         return self.value
+
+
 
 
 class Float16(FloatYType, StructPackedYType):

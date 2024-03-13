@@ -1,7 +1,6 @@
-
-
 import ctypes
 import dataclasses
+import traceback
 from typing import Iterable, Union
 from bytemaker.bits import Bits
 from bytemaker.utils import is_instance_of_union, is_subclass_of_union, DataClassType
@@ -155,11 +154,9 @@ AggregateTypeByteConvertible = Union[DataClassType, YType, CType, PyType, Iterab
 
 
 def trycast(obj, type_):
-    try:
-        return type_(obj)
-    except TypeError:
-        return obj
-
+    if not isinstance(obj, type_):
+        obj = type_(obj)
+    return obj
 
 def to_bits_aggregate(convertible_object: AggregateTypeByteConvertible) -> Bits:
     """
@@ -180,6 +177,7 @@ def to_bits_aggregate(convertible_object: AggregateTypeByteConvertible) -> Bits:
     # print("type(units)", type(convertible_object))
     # print("isinstance(units, DataClassType)", isinstance(convertible_object, DataClassType))
 
+    # try:
     if (
         is_instance_of_union(convertible_object, UnitType) and not
         (isinstance(convertible_object, str) and len(convertible_object) > 1)
@@ -192,14 +190,22 @@ def to_bits_aggregate(convertible_object: AggregateTypeByteConvertible) -> Bits:
         # print("types", field_types)
         # print("type_is_dataclass", [isinstance(field_type, DataClassType) for field_type in field_types])
         field_values = [trycast(field_value, field_type) for field_type, field_value in zip(field_types, field_values)]
-        field_value_bits = [to_bits_aggregate(field_value) for field_value in field_values]
+        field_value_bits = []
+        for field_value in field_values:
+            bitsified = to_bits_aggregate(field_value)
+            field_value_bits.append(bitsified)
+        # field_value_bits = [to_bits_aggregate(field_value) for field_value in field_values]
         ret_bits = Bits().join(field_value_bits)
     elif isinstance(convertible_object, Iterable):
         for unit in convertible_object:
             ret_bits.extend(to_bits_aggregate(unit))
     else:
-        raise Exception(f"Cannot convert {convertible_object} to bits, as it is not a CType, YType, or PyType;"
-                        f" or a Dataclass or Iterable of such types. It is a {type(convertible_object)}.")
+        raise Exception(f"Cannot convert {convertible_object} to bits because the unit type is not a CType, YType, or PyType")
+    # except Exception as e:
+        
+    #     raise Exception(f"Cannot convert {convertible_object} to bits.\nNext-level error: {e}") from e
+
+
 
     return ret_bits
 

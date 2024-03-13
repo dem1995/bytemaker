@@ -19,46 +19,46 @@ class Bits:
     """
     A class for storing and manipulating bits.
     """
-    def __init__(self, initial_data: BitsConstructorType = None, from_int_size:int =None, deepcopy: bool =False):
-        if initial_data is None:
-            initial_data = list()
+    def __init__(self, source: BitsConstructorType = None, deep_copy: bool =False):
+        if source is None:
+            source = list()
 
         bitlist: list[int] = None
 
-        if isinstance(initial_data, Bits):
-            self.bitlist = initial_data.bitlist
+        if isinstance(source, Bits):
+            self.bitlist = source.bitlist
 
         else:
-            if isinstance(initial_data, int):
-                bitlist = self.from_int(initial_data, from_int_size).bitlist
-            elif isinstance(initial_data, BitsCastable):
-                if isinstance(initial_data, Bits):
-                    bitlist = initial_data.bitlist
-                elif hasattr(initial_data, '__Bits__'):
-                    bitlist = initial_data.__Bits__().bitlist
-            elif isinstance(initial_data, str):
-                bitlist = Bits.from_string(initial_data).bitlist
-            elif isinstance(initial_data, (bytes, bytearray, memoryview)):
-                bitlist = [int(bit) for byte in initial_data for bit in format(byte, '08b')]
-            elif isinstance(initial_data, Iterable):  # Iterable[int | bool] in more modern Python versions
-                bitlist = [int(bit) for bit in initial_data]
-            elif isinstance(initial_data, ByteConvertible):
-                bitlist = [int(bit) for byte in bytes(initial_data) for bit in format(byte, '08b')]
+            if isinstance(source, BitsCastable):
+                if isinstance(source, Bits):
+                    bitlist = source.bitlist
+                elif hasattr(source, '__Bits__'):
+                    bitlist = source.__Bits__().bitlist
+            elif isinstance(source, int):
+                bitlist = [0 for _ in range(source)]
+            elif isinstance(source, str):
+                bitlist = Bits.from_string(source).bitlist
+            elif isinstance(source, (bytes, bytearray, memoryview)):
+                bitlist = [int(bit) for byte in source for bit in format(byte, '08b')]
+            elif isinstance(source, Iterable):  # Iterable[int | bool] in more modern Python versions
+                bitlist = [int(bit) for bit in source]
+            elif isinstance(source, ByteConvertible):
+                bitlist = [int(bit) for byte in bytes(source) for bit in format(byte, '08b')]
             else:
-                raise TypeError(f"Cannot convert {type(initial_data)} to Bits. Must be {BitsConstructorType}.")
+                raise TypeError(f"Cannot convert {type(source)} to Bits. Must be {BitsConstructorType}.")
 
             self.bitlist = bitlist
 
             if self.bitlist is None:
                 raise ValueError(
-                    f"Could not convert {type(initial_data)} to Bits despite the provided type being acceptable. "
+                    f"Could not convert {type(source)} to Bits despite the provided type being acceptable. "
                     "The resulting bit_list was none")
 
             assert all(bit in [0, 1] for bit in self.bitlist), \
                 (f"Bits can only be 1 or 0. The provided data produced bits other than 0 or 1."
-                 f"Final bitlist: {self.bitlist} Initial data: {initial_data}")
+                 f"Final bitlist: {self.bitlist} Initial data: {source}")
 
-        if deepcopy:
+        if deep_copy:
             self.bitlist = self.bitlist.copy()
 
     @property
@@ -186,6 +186,9 @@ class Bits:
 
     def __index__(self) -> int:
         return int(self)
+    
+    def __iter__(self) -> typing.Iterator[int]:
+        return iter(self.bitlist)
 
     def __format__(self, format_spec) -> str:
         if format_spec == 'b':
@@ -214,6 +217,10 @@ class Bits:
                 for bit in self.bitlist[i:nibble_end_index]:
                     nibble = (nibble << 1) | bit
                 retstring += hex(nibble)[2:]
+        else:
+            raise ValueError(f"Invalid format_spec: '{format_spec}'."
+                             f" Must be 'b', 'o', or 'x'."
+                             f" Object contents: {self.bitlist}.")
         return retstring
 
     def __bytes__(self) -> bytes:
@@ -258,7 +265,7 @@ class Bits:
 
     def pop(self, index: int = -1, inplace=True) -> int:
         if not inplace:
-            bits_obj_to_act_on = Bits(self.bitlist, deepcopy=True)
+            bits_obj_to_act_on = Bits(self.bitlist, deep_copy=True)
         else:
             bits_obj_to_act_on = self
 
@@ -342,7 +349,7 @@ class Bits:
             by casting the Bits to bytes, and then converting the bytes to an integer
             using the provided endianness and signedness.
         """
-        copy = Bits(self.bitlist, deepcopy=True)
+        copy = Bits(self.bitlist, deep_copy=True)
         if signed and len(copy) > 0 and copy[0] == 1:
             next_multiple_of_8 = ceil(len(self.bitlist) / 8) * 8
             copy.padleft(up_to_size=next_multiple_of_8, padvalue=1, inplace=True)
