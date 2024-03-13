@@ -1,5 +1,5 @@
 Copyright (c) 2023 D. Estes McKnight.
-MIT Licence with 2048 PD Relinquishment
+MIT Licence with 2048 Public-Domain Relinquishment
 
 PERMISSION:
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -12,8 +12,8 @@ furnished to do so, subject to the following conditions:
 ATTRIBUTION CONDITION:
 The above copyright notice and this permission notice (including the
 CONDITIONS) shall be included in all copies or substantial portions of the 
-Software. This ATTRIBUTION CONDITION holds until 2048, at which point it may 
-be disregarded if desired.
+Software, subject to the following: this ATTRIBUTION CONDITION holds until 2048, at which point it may 
+be disregarded and/or its required contents excluded if desired.
 
 WARRANTY-FREE CONDITION:
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
