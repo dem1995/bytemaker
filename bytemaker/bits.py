@@ -11,10 +11,6 @@ class BitsCastable(Protocol):
     def __Bits__(self) -> "Bits":
         pass
 
-
-BitsConstructorType = typing.Union[int, str, bytes, bytearray, memoryview, Iterable[int], "Bits", BitsCastable]
-
-
 class Bits:
     """
     A class for storing and manipulating bits.
@@ -390,3 +386,6 @@ class Bits:
                 ret_bits = ret_bits + bitobj + self
             ret_bits = ret_bits + bitobjs[-1]
             return ret_bits
+
+
+BitsConstructorType = typing.Union[int, str, bytes, bytearray, memoryview, Iterable[int], Bits, BitsCastable]
