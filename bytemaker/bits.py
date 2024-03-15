@@ -290,11 +290,11 @@ class Bits:
     @classmethod
     def from_string(cls, string: str):
         """
-        Converts a string to a Bits object.
+        Converts a string to a Bits object. _/-/' ' is stripped before conversion.
         The string must be all binary or of the form '0b', '0o', or '0x' followed by digits.
         """
-        if "_" in string:
-            string = string.replace("_", "")
+        string = string.translate(str.maketrans('', '', '_/-/ '))
+        
         if string.startswith('0b'):
             binstring = string[2:]
         elif string.startswith('0o'):
