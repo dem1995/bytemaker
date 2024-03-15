@@ -308,7 +308,7 @@ class Bits:
             leading_zeros_as_bin = '0' * (len(string[2:]) * 4 - len(nonzeros_as_bin))
             binstring = leading_zeros_as_bin + nonzeros_as_bin
         elif all(char in '01' for char in string):
-            pass
+            binstring = string
         else:
             raise ValueError(
                 f"Cannot convert {string} to Bits."

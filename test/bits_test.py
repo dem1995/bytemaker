@@ -21,6 +21,7 @@ def byte_bits():
     return Bits([1, 0, 1, 0, 0, 0, 0, 0])
 
 
+
 # Test the initialization of the Bits class
 def test_bits_init(empty_bits, some_bits):
     # Test with empty initialization
@@ -100,6 +101,8 @@ def test_bits_from_str():
     bits = Bits('0b101')
     assert bits.bitlist == [1, 0, 1]
     bits = Bits('0b1_01')
+    assert bits.bitlist == [1, 0, 1]
+    bits = Bits('101')
     assert bits.bitlist == [1, 0, 1]
 
     bits = Bits('0xFE')
