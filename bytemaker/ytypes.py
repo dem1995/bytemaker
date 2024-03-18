@@ -112,7 +112,6 @@ class YType(ABC):
         - test_creation: a boolean indicating whether to test the creation of the object.
             If true, calls to_bytes() to test if the object is properly convertible to bytes.
         """
-        print("print")
         super().__init__()
 
         if isinstance(value, self.value_type):
