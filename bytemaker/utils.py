@@ -1,11 +1,9 @@
 import dataclasses
 import typing
-import warnings
-from typing import Any
+from typing import Any, ForwardRef
 from math import log2, ceil
 
 #  General Python functionality
-
 
 class classproperty(property):
     """
@@ -27,67 +25,102 @@ def is_instance_of_union(obj, union_type: type):
         bool: Whether the object is an instance of the union type
     """
 
-    type_origin = typing.get_origin(union_type)
-
+    # # Correct for unresolved references
+    # if isinstance(union_type, ForwardRef):
+    #     union_type = union_type.__forward_arg__
+    # if isinstance(union_type, str):
+    #     try:
+    #         union_type = eval(union_type, globals(), locals())
+    #     except NameError:
+    #         raise ValueError(f"String or forward reference {union_type} could not be resolved.")
+    
+    # Try the default isinstance method
     try:
         return isinstance(obj, union_type)
+    
+    # If that does not work, try to process the union type instance recursively or generic type instance
     except TypeError:
+
+        type_origin = typing.get_origin(union_type)
+
+        # If the type is non-generic and non-union
+        #   use the default isinstance method with the type origin
+        if type_origin is None:
+            return isinstance(obj, union_type)
+        
         type_args = typing.get_args(union_type)
 
+
+        # If the type is a union type or its instances are iterable
+        #   check if the object is an instance of any of the constituent types
+        #   or if the object is an iterable and its first element is an instance of the first type argument
         if type_origin is typing.Union:
-            constituent_types = typing.get_args(union_type)
-            return any(is_instance_of_union(obj, constituent_type) for constituent_type in constituent_types)
-        elif type_origin is not None and isinstance(obj, type_origin):
-                type_args = typing.get_args(union_type)
-                if len(type_args) == 1 and isinstance(obj, typing.Iterable):
-                    return all([is_instance_of_union(obj_el, type_args[0]) for obj_el in obj])
-                else:
-                    raise ValueError(f"(Generic?) type {union_type} has origin {type_origin} and type args {type_args}."
-                                    "Types with multiple subscripts are not supported.")
+            return any(is_instance_of_union(obj, type_arg) for type_arg in type_args)
+        elif isinstance(obj, type_origin):
+            if len(type_args) == 1 and isinstance(obj, typing.Iterable):
+                return bool(obj) or is_instance_of_union(next(iter(obj)), type_args[0])
+
+            # If the type is a multi-arg, non-union, non-generic type
+            else:
+                raise ValueError(f"(Generic?) type {union_type} has origin {type_origin} and type args {type_args}."
+                                    "non-union types with multiple subscripts are not supported.")
         else:
             return False
-                
 
 
-
-
-    # if typing.get_origin(union_type) is not typing.Union:
-    #     warnings.warn(
-    #         f"Checking for instance of a union type with the non-union type {union_type}"
-    #         f" with origin {typing.get_origin(union_type)}. Falling back on isinstance")
-    #     return isinstance(obj, union_type)
-    
-
-    # for constituent_type in constituent_types:
-    #     return any(is_instance_of_union(obj, constituent_type))
-
-
-
-    # for union_component_type in gotten_type_args:
-    #     if isinstance(obj, union_component_type):
-    #         return True
-    # return any(isinstance(obj, union_component_type) for union_component_type in typing.get_args(union_type))
-
-
-def is_subclass_of_union(obj_type: type, union_type: type):
+def is_subclass_of_union(subtype: type, supertype: type):
     """
     Determines if an object is a subclass of a union type (to support Python versions <3.10).
 
     Args:
-        obj_type (type): The object type to check
-        union_type (type): The union type to check against
+        subtype (type): The object type to check
+        supertype (type): The union type to check against
 
     Returns:
         bool: Whether the object is a subclass of the union type
     """
 
-    if typing.get_origin(union_type) is not typing.Union:
-        warnings.warn(f"Checking for subclass of a union type with the non-union type {union_type}."
-                      f"Falling back on issubclass.")
-        return issubclass(obj_type, union_type)
-    return any(issubclass(obj_type, union_type_part) for union_type_part in typing.get_args(union_type))
+    # # Correct for unresolved references
+    # if isinstance(subtype, ForwardRef):
+    #     subtype = subtype.__forward_arg__
+    # if isinstance(subtype, str):
+    #     try:
+    #         subtype = eval(subtype, globals(), locals())
+    #     except NameError:
+    #         raise ValueError(f"String or forward reference {subtype} could not be resolved.")
+    
+    # if isinstance(supertype, ForwardRef):
+    #     supertype = supertype.__forward_arg__
+    # if isinstance(supertype, str):
+    #     try:
+    #         supertype = eval(supertype, globals(), locals())
+    #     except NameError:
+    #         raise ValueError(f"String or forward reference {supertype} could not be resolved.")
+    
+    # Try the default issubclass method
+    try:
+        return issubclass(subtype, supertype)
+    
+    # If that does not work, try to process the union type recursively or generic type
+    except TypeError:
+        supertype_origin = typing.get_origin(supertype)
 
-# General operations
+        # If the supertype is a single-arged, non-generic, non-union type
+        if supertype_origin is None:
+            return issubclass(subtype, supertype)
+        
+        supertype_args = typing.get_args(supertype)
+
+        # If the supertype is a union type or an iterable generic
+        if supertype_origin is typing.Union:
+            return any(is_subclass_of_union(subtype, union_type_part) for union_type_part in supertype_args)
+        elif issubclass(supertype_origin, typing.Iterable) and len(supertype_args) == 1:
+            return issubclass(subtype, supertype_origin) and is_subclass_of_union(subtype, supertype_args[0])
+        
+
+        # If the supertype is a multi-arg, non-union, non-generic type
+        raise ValueError(f"Supertype {supertype} has origin {supertype_origin} and type args {supertype_args}."
+                        "non-union supertypes with multiple subscripts are not supported.")
 
 
 # Byte-related operations

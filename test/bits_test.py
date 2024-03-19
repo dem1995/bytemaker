@@ -106,7 +106,7 @@ def test_bits_from_str():
     assert bits.bitlist == [1, 0, 1]
 
     bits = Bits('01_10 11:11')
-    assert bits.bitlist == [0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1]
+    assert bits.bitlist == [0, 1, 1, 0, 1, 1, 1, 1]
 
     bits = Bits('0xFE')
     assert bits.bitlist == [1, 1, 1, 1, 1, 1, 1, 0]
