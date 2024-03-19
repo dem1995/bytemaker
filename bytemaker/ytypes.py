@@ -190,7 +190,7 @@ class YType(ABC):
     # Value info
     def get_value(self):
         """
-        Returns the value the instance of the subclass represents.
+        Returns the value the instance of the YType represents.
         """
         if hasattr(self, '_value'):
             return self._value
@@ -199,10 +199,21 @@ class YType(ABC):
                                  f"All YType objects should have an attribute '_value' that yields"
                                  f" the represented value of the object.")
 
+    def set_value(self, new_value):
+        """
+        Sets the value the instance of the YType represents.
+        """
+        self._value = new_value
+
     @property
     def value(self):
         __doc__ = self.get_value.__doc__
         return self.get_value()
+
+    @value.setter
+    def value(self, new_value):
+        __doc__ = self.set_value.__doc__
+        self.set_value(new_value)
 
     # Conversions to/from bits and bytes
     @abstractmethod
