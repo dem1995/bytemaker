@@ -1,12 +1,29 @@
 import pytest
 from bytemaker.ytypes import (
-    UInt8, UInt16, UInt32, UInt64,
+    FloatYType, UInt8, UInt16, UInt32, UInt64,
     SInt8, SInt16, SInt32, SInt64,
     Float32, Float64, Str8,
     Bit4, Bit8, Bit16, Bit32, Bit64
 )
 from bytemaker.bits import Bits
 
+@pytest.mark.parametrize(
+    "ytype_class, constructor_arg, update_arg",
+    [
+        (UInt16, 2**16 - 1, 2**8),
+        (SInt16, -2**15, 2**8),
+        (Float32, 3.1415926535, 2.7182818284),
+        (Str8, "a", "b"),
+        (Bit8, Bits([0, 1, 1, 1, 0, 1, 0, 1]), Bits([1, 0, 1, 0, 1, 1, 1, 0])),
+    ]
+)
+def test_cru_ytype(ytype_class, constructor_arg, update_arg):
+    ytype_instance = ytype_class(constructor_arg)
+    ytype_instance.value = update_arg
+    if isinstance(ytype_instance, FloatYType):
+        assert abs(ytype_instance.value - update_arg) < 1e-6
+    else:
+        assert ytype_instance.value == update_arg
 
 # Test cases for Unsigned Integers
 @pytest.mark.parametrize(
