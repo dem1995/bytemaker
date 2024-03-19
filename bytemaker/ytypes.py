@@ -813,10 +813,6 @@ class StrYType(YType):
     def __init__(self, value: str | bytes | bytearray | StrYType, *args, **kwargs):
         super().__init__(value, *args, **kwargs)
 
-    @property
-    def value(self):
-        return self._value
-
     @classmethod
     def get_value_type(cls):
         return str
