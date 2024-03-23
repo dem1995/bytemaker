@@ -1,9 +1,10 @@
 import dataclasses
 import typing
-from typing import Any, ForwardRef
+from typing import Any
 from math import log2, ceil
 
 #  General Python functionality
+
 
 class classproperty(property):
     """
@@ -33,23 +34,21 @@ def is_instance_of_union(obj, union_type: type):
     #         union_type = eval(union_type, globals(), locals())
     #     except NameError:
     #         raise ValueError(f"String or forward reference {union_type} could not be resolved.")
-    
+
     # Try the default isinstance method
     try:
         return isinstance(obj, union_type)
-    
+
     # If that does not work, try to process the union type instance recursively or generic type instance
     except TypeError:
-
         type_origin = typing.get_origin(union_type)
 
         # If the type is non-generic and non-union
         #   use the default isinstance method with the type origin
         if type_origin is None:
             return isinstance(obj, union_type)
-        
-        type_args = typing.get_args(union_type)
 
+        type_args = typing.get_args(union_type)
 
         # If the type is a union type or its instances are iterable
         #   check if the object is an instance of any of the constituent types
@@ -63,7 +62,7 @@ def is_instance_of_union(obj, union_type: type):
             # If the type is a multi-arg, non-union, non-generic type
             else:
                 raise ValueError(f"(Generic?) type {union_type} has origin {type_origin} and type args {type_args}."
-                                    "non-union types with multiple subscripts are not supported.")
+                                 "non-union types with multiple subscripts are not supported.")
         else:
             return False
 
@@ -117,10 +116,9 @@ def is_subclass_of_union(subtype: type, supertype: type):
         elif issubclass(supertype_origin, typing.Iterable) and len(supertype_args) == 1:
             return issubclass(subtype, supertype_origin) and is_subclass_of_union(subtype, supertype_args[0])
         
-
         # If the supertype is a multi-arg, non-union, non-generic type
         raise ValueError(f"Supertype {supertype} has origin {supertype_origin} and type args {supertype_args}."
-                        "non-union supertypes with multiple subscripts are not supported.")
+                         "non-union supertypes with multiple subscripts are not supported.")
 
 
 # Byte-related operations
@@ -148,8 +146,8 @@ class _ByteConvertibleMeta(type):
 
 class ByteConvertible(metaclass=_ByteConvertibleMeta):
     """
-    Has __instancecheck__ and __subclasscheck__ methods to allow checking whether an object can be converted to a bytes object
-        using :class:`python:bytes`
+    Has __instancecheck__ and __subclasscheck__ methods to allow checking whether
+        an object can be converted to a bytes object using :class:`python:bytes`
     """
     pass
 
