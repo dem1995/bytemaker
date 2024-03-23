@@ -19,6 +19,23 @@ class CustomTypeTracker:
     sint_types = {}
     float_types = {}
 
+    @staticmethod
+    def find_type(type_name: str):
+        if type_name in CustomTypeTracker.bit_types:
+            return CustomTypeTracker.bit_types[type_name]
+        elif type_name in CustomTypeTracker.byte_types:
+            return CustomTypeTracker.byte_types[type_name]
+        elif type_name in CustomTypeTracker.str_types:
+            return CustomTypeTracker.str_types[type_name]
+        elif type_name in CustomTypeTracker.uint_types:
+            return CustomTypeTracker.uint_types[type_name]
+        elif type_name in CustomTypeTracker.sint_types:
+            return CustomTypeTracker.sint_types[type_name]
+        elif type_name in CustomTypeTracker.float_types:
+            return CustomTypeTracker.float_types[type_name]
+        else:
+            return None
+
 
 # Abstract Classes
 class YType(ABC):
@@ -541,7 +558,7 @@ class UInt(IntYType):
         return False
 
 
-def UIntStructPackedTypeFactory(size_in_bits: int, packing_format_letter: str) -> UInt:
+def _UIntStructPackedTypeFactory(size_in_bits: int, packing_format_letter: str) -> UInt:
     class NewUIntYType(UInt, StructPackedYType):
         @classmethod
         def get_num_bits(cls) -> int:
@@ -554,11 +571,11 @@ def UIntStructPackedTypeFactory(size_in_bits: int, packing_format_letter: str) -
     return NewUIntYType
 
 
-class UInt8(UIntStructPackedTypeFactory(8, 'B')): pass
-class UInt16(UIntStructPackedTypeFactory(16, 'H')): pass
-class UInt24(UIntStructPackedTypeFactory(24, 'I')): pass
-class UInt32(UIntStructPackedTypeFactory(32, 'I')): pass
-class UInt64(UIntStructPackedTypeFactory(64, 'Q')): pass
+class UInt8(_UIntStructPackedTypeFactory(8, 'B')): pass
+class UInt16(_UIntStructPackedTypeFactory(16, 'H')): pass
+class UInt24(_UIntStructPackedTypeFactory(24, 'I')): pass
+class UInt32(_UIntStructPackedTypeFactory(32, 'I')): pass
+class UInt64(_UIntStructPackedTypeFactory(64, 'Q')): pass
 
 
 # Signed ints
@@ -568,7 +585,7 @@ class SInt(IntYType):
         return True
 
 
-def SIntStructPackedTypeFactory(size_in_bits: int, packing_format_letter: str) -> SInt:
+def _SIntStructPackedTypeFactory(size_in_bits: int, packing_format_letter: str) -> SInt:
     class NewSIntYType(SInt, StructPackedYType):
         @classmethod
         def get_num_bits(cls) -> int:
@@ -581,11 +598,11 @@ def SIntStructPackedTypeFactory(size_in_bits: int, packing_format_letter: str) -
     return NewSIntYType
 
 
-class SInt8(SIntStructPackedTypeFactory(8, 'b')): pass
-class SInt16(SIntStructPackedTypeFactory(16, 'h')): pass
-class SInt24(SIntStructPackedTypeFactory(24, 'i')): pass
-class SInt32(SIntStructPackedTypeFactory(32, 'i')): pass
-class SInt64(SIntStructPackedTypeFactory(64, 'q')): pass
+class SInt8(_SIntStructPackedTypeFactory(8, 'b')): pass
+class SInt16(_SIntStructPackedTypeFactory(16, 'h')): pass
+class SInt24(_SIntStructPackedTypeFactory(24, 'i')): pass
+class SInt32(_SIntStructPackedTypeFactory(32, 'i')): pass
+class SInt64(_SIntStructPackedTypeFactory(64, 'q')): pass
 
 
 # Floats
@@ -602,7 +619,7 @@ class FloatYType(YType):
         return self.value
 
 
-def FloatStructPackedTypeFactory(size_in_bits: int, packing_format_letter: str) -> FloatYType:
+def _FloatStructPackedTypeFactory(size_in_bits: int, packing_format_letter: str) -> FloatYType:
     class NewFloatYType(FloatYType, StructPackedYType):
         @classmethod
         def get_num_bits(cls) -> int:
@@ -615,9 +632,9 @@ def FloatStructPackedTypeFactory(size_in_bits: int, packing_format_letter: str) 
     return NewFloatYType
 
 
-class Float16(FloatStructPackedTypeFactory(16, 'e')): pass
-class Float32(FloatStructPackedTypeFactory(32, 'f')): pass
-class Float64(FloatStructPackedTypeFactory(64, 'd')): pass
+class Float16(_FloatStructPackedTypeFactory(16, 'e')): pass
+class Float32(_FloatStructPackedTypeFactory(32, 'f')): pass
+class Float64(_FloatStructPackedTypeFactory(64, 'd')): pass
 
 
 # Strings
@@ -672,7 +689,7 @@ def StrTypeFactory(
     else:
         init_type_name = custom_type_name
     cur_type_name = init_type_name
-    cur_type_count = 0
+
     # Grab an existing type if this matches one in name/encoding/decoding.
     if (
         cur_type_name in CustomTypeTracker.str_types and
@@ -750,13 +767,16 @@ def StrTypeFactory(
     NewStrYType.encode_method = encode_method
     NewStrYType.decode_method = decode_method
     CustomTypeTracker.str_types[cur_type_name] = NewStrYType
+    print(CustomTypeTracker.find_type(cur_type_name))
     return NewStrYType
 
 
 class Str8(StrTypeFactory(8)): pass
 
 
-CustomTypeTracker.str_types = {}
+CustomTypeTracker.str_types = {
+    Str8.__name__: Str8
+}
 CustomTypeTracker.bit_types = {
     Bit1.__name__: Bit1,
     Bit2.__name__: Bit2,
