@@ -852,8 +852,12 @@ class DefaultCodings:
 def StrTypeFactory(
         size_in_bits: int,
         encode_method: Callable[[str], Bits] = DefaultCodings.str_enc,
-        decode_method: Callable[[Bits], str] = DefaultCodings.str_dec):
-    init_type_name = f"Str{size_in_bits}"
+        decode_method: Callable[[Bits], str] = DefaultCodings.str_dec,
+        custom_type_name = None):
+    if custom_type_name is None:
+        init_type_name = f"Str{size_in_bits}"
+    else:
+        init_type_name = custom_type_name
     cur_type_name = init_type_name
     cur_type_count = 0
     # Grab an existing type if this matches one in name/encoding/decoding.
