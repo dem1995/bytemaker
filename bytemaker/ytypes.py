@@ -427,11 +427,8 @@ def BitsTypeFactory(size_in_bits: int):
     cur_type_name = init_type_name
     cur_type_count = 0
     # Grab an existing type if this matches one. Ends with the "next" bit type name for bits with the given # of bits
-    while cur_type_name in CustomTypeTracker.bit_types:
-        if cur_type_name in CustomTypeTracker.bit_types[cur_type_name]:
-            return CustomTypeTracker.bit_types[cur_type_name]
-        cur_type_count += 1
-        cur_type_name = f"{init_type_name}{cur_type_count}"
+    if cur_type_name in CustomTypeTracker.bit_types:
+        return CustomTypeTracker.bit_types[cur_type_name]
 
     class NewBitYType(BitYType):
         @classmethod
@@ -443,95 +440,19 @@ def BitsTypeFactory(size_in_bits: int):
     return NewBitYType
 
 
-class Bit1(BitYType):
-    @classmethod
-    def get_num_bits(cls) -> int:
-        return 1
-    pass
-
-
-class Bit2(BitYType):
-    @classmethod
-    def get_num_bits(cls) -> int:
-        return 2
-    pass
-
-
-class Bit3(BitYType):
-    @classmethod
-    def get_num_bits(cls) -> int:
-        return 3
-    pass
-
-
-class Bit4(BitYType):
-    @classmethod
-    def get_num_bits(cls) -> int:
-        return 4
-    pass
-
-
-class Bit5(BitYType):
-    @classmethod
-    def get_num_bits(cls) -> int:
-        return 5
-    pass
-
-
-class Bit6(BitYType):
-    @classmethod
-    def get_num_bits(cls) -> int:
-        return 6
-    pass
-
-
-class Bit7(BitYType):
-    @classmethod
-    def get_num_bits(cls) -> int:
-        return 7
-    pass
-
-
-class Bit8(BitYType):
-    @classmethod
-    def get_num_bits(cls) -> int:
-        return 8
-    pass
-
-
-class Bit16(BitYType):
-    @classmethod
-    def get_num_bits(cls) -> int:
-        return 16
-    pass
-
-
-class Bit24(BitYType):
-    @classmethod
-    def get_num_bits(cls) -> int:
-        return 24
-    pass
-
-
-class Bit32(BitYType):
-    @classmethod
-    def get_num_bits(cls) -> int:
-        return 32
-    pass
-
-
-class Bit64(BitYType):
-    @classmethod
-    def get_num_bits(cls) -> int:
-        return 64
-    pass
-
-
-class Bit128(BitYType):
-    @classmethod
-    def get_num_bits(cls) -> int:
-        return 128
-    pass
+class Bit1(BitsTypeFactory(1)): pass
+class Bit2(BitsTypeFactory(2)): pass
+class Bit3(BitsTypeFactory(3)): pass
+class Bit4(BitsTypeFactory(4)): pass
+class Bit5(BitsTypeFactory(5)): pass
+class Bit6(BitsTypeFactory(6)): pass
+class Bit7(BitsTypeFactory(7)): pass
+class Bit8(BitsTypeFactory(8)): pass
+class Bit16(BitsTypeFactory(16)): pass
+class Bit24(BitsTypeFactory(24)): pass
+class Bit32(BitsTypeFactory(32)): pass
+class Bit64(BitsTypeFactory(64)): pass
+class Bit128(BitsTypeFactory(128)): pass
 
 
 # Byte Types
@@ -566,12 +487,9 @@ def BytesTypeFactory(size_in_bits: int):
     init_type_name = f"Byte{size_in_bits}"
     cur_type_name = init_type_name
     cur_type_count = 0
-    # Grab an existing type if this matches one. Ends with the "next" byte type name for bytes with the given # of bits
-    while cur_type_name in CustomTypeTracker.byte_types:
-        if cur_type_name in CustomTypeTracker.byte_types:
-            return CustomTypeTracker.byte_types[cur_type_name]
-        cur_type_count += 1
-        cur_type_name = f"{init_type_name}{cur_type_count}"
+    # Grab an existing type if this matches one.
+    if cur_type_name in CustomTypeTracker.byte_types:
+        return CustomTypeTracker.byte_types[cur_type_name]
 
     class NewByteYType(ByteYType, bytearray):
         @classmethod
@@ -583,46 +501,12 @@ def BytesTypeFactory(size_in_bits: int):
     return NewByteYType
 
 
-class Byte8(ByteYType):
-    @classmethod
-    def get_num_bits(cls) -> int:
-        return 8
-    pass
-
-
-class Byte16(ByteYType):
-    @classmethod
-    def get_num_bits(cls) -> int:
-        return 16
-    pass
-
-
-class Byte24(ByteYType):
-    @classmethod
-    def get_num_bits(cls) -> int:
-        return 24
-    pass
-
-
-class Byte32(ByteYType):
-    @classmethod
-    def get_num_bits(cls) -> int:
-        return 32
-    pass
-
-
-class Byte64(ByteYType):
-    @classmethod
-    def get_num_bits(cls) -> int:
-        return 64
-    pass
-
-
-class Byte128(ByteYType):
-    @classmethod
-    def get_num_bits(cls) -> int:
-        return 128
-    pass
+class Byte8(BytesTypeFactory(8)): pass
+class Byte16(BytesTypeFactory(16)): pass
+class Byte24(BytesTypeFactory(24)): pass
+class Byte32(BytesTypeFactory(32)): pass
+class Byte64(BytesTypeFactory(64)): pass
+class Byte128(BytesTypeFactory(128)): pass
 
 
 # Integer Types
@@ -657,54 +541,24 @@ class UInt(IntYType):
         return False
 
 
-class UInt8(UInt, StructPackedYType):
-    @classmethod
-    def get_num_bits(cls) -> int:
-        return 8
+def UIntStructPackedTypeFactory(size_in_bits: int, packing_format_letter: str) -> UInt:
+    class NewUIntYType(UInt, StructPackedYType):
+        @classmethod
+        def get_num_bits(cls) -> int:
+            return size_in_bits
 
-    @classmethod
-    def get_packing_format_letter(cls):
-        return 'B'
+        @classmethod
+        def get_packing_format_letter(cls):
+            return packing_format_letter
 
-
-class UInt16(UInt, StructPackedYType):
-    @classmethod
-    def get_num_bits(cls) -> int:
-        return 16
-
-    @classmethod
-    def get_packing_format_letter(cls):
-        return 'H'
+    return NewUIntYType
 
 
-class UInt24(UInt, StructPackedYType):
-    @classmethod
-    def get_num_bits(cls) -> int:
-        return 24
-
-    @classmethod
-    def get_packing_format_letter(cls):
-        return 'I'
-
-
-class UInt32(UInt, StructPackedYType):
-    @classmethod
-    def get_num_bits(cls) -> int:
-        return 32
-
-    @classmethod
-    def get_packing_format_letter(cls):
-        return 'I'
-
-
-class UInt64(UInt, StructPackedYType):
-    @classmethod
-    def get_num_bits(cls) -> int:
-        return 64
-
-    @classmethod
-    def get_packing_format_letter(cls):
-        return 'Q'
+class UInt8(UIntStructPackedTypeFactory(8, 'B')): pass
+class UInt16(UIntStructPackedTypeFactory(16, 'H')): pass
+class UInt24(UIntStructPackedTypeFactory(24, 'I')): pass
+class UInt32(UIntStructPackedTypeFactory(32, 'I')): pass
+class UInt64(UIntStructPackedTypeFactory(64, 'Q')): pass
 
 
 # Signed ints
@@ -714,57 +568,28 @@ class SInt(IntYType):
         return True
 
 
-class SInt8(SInt, StructPackedYType):
-    @classmethod
-    def get_num_bits(cls) -> int:
-        return 8
+def SIntStructPackedTypeFactory(size_in_bits: int, packing_format_letter: str) -> SInt:
+    class NewSIntYType(SInt, StructPackedYType):
+        @classmethod
+        def get_num_bits(cls) -> int:
+            return size_in_bits
+        
+        @classmethod
+        def get_packing_format_letter(cls):
+            return packing_format_letter
 
-    @classmethod
-    def get_packing_format_letter(cls):
-        return 'b'
-
-
-class SInt16(SInt, StructPackedYType):
-    @classmethod
-    def get_num_bits(cls) -> int:
-        return 16
-
-    @classmethod
-    def get_packing_format_letter(cls):
-        return 'h'
+    return NewSIntYType
 
 
-class SInt24(SInt, StructPackedYType):
-    @classmethod
-    def get_num_bits(cls) -> int:
-        return 24
-
-    @classmethod
-    def get_packing_format_letter(cls):
-        return 'i'
-
-
-class SInt32(SInt, StructPackedYType):
-    @classmethod
-    def get_num_bits(cls) -> int:
-        return 32
-
-    @classmethod
-    def get_packing_format_letter(cls):
-        return 'i'
-
-
-class SInt64(SInt, StructPackedYType):
-    @classmethod
-    def get_num_bits(cls) -> int:
-        return 64
-
-    @classmethod
-    def get_packing_format_letter(cls):
-        return 'q'
+class SInt8(SIntStructPackedTypeFactory(8, 'b')): pass
+class SInt16(SIntStructPackedTypeFactory(16, 'h')): pass
+class SInt24(SIntStructPackedTypeFactory(24, 'i')): pass
+class SInt32(SIntStructPackedTypeFactory(32, 'i')): pass
+class SInt64(SIntStructPackedTypeFactory(64, 'q')): pass
 
 
 # Floats
+
 class FloatYType(YType):
     def __init__(self, value: float | bytes | bytearray | FloatYType, *args, **kwargs):
         super().__init__(value, *args, **kwargs)
@@ -777,37 +602,25 @@ class FloatYType(YType):
         return self.value
 
 
+def FloatStructPackedTypeFactory(size_in_bits: int, packing_format_letter: str) -> FloatYType:
+    class NewFloatYType(FloatYType, StructPackedYType):
+        @classmethod
+        def get_num_bits(cls) -> int:
+            return size_in_bits
+
+        @classmethod
+        def get_packing_format_letter(cls):
+            return packing_format_letter
+
+    return NewFloatYType
 
 
-class Float16(FloatYType, StructPackedYType):
-    @classmethod
-    def get_num_bits(cls) -> int:
-        return 16
-
-    @classmethod
-    def get_packing_format_letter(cls):
-        return 'e'
+class Float16(FloatStructPackedTypeFactory(16, 'e')): pass
+class Float32(FloatStructPackedTypeFactory(32, 'f')): pass
+class Float64(FloatStructPackedTypeFactory(64, 'd')): pass
 
 
-class Float32(FloatYType, StructPackedYType):
-    @classmethod
-    def get_num_bits(cls) -> int:
-        return 32
-
-    @classmethod
-    def get_packing_format_letter(cls):
-        return 'f'
-
-
-class Float64(FloatYType, StructPackedYType):
-    @classmethod
-    def get_num_bits(cls) -> int:
-        return 64
-
-    @classmethod
-    def get_packing_format_letter(cls):
-        return 'd'
-
+# Strings
 
 class StrYType(YType):
     def __init__(self, value: str | bytes | bytearray | StrYType, *args, **kwargs):
@@ -853,7 +666,7 @@ def StrTypeFactory(
         size_in_bits: int,
         encode_method: Callable[[str], Bits] = DefaultCodings.str_enc,
         decode_method: Callable[[Bits], str] = DefaultCodings.str_dec,
-        custom_type_name = None):
+        custom_type_name=None) -> StrYType:
     if custom_type_name is None:
         init_type_name = f"Str{size_in_bits}"
     else:
@@ -861,15 +674,12 @@ def StrTypeFactory(
     cur_type_name = init_type_name
     cur_type_count = 0
     # Grab an existing type if this matches one in name/encoding/decoding.
-    # Ends with the "next" string type name for strings with the given number of bits
-    while cur_type_name in CustomTypeTracker.str_types:
-        if (
-            CustomTypeTracker.str_types[cur_type_name].encode_method == encode_method and
-            CustomTypeTracker.str_types[cur_type_name].decode_method == decode_method
-        ):
-            return CustomTypeTracker.str_types[cur_type_name]
-        cur_type_count += 1
-        cur_type_name = f"{init_type_name}Coding{cur_type_count}"
+    if (
+        cur_type_name in CustomTypeTracker.str_types and
+        CustomTypeTracker.str_types[cur_type_name].encode_method == encode_method and
+        CustomTypeTracker.str_types[cur_type_name].decode_method == decode_method
+    ):
+        return CustomTypeTracker.str_types[cur_type_name]
 
     class NewStrYType(StrYType):
         def __init__(self, value: str | Bits | bytes | bytearray | StrYType, *args, **kwargs):
@@ -943,10 +753,7 @@ def StrTypeFactory(
     return NewStrYType
 
 
-class Str8(StrTypeFactory(8), StrYType):
-    @classmethod
-    def get_num_bits(cls) -> int:
-        return 8
+class Str8(StrTypeFactory(8)): pass
 
 
 CustomTypeTracker.str_types = {}
