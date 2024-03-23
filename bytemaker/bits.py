@@ -11,11 +11,12 @@ class BitsCastable(Protocol):
     def __Bits__(self) -> "Bits":
         pass
 
+
 class Bits:
     """
     A class for storing and manipulating bits.
     """
-    def __init__(self, source: BitsConstructorType = None, deep_copy: bool =False):
+    def __init__(self, source: BitsConstructorType = None, deep_copy: bool = False):
         if source is None:
             source = list()
 
@@ -182,7 +183,7 @@ class Bits:
 
     def __index__(self) -> int:
         return int(self)
-    
+
     def __iter__(self) -> typing.Iterator[int]:
         return iter(self.bitlist)
 
@@ -294,7 +295,7 @@ class Bits:
         The remaining string must be all binary or of the form '0b', '0o', or '0x' followed by digits.
         """
         string = string.translate(str.maketrans('', '', '_- :'))
-        
+
         if string.startswith('0b'):
             binstring = string[2:]
         elif string.startswith('0o'):
