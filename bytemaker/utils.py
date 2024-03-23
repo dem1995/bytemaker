@@ -87,7 +87,7 @@ def is_subclass_of_union(subtype: type, supertype: type):
     #         subtype = eval(subtype, globals(), locals())
     #     except NameError:
     #         raise ValueError(f"String or forward reference {subtype} could not be resolved.")
-    
+
     # if isinstance(supertype, ForwardRef):
     #     supertype = supertype.__forward_arg__
     # if isinstance(supertype, str):
@@ -95,11 +95,11 @@ def is_subclass_of_union(subtype: type, supertype: type):
     #         supertype = eval(supertype, globals(), locals())
     #     except NameError:
     #         raise ValueError(f"String or forward reference {supertype} could not be resolved.")
-    
+
     # Try the default issubclass method
     try:
         return issubclass(subtype, supertype)
-    
+
     # If that does not work, try to process the union type recursively or generic type
     except TypeError:
         supertype_origin = typing.get_origin(supertype)
@@ -107,7 +107,7 @@ def is_subclass_of_union(subtype: type, supertype: type):
         # If the supertype is a single-arged, non-generic, non-union type
         if supertype_origin is None:
             return issubclass(subtype, supertype)
-        
+
         supertype_args = typing.get_args(supertype)
 
         # If the supertype is a union type or an iterable generic
@@ -115,7 +115,7 @@ def is_subclass_of_union(subtype: type, supertype: type):
             return any(is_subclass_of_union(subtype, union_type_part) for union_type_part in supertype_args)
         elif issubclass(supertype_origin, typing.Iterable) and len(supertype_args) == 1:
             return issubclass(subtype, supertype_origin) and is_subclass_of_union(subtype, supertype_args[0])
-        
+
         # If the supertype is a multi-arg, non-union, non-generic type
         raise ValueError(f"Supertype {supertype} has origin {supertype_origin} and type args {supertype_args}."
                          "non-union supertypes with multiple subscripts are not supported.")
