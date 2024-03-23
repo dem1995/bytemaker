@@ -573,7 +573,7 @@ def SIntStructPackedTypeFactory(size_in_bits: int, packing_format_letter: str) -
         @classmethod
         def get_num_bits(cls) -> int:
             return size_in_bits
-        
+
         @classmethod
         def get_packing_format_letter(cls):
             return packing_format_letter
