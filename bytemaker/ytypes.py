@@ -1,6 +1,7 @@
 
 from __future__ import annotations
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, fields
 import math
 import struct
 from typing import Any, Callable, Optional
@@ -8,7 +9,8 @@ from bytemaker.bits import Bits, BitsConstructorType
 from bytemaker.utils import classproperty, ByteConvertible, is_instance_of_union
 
 
-class CustomTypeTracker:
+@dataclass
+class YTypeRegistry:
     """
     Class to track custom types created by the user.
     """
@@ -21,20 +23,17 @@ class CustomTypeTracker:
 
     @staticmethod
     def find_type(type_name: str):
-        if type_name in CustomTypeTracker.bit_types:
-            return CustomTypeTracker.bit_types[type_name]
-        elif type_name in CustomTypeTracker.byte_types:
-            return CustomTypeTracker.byte_types[type_name]
-        elif type_name in CustomTypeTracker.str_types:
-            return CustomTypeTracker.str_types[type_name]
-        elif type_name in CustomTypeTracker.uint_types:
-            return CustomTypeTracker.uint_types[type_name]
-        elif type_name in CustomTypeTracker.sint_types:
-            return CustomTypeTracker.sint_types[type_name]
-        elif type_name in CustomTypeTracker.float_types:
-            return CustomTypeTracker.float_types[type_name]
-        else:
-            return None
+        # Iterate over YTypeRegistry's members
+        # YTypeRegistry is a dataclass
+        # its members are dicts
+
+        for field in fields(YTypeRegistry):
+            fieldvalue = getattr(YTypeRegistry, field.name)
+            if type(fieldvalue) is dict:
+                if type_name in fieldvalue:
+                    return fieldvalue[type_name]
+
+        return None
 
 
 # Abstract Classes
@@ -193,7 +192,7 @@ class YType(ABC):
     # Value type info
     @classmethod
     @abstractmethod
-    def get_value_type(cls):
+    def get_value_pytype(cls):
         """
         Returns the value type of the subclass.
         """
@@ -201,8 +200,8 @@ class YType(ABC):
 
     @classproperty
     def value_type(cls):
-        __doc__ = cls.get_value_type.__doc__
-        return cls.get_value_type()
+        __doc__ = cls.get_value_pytype.__doc__
+        return cls.get_value_pytype()
 
     # Value info
     def get_value(self):
@@ -427,7 +426,7 @@ class BitYType(YType):
         return cls(the_bits, *args, **kwargs)
 
     @classmethod
-    def get_value_type(cls):
+    def get_value_pytype(cls):
         return Bits
 
 
@@ -444,8 +443,8 @@ def BitsTypeFactory(size_in_bits: int):
     cur_type_name = init_type_name
     cur_type_count = 0
     # Grab an existing type if this matches one. Ends with the "next" bit type name for bits with the given # of bits
-    if cur_type_name in CustomTypeTracker.bit_types:
-        return CustomTypeTracker.bit_types[cur_type_name]
+    if cur_type_name in YTypeRegistry.bit_types:
+        return YTypeRegistry.bit_types[cur_type_name]
 
     class NewBitYType(BitYType):
         @classmethod
@@ -453,7 +452,7 @@ def BitsTypeFactory(size_in_bits: int):
             return size_in_bits
 
     NewBitYType.__name__ = cur_type_name
-    CustomTypeTracker.bit_types[cur_type_name] = NewBitYType
+    YTypeRegistry.bit_types[cur_type_name] = NewBitYType
     return NewBitYType
 
 
@@ -496,7 +495,7 @@ class ByteYType(YType, bytearray):
         return cls(bytes(the_bits), *args, **kwargs)
 
     @classmethod
-    def get_value_type(cls):
+    def get_value_pytype(cls):
         return bytes
 
 
@@ -505,8 +504,8 @@ def BytesTypeFactory(size_in_bits: int):
     cur_type_name = init_type_name
     cur_type_count = 0
     # Grab an existing type if this matches one.
-    if cur_type_name in CustomTypeTracker.byte_types:
-        return CustomTypeTracker.byte_types[cur_type_name]
+    if cur_type_name in YTypeRegistry.byte_types:
+        return YTypeRegistry.byte_types[cur_type_name]
 
     class NewByteYType(ByteYType, bytearray):
         @classmethod
@@ -514,7 +513,7 @@ def BytesTypeFactory(size_in_bits: int):
             return size_in_bits
 
     NewByteYType.__name__ = cur_type_name
-    CustomTypeTracker.byte_types[cur_type_name] = NewByteYType
+    YTypeRegistry.byte_types[cur_type_name] = NewByteYType
     return NewByteYType
 
 
@@ -544,7 +543,7 @@ class IntYType(YType):
         pass
 
     @classmethod
-    def get_value_type(cls):
+    def get_value_pytype(cls):
         return int
 
     def __int__(self):
@@ -612,7 +611,7 @@ class FloatYType(YType):
         super().__init__(value, *args, **kwargs)
 
     @classmethod
-    def get_value_type(cls):
+    def get_value_pytype(cls):
         return float
 
     def __float__(self):
@@ -644,7 +643,7 @@ class StrYType(YType):
         super().__init__(value, *args, **kwargs)
 
     @classmethod
-    def get_value_type(cls):
+    def get_value_pytype(cls):
         return str
 
     @classproperty
@@ -692,11 +691,11 @@ def StrTypeFactory(
 
     # Grab an existing type if this matches one in name/encoding/decoding.
     if (
-        cur_type_name in CustomTypeTracker.str_types and
-        CustomTypeTracker.str_types[cur_type_name].encode_method == encode_method and
-        CustomTypeTracker.str_types[cur_type_name].decode_method == decode_method
+        cur_type_name in YTypeRegistry.str_types and
+        YTypeRegistry.str_types[cur_type_name].encode_method == encode_method and
+        YTypeRegistry.str_types[cur_type_name].decode_method == decode_method
     ):
-        return CustomTypeTracker.str_types[cur_type_name]
+        return YTypeRegistry.str_types[cur_type_name]
 
     class NewStrYType(StrYType):
         def __init__(self, value: str | Bits | bytes | bytearray | StrYType, *args, **kwargs):
@@ -766,18 +765,18 @@ def StrTypeFactory(
     NewStrYType.__name__ = cur_type_name
     NewStrYType.encode_method = encode_method
     NewStrYType.decode_method = decode_method
-    CustomTypeTracker.str_types[cur_type_name] = NewStrYType
-    print(CustomTypeTracker.find_type(cur_type_name))
+    YTypeRegistry.str_types[cur_type_name] = NewStrYType
+    print(YTypeRegistry.find_type(cur_type_name))
     return NewStrYType
 
 
 class Str8(StrTypeFactory(8)): pass
 
 
-CustomTypeTracker.str_types = {
+YTypeRegistry.str_types = {
     Str8.__name__: Str8
 }
-CustomTypeTracker.bit_types = {
+YTypeRegistry.bit_types = {
     Bit1.__name__: Bit1,
     Bit2.__name__: Bit2,
     Bit3.__name__: Bit3,
@@ -792,7 +791,7 @@ CustomTypeTracker.bit_types = {
     Bit64.__name__: Bit64,
     Bit128.__name__: Bit128
 }
-CustomTypeTracker.byte_types = {
+YTypeRegistry.byte_types = {
     Byte8.__name__: Byte8,
     Byte16.__name__: Byte16,
     Byte24.__name__: Byte24,
@@ -800,25 +799,95 @@ CustomTypeTracker.byte_types = {
     Byte64.__name__: Byte64,
     Byte128.__name__: Byte128
 }
-CustomTypeTracker.uint_types = {
+YTypeRegistry.uint_types = {
     UInt8.__name__: UInt8,
     UInt16.__name__: UInt16,
     UInt24.__name__: UInt24,
     UInt32.__name__: UInt32,
     UInt64.__name__: UInt64
 }
-CustomTypeTracker.sint_types = {
+YTypeRegistry.sint_types = {
     SInt8.__name__: SInt8,
     SInt16.__name__: SInt16,
     SInt24.__name__: SInt24,
     SInt32.__name__: SInt32,
     SInt64.__name__: SInt64
 }
-CustomTypeTracker.float_types = {
+YTypeRegistry.float_types = {
     Float16.__name__: Float16,
     Float32.__name__: Float32,
     Float64.__name__: Float64
 }
+
+
+def get_ytype(typing_representation: str | YType | type, num_bits: int = None) -> YType:
+    matched_type = YTypeRegistry.find_type(typing_representation)
+    if matched_type is not None:
+        return matched_type
+
+    ytype_to_str = {
+        UInt: "uint",
+        SInt: "sint",
+        FloatYType: "float",
+        BitYType: "bit",
+        ByteYType: "byte",
+        StrYType: "str",
+    }
+
+    type_name_matching = {
+        "chr": "Str8",
+        "char": "Str8",
+        "int": "sint",
+        "bytes": "byte",
+    }
+
+    type_name_re_matching = {
+        "sint": "SInt",
+        "uint": "UInt",
+        "float": "Float",
+        "str": "Str",
+        "bit": "Bit",
+        "byte": "Byte",
+    }
+
+    if isinstance(typing_representation, YType):
+        typing_representation = ytype_to_str[type(typing_representation)]
+
+    elif isinstance(typing_representation, type):
+        typing_representation = typing_representation.__qualname__
+
+    # Typing representation should be string by this point
+    assert isinstance(typing_representation, str)
+    if not num_bits:
+        number_in_string = [s for s in list(typing_representation) if s.isdigit()]
+        number_in_string = ''.join(number_in_string)
+        if number_in_string:
+            num_bits = int(number_in_string)
+
+    # Get only alphabetic characters
+    typing_representation = ''.join([i for i in typing_representation if i.isalpha()])
+
+    typing_representation = typing_representation.lower()
+    if typing_representation == "int":
+        typing_representation = "sint"
+    elif typing_representation == "char" or typing_representation == "chr":
+        num_bits = 8
+        typing_representation = "str"
+
+    # Process the typing representation
+    if typing_representation in type_name_matching:
+        typing_representation = type_name_matching[typing_representation]
+
+    if typing_representation in type_name_re_matching:
+        typing_representation = type_name_re_matching[typing_representation]
+
+    typing_representation = typing_representation + str(num_bits)
+
+    matched_type = YTypeRegistry.find_type(typing_representation)
+    if matched_type is not None:
+        return matched_type
+    else:
+        return None
 
 
 def ytype_to_bytes(unit: YType, num_bytes: Optional[int] = None, reverse_endianness: bool = False) -> bytes:
