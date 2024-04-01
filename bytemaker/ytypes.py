@@ -430,7 +430,7 @@ class BitYType(YType):
         return Bits
 
 
-def BitsTypeFactory(size_in_bits: int):
+def BitsTypeFactory(size_in_bits: int) -> type[BitYType]:
     """
     Factory function for creating BitYType subclasses with the given number of bits.
         In the event there is an existing BitYType with the specified number of bits,
@@ -499,7 +499,7 @@ class ByteYType(YType, bytearray):
         return bytes
 
 
-def BytesTypeFactory(size_in_bits: int):
+def BytesTypeFactory(size_in_bits: int) -> type[ByteYType]:
     init_type_name = f"Byte{size_in_bits}"
     cur_type_name = init_type_name
     cur_type_count = 0
@@ -557,7 +557,7 @@ class UInt(IntYType):
         return False
 
 
-def _UIntStructPackedTypeFactory(size_in_bits: int, packing_format_letter: str) -> UInt:
+def _UIntStructPackedTypeFactory(size_in_bits: int, packing_format_letter: str) -> type[UInt]:
     class NewUIntYType(UInt, StructPackedYType):
         @classmethod
         def get_num_bits(cls) -> int:
@@ -584,7 +584,7 @@ class SInt(IntYType):
         return True
 
 
-def _SIntStructPackedTypeFactory(size_in_bits: int, packing_format_letter: str) -> SInt:
+def _SIntStructPackedTypeFactory(size_in_bits: int, packing_format_letter: str) -> type[SInt]:
     class NewSIntYType(SInt, StructPackedYType):
         @classmethod
         def get_num_bits(cls) -> int:
@@ -618,7 +618,7 @@ class FloatYType(YType):
         return self.value
 
 
-def _FloatStructPackedTypeFactory(size_in_bits: int, packing_format_letter: str) -> FloatYType:
+def _FloatStructPackedTypeFactory(size_in_bits: int, packing_format_letter: str) -> type[FloatYType]:
     class NewFloatYType(FloatYType, StructPackedYType):
         @classmethod
         def get_num_bits(cls) -> int:
@@ -682,7 +682,7 @@ def StrTypeFactory(
         size_in_bits: int,
         encode_method: Callable[[str], Bits] = DefaultCodings.str_enc,
         decode_method: Callable[[Bits], str] = DefaultCodings.str_dec,
-        custom_type_name=None) -> StrYType:
+        custom_type_name=None) -> type[StrYType]:
     if custom_type_name is None:
         init_type_name = f"Str{size_in_bits}"
     else:
