@@ -1,42 +1,49 @@
 
 from __future__ import annotations
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, fields
 import math
 import struct
+import inspect
 from typing import Any, Callable, Optional
 from bytemaker.bits import Bits, BitsConstructorType
 from bytemaker.utils import classproperty, ByteConvertible, is_instance_of_union
 
 
-@dataclass
 class YTypeRegistry:
     """
-    Class to track custom types created by the user.
+    Class to track created YTypes.
     """
-    bit_types = {}
-    byte_types = {}
-    str_types = {}
-    uint_types = {}
-    sint_types = {}
-    float_types = {}
+
+    base_types: set = set()
+    registered_types: dict[str, type] = dict()
 
     @staticmethod
     def find_type(type_name: str):
-        # Iterate over YTypeRegistry's members
-        # YTypeRegistry is a dataclass
-        # its members are dicts
+        return YTypeRegistry.registered_types.get(type_name, None)
 
-        for field in fields(YTypeRegistry):
-            fieldvalue = getattr(YTypeRegistry, field.name)
-            if type(fieldvalue) is dict:
-                if type_name in fieldvalue:
-                    return fieldvalue[type_name]
+    @classmethod
+    def register_subtypes(cls, base_cls):
+        """
+        Class decorator to register all non-abstract subclasses.
+        """
+        # Preserve the original __init_subclass__ if it exists
+        orig_init_subclass = base_cls.__dict__.get('__init_subclass__', None)
 
-        return None
+        @classmethod
+        def __init_subclass__(cls, **kwargs):
+            # If there was an original __init_subclass__, call it properly
+            if orig_init_subclass:
+                orig_init_subclass.__func__(cls, **kwargs)
+            # Register the subclass if it's not abstract
+            if not inspect.isabstract(cls):
+                YTypeRegistry.registered_types[cls.__name__] = cls
+
+        base_cls.__init_subclass__ = __init_subclass__
+        return base_cls
 
 
 # Abstract Classes
+@YTypeRegistry.register_subtypes
 class YType(ABC):
     """
     Abstract base class for all YType objects.
@@ -107,6 +114,14 @@ class YType(ABC):
         Instance method that returns the string representation of the object.
         Useful for repr(theObject), or if the class has not overridden __str__, str(thObject)
     """
+
+    def __init_subclass__(cls, **kwargs):
+        """
+        Registers the subclass in the YTypeRegistry.
+        """
+        super().__init_subclass__(**kwargs)
+        if not inspect.isabstract(cls):
+            YTypeRegistry.find_type(cls.__name__)
 
     def __init__(self, value: bytes | bytearray | Bits | Any, test_creation=True, *args, **kwargs) -> None:
         """
@@ -192,7 +207,7 @@ class YType(ABC):
     # Value type info
     @classmethod
     @abstractmethod
-    def get_value_pytype(cls):
+    def get_value_type(cls):
         """
         Returns the value type of the subclass.
         """
@@ -200,8 +215,8 @@ class YType(ABC):
 
     @classproperty
     def value_type(cls):
-        __doc__ = cls.get_value_pytype.__doc__
-        return cls.get_value_pytype()
+        __doc__ = cls.get_value_type.__doc__
+        return cls.get_value_type()
 
     # Value info
     def get_value(self):
@@ -426,7 +441,7 @@ class BitYType(YType):
         return cls(the_bits, *args, **kwargs)
 
     @classmethod
-    def get_value_pytype(cls):
+    def get_value_type(cls):
         return Bits
 
 
@@ -440,19 +455,19 @@ def BitsTypeFactory(size_in_bits: int) -> type[BitYType]:
 
     """
     init_type_name = f"Bit{size_in_bits}"
-    cur_type_name = init_type_name
-    cur_type_count = 0
-    # Grab an existing type if this matches one. Ends with the "next" bit type name for bits with the given # of bits
-    if cur_type_name in YTypeRegistry.bit_types:
-        return YTypeRegistry.bit_types[cur_type_name]
+
+    # Grab an existing type if this matches one.
+    existing_type = YTypeRegistry.find_type(init_type_name)
+    if existing_type is not None:
+        return existing_type
 
     class NewBitYType(BitYType):
         @classmethod
         def get_num_bits(cls) -> int:
             return size_in_bits
 
-    NewBitYType.__name__ = cur_type_name
-    YTypeRegistry.bit_types[cur_type_name] = NewBitYType
+    NewBitYType.__name__ = init_type_name
+    YTypeRegistry.registered_types[init_type_name] = NewBitYType
     return NewBitYType
 
 
@@ -495,25 +510,24 @@ class ByteYType(YType, bytearray):
         return cls(bytes(the_bits), *args, **kwargs)
 
     @classmethod
-    def get_value_pytype(cls):
+    def get_value_type(cls):
         return bytes
 
 
 def BytesTypeFactory(size_in_bits: int) -> type[ByteYType]:
     init_type_name = f"Byte{size_in_bits}"
-    cur_type_name = init_type_name
-    cur_type_count = 0
+
     # Grab an existing type if this matches one.
-    if cur_type_name in YTypeRegistry.byte_types:
-        return YTypeRegistry.byte_types[cur_type_name]
+    existing_type = YTypeRegistry.find_type(init_type_name)
+    if existing_type is not None:
+        return existing_type
 
     class NewByteYType(ByteYType, bytearray):
         @classmethod
         def get_num_bits(cls) -> int:
             return size_in_bits
 
-    NewByteYType.__name__ = cur_type_name
-    YTypeRegistry.byte_types[cur_type_name] = NewByteYType
+    NewByteYType.__name__ = init_type_name
     return NewByteYType
 
 
@@ -543,7 +557,7 @@ class IntYType(YType):
         pass
 
     @classmethod
-    def get_value_pytype(cls):
+    def get_value_type(cls):
         return int
 
     def __int__(self):
@@ -558,6 +572,11 @@ class UInt(IntYType):
 
 
 def _UIntStructPackedTypeFactory(size_in_bits: int, packing_format_letter: str) -> type[UInt]:
+    init_type_name = f"UInt{size_in_bits}"
+    existing_type = YTypeRegistry.find_type(init_type_name)
+    if existing_type is not None:
+        return existing_type
+
     class NewUIntYType(UInt, StructPackedYType):
         @classmethod
         def get_num_bits(cls) -> int:
@@ -584,7 +603,7 @@ class SInt(IntYType):
         return True
 
 
-def _SIntStructPackedTypeFactory(size_in_bits: int, packing_format_letter: str) -> type[SInt]:
+def _SIntStructPackedTypeFactory(size_in_bits: int, packing_format_letter: str) -> SInt:
     class NewSIntYType(SInt, StructPackedYType):
         @classmethod
         def get_num_bits(cls) -> int:
@@ -611,7 +630,7 @@ class FloatYType(YType):
         super().__init__(value, *args, **kwargs)
 
     @classmethod
-    def get_value_pytype(cls):
+    def get_value_type(cls):
         return float
 
     def __float__(self):
@@ -643,7 +662,7 @@ class StrYType(YType):
         super().__init__(value, *args, **kwargs)
 
     @classmethod
-    def get_value_pytype(cls):
+    def get_value_type(cls):
         return str
 
     @classproperty
@@ -690,12 +709,17 @@ def StrTypeFactory(
     cur_type_name = init_type_name
 
     # Grab an existing type if this matches one in name/encoding/decoding.
-    if (
-        cur_type_name in YTypeRegistry.str_types and
-        YTypeRegistry.str_types[cur_type_name].encode_method == encode_method and
-        YTypeRegistry.str_types[cur_type_name].decode_method == decode_method
-    ):
-        return YTypeRegistry.str_types[cur_type_name]
+    existing_type = YTypeRegistry.find_type(cur_type_name)
+    counter = 0
+    while existing_type is not None:
+        if (
+            existing_type.encode_method == encode_method and
+            existing_type.decode_method == decode_method
+        ):
+            return existing_type
+        else:
+            cur_type_name = f"Str{size_in_bits}_{counter}"
+            existing_type = YTypeRegistry.find_type(cur_type_name)
 
     class NewStrYType(StrYType):
         def __init__(self, value: str | Bits | bytes | bytearray | StrYType, *args, **kwargs):
@@ -765,7 +789,7 @@ def StrTypeFactory(
     NewStrYType.__name__ = cur_type_name
     NewStrYType.encode_method = encode_method
     NewStrYType.decode_method = decode_method
-    YTypeRegistry.str_types[cur_type_name] = NewStrYType
+    YTypeRegistry.registered_types[cur_type_name] = NewStrYType
     print(YTypeRegistry.find_type(cur_type_name))
     return NewStrYType
 
@@ -773,51 +797,51 @@ def StrTypeFactory(
 class Str8(StrTypeFactory(8)): pass
 
 
-YTypeRegistry.str_types = {
-    Str8.__name__: Str8
-}
-YTypeRegistry.bit_types = {
-    Bit1.__name__: Bit1,
-    Bit2.__name__: Bit2,
-    Bit3.__name__: Bit3,
-    Bit4.__name__: Bit4,
-    Bit5.__name__: Bit5,
-    Bit6.__name__: Bit6,
-    Bit7.__name__: Bit7,
-    Bit8.__name__: Bit8,
-    Bit16.__name__: Bit16,
-    Bit24.__name__: Bit24,
-    Bit32.__name__: Bit32,
-    Bit64.__name__: Bit64,
-    Bit128.__name__: Bit128
-}
-YTypeRegistry.byte_types = {
-    Byte8.__name__: Byte8,
-    Byte16.__name__: Byte16,
-    Byte24.__name__: Byte24,
-    Byte32.__name__: Byte32,
-    Byte64.__name__: Byte64,
-    Byte128.__name__: Byte128
-}
-YTypeRegistry.uint_types = {
-    UInt8.__name__: UInt8,
-    UInt16.__name__: UInt16,
-    UInt24.__name__: UInt24,
-    UInt32.__name__: UInt32,
-    UInt64.__name__: UInt64
-}
-YTypeRegistry.sint_types = {
-    SInt8.__name__: SInt8,
-    SInt16.__name__: SInt16,
-    SInt24.__name__: SInt24,
-    SInt32.__name__: SInt32,
-    SInt64.__name__: SInt64
-}
-YTypeRegistry.float_types = {
-    Float16.__name__: Float16,
-    Float32.__name__: Float32,
-    Float64.__name__: Float64
-}
+# YTypeRegistry.str_types = {
+#     Str8.__name__: Str8
+# }
+# YTypeRegistry.bit_types = {
+#     Bit1.__name__: Bit1,
+#     Bit2.__name__: Bit2,
+#     Bit3.__name__: Bit3,
+#     Bit4.__name__: Bit4,
+#     Bit5.__name__: Bit5,
+#     Bit6.__name__: Bit6,
+#     Bit7.__name__: Bit7,
+#     Bit8.__name__: Bit8,
+#     Bit16.__name__: Bit16,
+#     Bit24.__name__: Bit24,
+#     Bit32.__name__: Bit32,
+#     Bit64.__name__: Bit64,
+#     Bit128.__name__: Bit128
+# }
+# YTypeRegistry.byte_types = {
+#     Byte8.__name__: Byte8,
+#     Byte16.__name__: Byte16,
+#     Byte24.__name__: Byte24,
+#     Byte32.__name__: Byte32,
+#     Byte64.__name__: Byte64,
+#     Byte128.__name__: Byte128
+# }
+# YTypeRegistry.uint_types = {
+#     UInt8.__name__: UInt8,
+#     UInt16.__name__: UInt16,
+#     UInt24.__name__: UInt24,
+#     UInt32.__name__: UInt32,
+#     UInt64.__name__: UInt64
+# }
+# YTypeRegistry.sint_types = {
+#     SInt8.__name__: SInt8,
+#     SInt16.__name__: SInt16,
+#     SInt24.__name__: SInt24,
+#     SInt32.__name__: SInt32,
+#     SInt64.__name__: SInt64
+# }
+# YTypeRegistry.float_types = {
+#     Float16.__name__: Float16,
+#     Float32.__name__: Float32,
+#     Float64.__name__: Float64
+# }
 
 
 def get_ytype(typing_representation: str | YType | type, num_bits: int = None) -> YType:
