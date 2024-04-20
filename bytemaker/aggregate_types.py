@@ -4,14 +4,14 @@ import traceback
 from typing import Iterable, Union
 from bytemaker.bits import Bits
 from bytemaker.utils import is_instance_of_union, is_subclass_of_union, DataClassType
-from bytemaker.ytypes import YType, bytes_to_ytype
+from bytemaker.ytypes import BitType, bytes_to_ytype
 from bytemaker.native_types.ctypes_ import CType, bytes_to_ctype, ctype_to_bytes, bits_to_ctype, ctype_to_bits
 from bytemaker.native_types.pytypes import (
     PyType, pytype_to_bits, pytype_to_bytes, bits_to_pytype, bytes_to_pytype, ConversionConfig
 )
 
 
-UnitType = Union[CType, YType, PyType]
+UnitType = Union[CType, BitType, PyType]
 
 # CType is a Union of _SimpleCData, Structure, Union, and Array
 # YType is a Union of YInt, YFloat, YString, YBytes, YBool, YEnum, YArray, and YStruct
@@ -26,7 +26,7 @@ def count_bits_in_unit_type(unit_type: UnitType) -> int:
     # print("Counting bits in unit type", unit_type)
     if is_subclass_of_union(unit_type, CType):
         return ctypes.sizeof(unit_type) * 8
-    elif is_subclass_of_union(unit_type, YType):
+    elif is_subclass_of_union(unit_type, BitType):
         return unit_type.num_bits
     elif is_subclass_of_union(unit_type, PyType):
         # print(ConversionConfig.get_conversion_info(unit_type).num_bits)
@@ -71,7 +71,7 @@ def to_bits_individual(unit: UnitType) -> Bits:
     """
     if is_instance_of_union(unit, CType):
         return ctype_to_bits(unit)
-    elif isinstance(unit, YType):
+    elif isinstance(unit, BitType):
         return unit.to_bits()
     elif is_instance_of_union(unit, PyType):
         return pytype_to_bits(unit)
@@ -86,7 +86,7 @@ def to_bytes_individual(unit: UnitType, reverse_endianness: bool = False) -> byt
 
     if is_instance_of_union(unit, CType):
         return ctype_to_bytes(unit, reverse_endianness=reverse_endianness)
-    elif isinstance(unit, YType):
+    elif isinstance(unit, BitType):
         return unit.to_bytes(reverse_endianness=reverse_endianness)
     elif is_instance_of_union(unit, PyType):
         return pytype_to_bytes(unit, reverse_endianness=reverse_endianness)
@@ -112,7 +112,7 @@ def from_bits_individual(unitbits: Bits, unittype: type) -> PyType:
                         f" does not match the number of bits in the unit type ({size_in_bits})")
     if is_subclass_of_union(unittype, CType):
         return bits_to_ctype(unitbits, unittype)
-    elif is_subclass_of_union(unittype, YType):
+    elif is_subclass_of_union(unittype, BitType):
         return unittype.from_bits(unitbits)
     elif is_subclass_of_union(unittype, PyType):
         return bits_to_pytype(unitbits, unittype)
@@ -141,7 +141,7 @@ def from_bytes_individual(unitbytes: bytes, unittype: type, reverse_endianness: 
                         f" does not match the number of bits in the unit type ({size_in_bits})")
     if is_subclass_of_union(unittype, CType):
         return bytes_to_ctype(unitbytes, unittype, reverse_endianness=reverse_endianness)
-    elif is_subclass_of_union(unittype, YType):
+    elif is_subclass_of_union(unittype, BitType):
         return bytes_to_ytype(unitbytes, unittype, reverse_endianness=reverse_endianness)
     elif is_subclass_of_union(unittype, PyType):
         return bytes_to_pytype(unitbytes, unittype, reverse_endianness=reverse_endianness)
@@ -150,7 +150,7 @@ def from_bytes_individual(unitbytes: bytes, unittype: type, reverse_endianness: 
                         f" because the unit type is not a CType, YType, or PyType")
 
 
-AggregateTypeByteConvertible = Union[DataClassType, YType, CType, PyType, Iterable]
+AggregateTypeByteConvertible = Union[DataClassType, BitType, CType, PyType, Iterable]
 
 
 def trycast(obj, type_):

@@ -9,9 +9,9 @@ from bytemaker.bits import Bits, BitsConstructorType
 from bytemaker.utils import classproperty, ByteConvertible, is_instance_of_union
 
 
-class YTypeRegistry:
+class BitTypeRegistry:
     """
-    Class to track created YTypes.
+    Class to track created BitTypes.
     """
 
     base_types: set = set()
@@ -19,7 +19,7 @@ class YTypeRegistry:
 
     @staticmethod
     def find_type(type_name: str):
-        return YTypeRegistry.registered_types.get(type_name, None)
+        return BitTypeRegistry.registered_types.get(type_name, None)
 
     @classmethod
     def register_subtypes(cls, base_cls):
@@ -36,78 +36,78 @@ class YTypeRegistry:
                 orig_init_subclass.__func__(cls, **kwargs)
             # Register the subclass if it's not abstract
             if not inspect.isabstract(cls):
-                YTypeRegistry.registered_types[cls.__name__] = cls
+                BitTypeRegistry.registered_types[cls.__name__] = cls
 
         base_cls.__init_subclass__ = __init_subclass__
         return base_cls
 
 
 # Abstract Classes
-@YTypeRegistry.register_subtypes
-class YType(ABC):
+@BitTypeRegistry.register_subtypes
+class BitType(ABC):
     """
-    Abstract base class for all YType objects.
+    Abstract base class for all BitType objects.
 
-    YType objects are objects that can be converted to and from bits and bytes.
+    BitType objects are objects that can be converted to and from bits and bytes.
 
     Class Properties:
     -----------
     num_bits : int
-        The number of bits in the YType object.
+        The number of bits in the BitType object.
     num_bytes : int
-        The number of bytes in the YType object.
+        The number of bytes in the BitType object.
     value_type : type
-        The type of the value of the YType object.
+        The type of the value of the BitType object.
     value : Any
-        The value of the YType object.
+        The value of the BitType object.
     bytes : bytes
-        The bytes representation of the YType object.
+        The bytes representation of the BitType object.
     bytearray : bytearray
-        The bytearray representation of the YType object.
+        The bytearray representation of the BitType object.
     bits : Bits
-        The bitstring representation of the YType object.
+        The bitstring representation of the BitType object.
 
     Required Abstract Methods:
     -----------------
     get_num_bits() -> int:
-        Abstract class method that returns the number of bits in instances of the YType.
+        Abstract class method that returns the number of bits in instances of the BitType.
 
     get_value_type() -> type:
-        Abstract class method that returns the type of the values of instances of the YType.
+        Abstract class method that returns the type of the values of instances of the BitType.
 
 
     to_bits(*args, **kwargs) -> Bits:
-        Abstract instance method that converts the YType object to bitstring.Bits.
+        Abstract instance method that converts the BitType object to bitstring.Bits.
 
     from_bits(the_bits: Bits, *args, **kwargs):
-        Abstract class method that converts bitstring.Bits to an instance of the YType.
+        Abstract class method that converts bitstring.Bits to an instance of the BitType.
 
 
 
     Concrete Methods:
     --------
     get_num_bytes() -> int:
-       Class method that returns the number of bytes in instances of the YType.
+       Class method that returns the number of bytes in instances of the BitType.
 
 
     get_value() -> Any:
-        Instance method that returns the value (internal) of the YType object.
+        Instance method that returns the value (internal) of the BitType object.
 
     to_bytes(*args, **kwargs) -> bytes:
-        Instance method that converts the YType object to bytes.
+        Instance method that converts the BitType object to bytes.
 
     from_bytes(the_bytes, *args, **kwargs):
-        Class method that converts bytes to an instance of the YType class.
+        Class method that converts bytes to an instance of the BitType class.
 
     __eq__(other) -> bool:
-        Instance method that compares the YType object with another object.
+        Instance method that compares the BitType object with another object.
 
     __Bits__() -> Bits:
-        Instance method that converts the YType object to bitstring.Bits.
+        Instance method that converts the BitType object to bitstring.Bits.
         Useful for Bits(theObject).
 
     __bytes__() -> bytes:
-        Instance method that converts the YType object to bytes.
+        Instance method that converts the BitType object to bytes.
         Useful for bytes(theObject).
 
     __repr__() -> str:
@@ -117,25 +117,25 @@ class YType(ABC):
 
     def __init_subclass__(cls, **kwargs):
         """
-        Registers the subclass in the YTypeRegistry.
+        Registers the subclass in the BitTypeRegistry.
         """
         super().__init_subclass__(**kwargs)
         if not inspect.isabstract(cls):
-            YTypeRegistry.find_type(cls.__name__)
+            BitTypeRegistry.find_type(cls.__name__)
 
     def __init__(self, value: bytes | bytearray | Bits | Any, test_creation=True, *args, **kwargs) -> None:
         """
-        Initializes the YType object.
+        Initializes the BitType object.
 
         Attempts the following:
-        - If value is an instance of the valuetype of the YType subclass, sets the value directly.
-        - If value is an instance of YType and the valuetype of both YTypes match, \
-            sets the value to the value of the YType subclass.
-        - If value is an instance of bitstring.Bits, calls from_bits(Bits(value)) from the YType subclass.
-        - If value is an instance of bytes or bytearray, calls from_bytes(bytes(value)) from the YType subclass.
-        - If value is an instance of BitsConstructorType, calls from_bits(Bits(value)) from the YType subclass.
-        - If value is an instance of ByteConvertible, calls from_bytes(bytes(value)) from the YType subclass.
-        - If value is castable to the valuetype of the YType subclass, sets the value to the casted value.
+        - If value is an instance of the valuetype of the BitType subclass, sets the value directly.
+        - If value is an instance of BitType and the valuetype of both BitTypes match, \
+            sets the value to the value of the BitType subclass.
+        - If value is an instance of bitstring.Bits, calls from_bits(Bits(value)) from the BitType subclass.
+        - If value is an instance of bytes or bytearray, calls from_bytes(bytes(value)) from the BitType subclass.
+        - If value is an instance of BitsConstructorType, calls from_bits(Bits(value)) from the BitType subclass.
+        - If value is an instance of ByteConvertible, calls from_bytes(bytes(value)) from the BitType subclass.
+        - If value is castable to the valuetype of the BitType subclass, sets the value to the casted value.
         - Otherwise, raises a TypeError.
 
         Args:
@@ -147,7 +147,7 @@ class YType(ABC):
 
         if isinstance(value, self.value_type):
             self._value = value
-        elif isinstance(value, YType) and self.value_type == value.value_type:
+        elif isinstance(value, BitType) and self.value_type == value.value_type:
             self._value = value.value
         elif isinstance(value, Bits):
             self._value = self.from_bits(value).value
@@ -221,18 +221,18 @@ class YType(ABC):
     # Value info
     def get_value(self):
         """
-        Returns the value the instance of the YType represents.
+        Returns the value the instance of the BitType represents.
         """
         if hasattr(self, '_value'):
             return self._value
         else:
             raise AttributeError(f"Object of type {type(self)} has no attribute '_value'."
-                                 f"All YType objects should have an attribute '_value' that yields"
+                                 f"All BitType objects should have an attribute '_value' that yields"
                                  f" the represented value of the object.")
 
     def set_value(self, new_value):
         """
-        Sets the value the instance of the YType represents.
+        Sets the value the instance of the BitType represents.
         """
         self._value = new_value
 
@@ -316,8 +316,8 @@ class YType(ABC):
         """
         Returns whether the object is equal to another object.
             Here, this could mean the following, checked in order:
-            - This object is a ytype and its value equals the other object
-            - Both objects are ytypes and contain equivalent values.
+            - This object is a BitType and its value equals the other object
+            - Both objects are BitTypes and contain equivalent values.
                 In the case of the values being floats, if both are nans, they are still considered equal
             - Both objects are implicitly bit-convertible through __Bits__() and have equivalent bit conversions
             - Both objects are implicitly byte-convertible through __bytes__() and have equivalent byte conversions
@@ -326,7 +326,7 @@ class YType(ABC):
 
         if isinstance(other, self.value_type):
             return self.value == other
-        elif isinstance(other, StructPackedYType):
+        elif isinstance(other, StructPackedBitType):
             if self.value_type == other.value_type:
                 both_floats = self.value_type == float and other.value_type == float
                 both_nans = both_floats and math.isnan(self.value) and math.isnan(other.value)
@@ -352,9 +352,9 @@ class YType(ABC):
         return f"{classname}, value {str(self.value)}"
 
 
-class StructPackedYType(YType):
+class StructPackedBitType(BitType):
     """
-    Abstract base class for all YType objects that involve using struct for packing/unpacking.
+    Abstract base class for all BitType objects that involve using struct for packing/unpacking.
     """
 
     def to_bits(self, *args, endianness='big', **kwargs):
@@ -373,14 +373,14 @@ class StructPackedYType(YType):
     @classmethod
     def from_bits(cls, the_bits, *args, endianness='big', **kwargs):
         """
-        Returns the StructPackedYType object from the bytes representation.
+        Returns the StructPackedBitType object from the bytes representation.
 
         Args:
         - the_bytes: the bytes representation of the object.
         - endianness: the endianness of the bytes representation.
 
         Returns:
-        - the StructPackedYType object from the bytes representation.
+        - the StructPackedBitType object from the bytes representation.
         """
         packing_format = cls.get_packing_format(endianness)
         return cls(struct.unpack(packing_format, bytes(the_bits), *args, **kwargs)[0])
@@ -418,9 +418,9 @@ class StructPackedYType(YType):
 
 # Concrete classes
 # Bit Types
-class BitYType(YType):
+class BitBitType(BitType):
     """
-    Abstract base class for all YType objects that represent bit values.
+    Abstract base class for all BitType objects that represent bit values.
     """
     def to_bits(self, *args, **kwargs) -> Bits:
         return self.value
@@ -445,10 +445,10 @@ class BitYType(YType):
         return Bits
 
 
-def BitsTypeFactory(size_in_bits: int) -> type[BitYType]:
+def BitsTypeFactory(size_in_bits: int) -> type[BitBitType]:
     """
-    Factory function for creating BitYType subclasses with the given number of bits.
-        In the event there is an existing BitYType with the specified number of bits,
+    Factory function for creating BitBitType subclasses with the given number of bits.
+        In the event there is an existing BitBitType with the specified number of bits,
         retrieves it instead.
     Args:
     - size_in_bits: the number of bits the subclass represents.
@@ -457,18 +457,18 @@ def BitsTypeFactory(size_in_bits: int) -> type[BitYType]:
     init_type_name = f"Bit{size_in_bits}"
 
     # Grab an existing type if this matches one.
-    existing_type = YTypeRegistry.find_type(init_type_name)
+    existing_type = BitTypeRegistry.find_type(init_type_name)
     if existing_type is not None:
         return existing_type
 
-    class NewBitYType(BitYType):
+    class NewBitBitType(BitBitType):
         @classmethod
         def get_num_bits(cls) -> int:
             return size_in_bits
 
-    NewBitYType.__name__ = init_type_name
-    YTypeRegistry.registered_types[init_type_name] = NewBitYType
-    return NewBitYType
+    NewBitBitType.__name__ = init_type_name
+    BitTypeRegistry.registered_types[init_type_name] = NewBitBitType
+    return NewBitBitType
 
 
 class Bit1(BitsTypeFactory(1)): pass
@@ -487,9 +487,9 @@ class Bit128(BitsTypeFactory(128)): pass
 
 
 # Byte Types
-class ByteYType(YType, bytearray):
+class ByteBitType(BitType, bytearray):
     """
-    Abstract base class for all YType objects that represent raw byte values.
+    Abstract base class for all BitType objects that represent raw byte values.
     """
 
     def to_bits(self, *args, **kwargs) -> Bits:
@@ -514,21 +514,21 @@ class ByteYType(YType, bytearray):
         return bytes
 
 
-def BytesTypeFactory(size_in_bits: int) -> type[ByteYType]:
+def BytesTypeFactory(size_in_bits: int) -> type[ByteBitType]:
     init_type_name = f"Byte{size_in_bits}"
 
     # Grab an existing type if this matches one.
-    existing_type = YTypeRegistry.find_type(init_type_name)
+    existing_type = BitTypeRegistry.find_type(init_type_name)
     if existing_type is not None:
         return existing_type
 
-    class NewByteYType(ByteYType, bytearray):
+    class NewByteBitType(ByteBitType, bytearray):
         @classmethod
         def get_num_bits(cls) -> int:
             return size_in_bits
 
-    NewByteYType.__name__ = init_type_name
-    return NewByteYType
+    NewByteBitType.__name__ = init_type_name
+    return NewByteBitType
 
 
 class Byte8(BytesTypeFactory(8)): pass
@@ -540,8 +540,8 @@ class Byte128(BytesTypeFactory(128)): pass
 
 
 # Integer Types
-class IntYType(YType):
-    def __init__(self, value: int | bytes | bytearray | IntYType, *args, **kwargs):
+class IntBitType(BitType):
+    def __init__(self, value: int | bytes | bytearray | IntBitType, *args, **kwargs):
         super().__init__(value, *args, **kwargs)
 
     @abstractmethod
@@ -565,7 +565,7 @@ class IntYType(YType):
 
 
 # UInts
-class UInt(IntYType):
+class UInt(IntBitType):
     @classmethod
     def get_is_signed(cls):
         return False
@@ -573,11 +573,11 @@ class UInt(IntYType):
 
 def _UIntStructPackedTypeFactory(size_in_bits: int, packing_format_letter: str) -> type[UInt]:
     init_type_name = f"UInt{size_in_bits}"
-    existing_type = YTypeRegistry.find_type(init_type_name)
+    existing_type = BitTypeRegistry.find_type(init_type_name)
     if existing_type is not None:
         return existing_type
 
-    class NewUIntYType(UInt, StructPackedYType):
+    class NewUIntBitType(UInt, StructPackedBitType):
         @classmethod
         def get_num_bits(cls) -> int:
             return size_in_bits
@@ -586,7 +586,7 @@ def _UIntStructPackedTypeFactory(size_in_bits: int, packing_format_letter: str) 
         def get_packing_format_letter(cls):
             return packing_format_letter
 
-    return NewUIntYType
+    return NewUIntBitType
 
 
 class UInt8(_UIntStructPackedTypeFactory(8, 'B')): pass
@@ -597,14 +597,14 @@ class UInt64(_UIntStructPackedTypeFactory(64, 'Q')): pass
 
 
 # Signed ints
-class SInt(IntYType):
+class SInt(IntBitType):
     @classmethod
     def get_is_signed(cls):
         return True
 
 
 def _SIntStructPackedTypeFactory(size_in_bits: int, packing_format_letter: str) -> SInt:
-    class NewSIntYType(SInt, StructPackedYType):
+    class NewSIntBitType(SInt, StructPackedBitType):
         @classmethod
         def get_num_bits(cls) -> int:
             return size_in_bits
@@ -613,7 +613,7 @@ def _SIntStructPackedTypeFactory(size_in_bits: int, packing_format_letter: str) 
         def get_packing_format_letter(cls):
             return packing_format_letter
 
-    return NewSIntYType
+    return NewSIntBitType
 
 
 class SInt8(_SIntStructPackedTypeFactory(8, 'b')): pass
@@ -625,8 +625,8 @@ class SInt64(_SIntStructPackedTypeFactory(64, 'q')): pass
 
 # Floats
 
-class FloatYType(YType):
-    def __init__(self, value: float | bytes | bytearray | FloatYType, *args, **kwargs):
+class FloatBitType(BitType):
+    def __init__(self, value: float | bytes | bytearray | FloatBitType, *args, **kwargs):
         super().__init__(value, *args, **kwargs)
 
     @classmethod
@@ -637,8 +637,8 @@ class FloatYType(YType):
         return self.value
 
 
-def _FloatStructPackedTypeFactory(size_in_bits: int, packing_format_letter: str) -> type[FloatYType]:
-    class NewFloatYType(FloatYType, StructPackedYType):
+def _FloatStructPackedTypeFactory(size_in_bits: int, packing_format_letter: str) -> type[FloatBitType]:
+    class NewFloatBitType(FloatBitType, StructPackedBitType):
         @classmethod
         def get_num_bits(cls) -> int:
             return size_in_bits
@@ -647,7 +647,7 @@ def _FloatStructPackedTypeFactory(size_in_bits: int, packing_format_letter: str)
         def get_packing_format_letter(cls):
             return packing_format_letter
 
-    return NewFloatYType
+    return NewFloatBitType
 
 
 class Float16(_FloatStructPackedTypeFactory(16, 'e')): pass
@@ -657,8 +657,8 @@ class Float64(_FloatStructPackedTypeFactory(64, 'd')): pass
 
 # Strings
 
-class StrYType(YType):
-    def __init__(self, value: str | bytes | bytearray | StrYType, *args, **kwargs):
+class StrBitType(BitType):
+    def __init__(self, value: str | bytes | bytearray | StrBitType, *args, **kwargs):
         super().__init__(value, *args, **kwargs)
 
     @classmethod
@@ -701,7 +701,7 @@ def StrTypeFactory(
         size_in_bits: int,
         encode_method: Callable[[str], Bits] = DefaultCodings.str_enc,
         decode_method: Callable[[Bits], str] = DefaultCodings.str_dec,
-        custom_type_name=None) -> type[StrYType]:
+        custom_type_name=None) -> type[StrBitType]:
     if custom_type_name is None:
         init_type_name = f"Str{size_in_bits}"
     else:
@@ -709,7 +709,7 @@ def StrTypeFactory(
     cur_type_name = init_type_name
 
     # Grab an existing type if this matches one in name/encoding/decoding.
-    existing_type = YTypeRegistry.find_type(cur_type_name)
+    existing_type = BitTypeRegistry.find_type(cur_type_name)
     counter = 0
     while existing_type is not None:
         if (
@@ -719,10 +719,10 @@ def StrTypeFactory(
             return existing_type
         else:
             cur_type_name = f"Str{size_in_bits}_{counter}"
-            existing_type = YTypeRegistry.find_type(cur_type_name)
+            existing_type = BitTypeRegistry.find_type(cur_type_name)
 
-    class NewStrYType(StrYType):
-        def __init__(self, value: str | Bits | bytes | bytearray | StrYType, *args, **kwargs):
+    class NewStrBitType(StrBitType):
+        def __init__(self, value: str | Bits | bytes | bytearray | StrBitType, *args, **kwargs):
             if isinstance(value, str):
                 self._value = value
             elif isinstance(value, bytes) or isinstance(value, bytearray) or isinstance(value, Bits):
@@ -786,21 +786,21 @@ def StrTypeFactory(
         def __str__(self):
             return self.value
 
-    NewStrYType.__name__ = cur_type_name
-    NewStrYType.encode_method = encode_method
-    NewStrYType.decode_method = decode_method
-    YTypeRegistry.registered_types[cur_type_name] = NewStrYType
-    print(YTypeRegistry.find_type(cur_type_name))
-    return NewStrYType
+    NewStrBitType.__name__ = cur_type_name
+    NewStrBitType.encode_method = encode_method
+    NewStrBitType.decode_method = decode_method
+    BitTypeRegistry.registered_types[cur_type_name] = NewStrBitType
+    print(BitTypeRegistry.find_type(cur_type_name))
+    return NewStrBitType
 
 
 class Str8(StrTypeFactory(8)): pass
 
 
-# YTypeRegistry.str_types = {
+# BitTypeRegistry.str_types = {
 #     Str8.__name__: Str8
 # }
-# YTypeRegistry.bit_types = {
+# BitTypeRegistry.bit_types = {
 #     Bit1.__name__: Bit1,
 #     Bit2.__name__: Bit2,
 #     Bit3.__name__: Bit3,
@@ -815,7 +815,7 @@ class Str8(StrTypeFactory(8)): pass
 #     Bit64.__name__: Bit64,
 #     Bit128.__name__: Bit128
 # }
-# YTypeRegistry.byte_types = {
+# BitTypeRegistry.byte_types = {
 #     Byte8.__name__: Byte8,
 #     Byte16.__name__: Byte16,
 #     Byte24.__name__: Byte24,
@@ -823,39 +823,39 @@ class Str8(StrTypeFactory(8)): pass
 #     Byte64.__name__: Byte64,
 #     Byte128.__name__: Byte128
 # }
-# YTypeRegistry.uint_types = {
+# BitTypeRegistry.uint_types = {
 #     UInt8.__name__: UInt8,
 #     UInt16.__name__: UInt16,
 #     UInt24.__name__: UInt24,
 #     UInt32.__name__: UInt32,
 #     UInt64.__name__: UInt64
 # }
-# YTypeRegistry.sint_types = {
+# BitTypeRegistry.sint_types = {
 #     SInt8.__name__: SInt8,
 #     SInt16.__name__: SInt16,
 #     SInt24.__name__: SInt24,
 #     SInt32.__name__: SInt32,
 #     SInt64.__name__: SInt64
 # }
-# YTypeRegistry.float_types = {
+# BitTypeRegistry.float_types = {
 #     Float16.__name__: Float16,
 #     Float32.__name__: Float32,
 #     Float64.__name__: Float64
 # }
 
 
-def get_ytype(typing_representation: str | YType | type, num_bits: int = None) -> YType:
-    matched_type = YTypeRegistry.find_type(typing_representation)
+def get_BitType(typing_representation: str | BitType | type, num_bits: int = None) -> BitType:
+    matched_type = BitTypeRegistry.find_type(typing_representation)
     if matched_type is not None:
         return matched_type
 
-    ytype_to_str = {
+    BitType_to_str = {
         UInt: "uint",
         SInt: "sint",
-        FloatYType: "float",
-        BitYType: "bit",
-        ByteYType: "byte",
-        StrYType: "str",
+        FloatBitType: "float",
+        BitBitType: "bit",
+        ByteBitType: "byte",
+        StrBitType: "str",
     }
 
     type_name_matching = {
@@ -874,8 +874,8 @@ def get_ytype(typing_representation: str | YType | type, num_bits: int = None) -
         "byte": "Byte",
     }
 
-    if isinstance(typing_representation, YType):
-        typing_representation = ytype_to_str[type(typing_representation)]
+    if isinstance(typing_representation, BitType):
+        typing_representation = BitType_to_str[type(typing_representation)]
 
     elif isinstance(typing_representation, type):
         typing_representation = typing_representation.__qualname__
@@ -907,28 +907,28 @@ def get_ytype(typing_representation: str | YType | type, num_bits: int = None) -
 
     typing_representation = typing_representation + str(num_bits)
 
-    matched_type = YTypeRegistry.find_type(typing_representation)
+    matched_type = BitTypeRegistry.find_type(typing_representation)
     if matched_type is not None:
         return matched_type
     else:
         return None
 
 
-def ytype_to_bytes(unit: YType, num_bytes: Optional[int] = None, reverse_endianness: bool = False) -> bytes:
-    if isinstance(unit, YType):
+def BitType_to_bytes(unit: BitType, num_bytes: Optional[int] = None, reverse_endianness: bool = False) -> bytes:
+    if isinstance(unit, BitType):
         return unit.to_bytes(num_bytes=num_bytes, reverse_endianness=reverse_endianness)
     else:
-        raise TypeError(f"Expecting YType, got {type(unit)}")
+        raise TypeError(f"Expecting BitType, got {type(unit)}")
 
 
-def bytes_to_ytype(unitbytes: bytes, unittype: YType, reverse_endianness: bool = False) -> YType:
+def bytes_to_BitType(unitbytes: bytes, unittype: BitType, reverse_endianness: bool = False) -> BitType:
     if reverse_endianness:
         unitbytes = unitbytes[::-1]
 
-    if issubclass(unittype, YType):
+    if issubclass(unittype, BitType):
         unit = unittype.from_bytes(unitbytes)
     else:
-        raise TypeError(f"Expecting YType, got {unittype}")
+        raise TypeError(f"Expecting BitType, got {unittype}")
 
     return unit
 
@@ -936,6 +936,6 @@ def bytes_to_ytype(unitbytes: bytes, unittype: YType, reverse_endianness: bool =
 if __name__ == "__main__":
     the_bytes = Bits(StrTypeFactory(10 * 8)("fish"))
     print(the_bytes)
-    print(bytes_to_ytype(the_bytes, StrTypeFactory(20), reverse_endianness=False))
+    print(bytes_to_BitType(the_bytes, StrTypeFactory(20), reverse_endianness=False))
 
     print(Str8("f"))
