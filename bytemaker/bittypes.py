@@ -921,7 +921,7 @@ def BitType_to_bytes(unit: BitType, num_bytes: Optional[int] = None, reverse_end
         raise TypeError(f"Expecting BitType, got {type(unit)}")
 
 
-def bytes_to_BitType(unitbytes: bytes, unittype: BitType, reverse_endianness: bool = False) -> BitType:
+def bytes_to_bittype(unitbytes: bytes, unittype: BitType, reverse_endianness: bool = False) -> BitType:
     if reverse_endianness:
         unitbytes = unitbytes[::-1]
 
@@ -936,6 +936,6 @@ def bytes_to_BitType(unitbytes: bytes, unittype: BitType, reverse_endianness: bo
 if __name__ == "__main__":
     the_bytes = Bits(StrTypeFactory(10 * 8)("fish"))
     print(the_bytes)
-    print(bytes_to_BitType(the_bytes, StrTypeFactory(20), reverse_endianness=False))
+    print(bytes_to_bittype(the_bytes, StrTypeFactory(20), reverse_endianness=False))
 
     print(Str8("f"))
