@@ -4,7 +4,7 @@ import traceback
 from typing import Iterable, Union
 from bytemaker.bits import Bits
 from bytemaker.utils import is_instance_of_union, is_subclass_of_union, DataClassType
-from bytemaker.ytypes import BitType, bytes_to_ytype
+from bytemaker.bittypes import BitType, bytes_to_bittype
 from bytemaker.native_types.ctypes_ import CType, bytes_to_ctype, ctype_to_bytes, bits_to_ctype, ctype_to_bits
 from bytemaker.native_types.pytypes import (
     PyType, pytype_to_bits, pytype_to_bytes, bits_to_pytype, bytes_to_pytype, ConversionConfig
@@ -142,7 +142,7 @@ def from_bytes_individual(unitbytes: bytes, unittype: type, reverse_endianness: 
     if is_subclass_of_union(unittype, CType):
         return bytes_to_ctype(unitbytes, unittype, reverse_endianness=reverse_endianness)
     elif is_subclass_of_union(unittype, BitType):
-        return bytes_to_ytype(unitbytes, unittype, reverse_endianness=reverse_endianness)
+        return bytes_to_bittype(unitbytes, unittype, reverse_endianness=reverse_endianness)
     elif is_subclass_of_union(unittype, PyType):
         return bytes_to_pytype(unitbytes, unittype, reverse_endianness=reverse_endianness)
     else:
