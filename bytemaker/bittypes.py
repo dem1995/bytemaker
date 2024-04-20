@@ -844,7 +844,7 @@ class Str8(StrTypeFactory(8)): pass
 # }
 
 
-def get_BitType(typing_representation: str | BitType | type, num_bits: int = None) -> BitType:
+def get_bittype(typing_representation: str | BitType | type, num_bits: int = None) -> BitType:
     matched_type = BitTypeRegistry.find_type(typing_representation)
     if matched_type is not None:
         return matched_type
@@ -914,7 +914,7 @@ def get_BitType(typing_representation: str | BitType | type, num_bits: int = Non
         return None
 
 
-def BitType_to_bytes(unit: BitType, num_bytes: Optional[int] = None, reverse_endianness: bool = False) -> bytes:
+def bittype_to_bytes(unit: BitType, num_bytes: Optional[int] = None, reverse_endianness: bool = False) -> bytes:
     if isinstance(unit, BitType):
         return unit.to_bytes(num_bytes=num_bytes, reverse_endianness=reverse_endianness)
     else:
