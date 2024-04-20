@@ -3,7 +3,7 @@ import ctypes
 
 from dataclasses import dataclass
 from bytemaker.bits import Bits
-from bytemaker.ytypes import UInt8, UInt16, UInt32, UInt64, SInt8, SInt16, SInt32, SInt64, Float16, Float32, Bit4
+from bytemaker.bittypes import UInt8, UInt16, UInt32, UInt64, SInt8, SInt16, SInt32, SInt64, Float16, Float32, Bit4
 from bytemaker.aggregate_types import to_bits_aggregate, from_bits_aggregate, to_bits_individual, from_bits_individual
 
 
@@ -82,7 +82,7 @@ class CTypeAggregate1:
 
 
 @dataclass
-class YTypeAggregate1:
+class BitTypeAggregate1:
     a: SInt32
     b: Float32
     c: Bit4
@@ -92,7 +92,7 @@ class YTypeAggregate1:
 class MixedAggregate:
     pytype_aggregate: PyTypeAggregate1
     ctype_aggregate: CTypeAggregate1
-    ytype_aggregate: YTypeAggregate1
+    bittype_aggregate: BitTypeAggregate1
 
 
 @dataclass
@@ -142,8 +142,8 @@ def aggregate_data_1_c_rep():
 
 
 @pytest.fixture
-def aggregate_data_1_y_val():
-    return YTypeAggregate1(
+def aggregate_data_1_bittype_val():
+    return BitTypeAggregate1(
         SInt32(382),
         Float32(3.1415927410125732421875),
         Bit4([0, 1, 0, 0])
@@ -151,7 +151,7 @@ def aggregate_data_1_y_val():
 
 
 @pytest.fixture
-def aggregate_data_1_y_rep():
+def aggregate_data_1_bittype_rep():
     return Bits(
         "0x0000017E"  # 382
         "40490fdb"  # 3.1415927410125732421875
@@ -187,17 +187,17 @@ def test_ctype_dataclass(aggregate_data_1_c_rep):
     assert type(from_bits_aggregate(aggregate_data_1_c_rep, CTypeAggregate1)) == CTypeAggregate1
 
 
-def test_ytype_dataclass(aggregate_data_1_y_rep):
+def test_bittype_dataclass(aggregate_data_1_bittype_rep):
     print("Sint 382 conversion:", SInt32(382))
-    # print(YTypeAggregate1(SInt32(382)))
+    # print(BitTypeAggregate1(SInt32(382)))
     assert to_bits_aggregate(
-        YTypeAggregate1(
+        BitTypeAggregate1(
             SInt32(382),
             Float32(3.1415927410125732421875),
             Bit4([0, 1, 0, 0])
-        )).to_hex() == aggregate_data_1_y_rep.to_hex()
+        )).to_hex() == aggregate_data_1_bittype_rep.to_hex()
 
-    from_bits_agg_gotten = from_bits_aggregate(aggregate_data_1_y_rep, YTypeAggregate1)
+    from_bits_agg_gotten = from_bits_aggregate(aggregate_data_1_bittype_rep, BitTypeAggregate1)
     assert from_bits_agg_gotten.a.value == 382
     assert from_bits_agg_gotten.b.value == 3.1415927410125732421875
     assert from_bits_agg_gotten.c == Bits([0, 1, 0, 0])
@@ -208,21 +208,20 @@ def test_mixed_dataclass(
         aggregate_data_1_val,
         aggregate_data_1_c_rep,
         aggregate_data_1_c_val,
-        aggregate_data_1_y_rep,
-        aggregate_data_1_y_val):
+        aggregate_data_1_bittype_rep,
+        aggregate_data_1_bittype_val):
     """
     Tests whether converting an aggregated dataclass to bits and back to the dataclass results in the same data
     """
 
-
     mixed_aggregate = MixedAggregate(
         aggregate_data_1_val,
         aggregate_data_1_c_val,
-        aggregate_data_1_y_val
+        aggregate_data_1_bittype_val
     )
 
     def mixed_aggregate_data_1_rep():
-        return Bits([]).join([aggregate_data_1_rep, aggregate_data_1_c_rep, aggregate_data_1_y_rep])
+        return Bits([]).join([aggregate_data_1_rep, aggregate_data_1_c_rep, aggregate_data_1_bittype_rep])
 
     print(mixed_aggregate)
     gottenattr = getattr(mixed_aggregate, 'pytype_aggregate')
@@ -235,4 +234,4 @@ def test_mixed_dataclass(
     assert from_bits_agg_gotten.pytype_aggregate == aggregate_data_1_val
     assert from_bits_agg_gotten.ctype_aggregate.a.value == 382
     assert from_bits_agg_gotten.ctype_aggregate.c.value == b'A'
-    assert from_bits_agg_gotten.ytype_aggregate == aggregate_data_1_y_val
+    assert from_bits_agg_gotten.bittype_aggregate == aggregate_data_1_bittype_val
