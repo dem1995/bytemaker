@@ -254,7 +254,8 @@ def test_mixed_dataclass(
     aggregate_data_1_bittype_val,
 ):
     """
-    Tests whether converting an aggregated dataclass to bits and back to the dataclass results in the same data
+    Tests whether converting an aggregated dataclass to bits and
+    back to the dataclass results in the same data
     """
 
     mixed_aggregate = MixedAggregate(

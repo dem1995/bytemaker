@@ -20,7 +20,8 @@ from bytemaker.utils import (
         ("hello", typing.Union[int, str], True),
         (10.5, typing.Union[int, str], False),
         ([], typing.Union[int, str], False),
-        (10, int, True),  # Non-union type should still return True for isinstance
+        (10, int, True),  # Non-union type should still return
+        # True for isinstance
     ],
 )
 def test_is_instance_of_union(obj, union_type, expected):
@@ -35,7 +36,8 @@ def test_is_instance_of_union(obj, union_type, expected):
         (str, typing.Union[int, str], True),
         (float, typing.Union[int, str], False),
         (list, typing.Union[int, str], False),
-        (int, int, True),  # Non-union type should still return True for issubclass
+        (int, int, True),  # Non-union type should still return True
+        # for issubclass
     ],
 )
 def test_is_subclass_of_union(obj_type, union_type, expected):

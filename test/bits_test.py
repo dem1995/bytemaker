@@ -115,40 +115,14 @@ def test_bits_from_str():
     assert bits1 == bits2
 
     bits = Bits("0x00000f0f")
+    # fmt: off
     assert bits.bitlist == [
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        1,
-        1,
-        1,
-        1,
-        0,
-        0,
-        0,
-        0,
-        1,
-        1,
-        1,
-        1,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 1, 1, 1, 1,
+        0, 0, 0, 0, 1, 1, 1, 1,
     ]
+    # fmt: on
     assert bits.to_hex().replace("_", "") == "0x00000f0f"
 
     bits = Bits("0o707")
@@ -161,40 +135,14 @@ def test_bits_from_int():
     assert bits.bitlist == [0, 1, 0, 1]
 
     bits = Bits.from_int(integer, 32)
+    # fmt: off
     assert bits.bitlist == [
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        1,
-        0,
-        1,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 1, 0, 1,
     ]
+    # fmt: on
 
 
 # Test the to_int method
@@ -245,30 +193,13 @@ def test_bits_join():
     assert bits5.bitlist == [1, 0, 1, 1, 0]
 
     bits6 = bits0.join([bits1, bits2, bits1])
+    # fmt: off
     assert bits6.bitlist == [
-        1,
-        1,
-        0,
-        0,
-        1,
-        0,
-        1,
-        1,
-        0,
-        0,
-        1,
-        1,
-        1,
-        1,
-        0,
-        1,
-        1,
-        0,
-        1,
-        1,
-        0,
-        0,
+        1, 1, 0, 0, 1, 0, 1, 1,
+        0, 0, 1, 1, 1, 1, 0, 1,
+        1, 0, 1, 1, 0, 0,
     ]
+    # fmt: on
 
 
 # def test_bits_concat():
@@ -282,7 +213,8 @@ def test_bits_join():
 #     assert bits3.bitlist == [1, 1, 0, 0, 0, 1, 1, 1]
 
 #     bits4 = Bits.concat(bits3, bits3, bits3)
-#     assert bits4.bitlist == [1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1]
+#     assert bits4.bitlist == \
+#   [1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1]
 
 #     bits5 = Bits.concat()
 #     assert bits5.bitlist == []
