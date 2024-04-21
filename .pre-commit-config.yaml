@@ -25,7 +25,12 @@ repos:
     rev: 7.0.0
     hooks:
       - id: "flake8"
-  - repo: https://github.com/pycqa/isort
+        entry: pflake8
+        additional_dependencies: [pyproject-flake8]
+        args:
+          - --config=pyproject.toml
+        entry: pflake8
+    cqa/isort
     rev: 5.13.2
     hooks:
       - id: isort
