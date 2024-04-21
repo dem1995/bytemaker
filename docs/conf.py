@@ -8,41 +8,39 @@
 
 import os
 import sys
-sys.path.insert(0, os.path.abspath('../'))
-sys.path.insert(0, os.path.abspath('../bytemaker'))
-sys.path.insert(0, os.path.abspath('../bytemaker/native_types'))
+
+sys.path.insert(0, os.path.abspath("../"))
+sys.path.insert(0, os.path.abspath("../bytemaker"))
+sys.path.insert(0, os.path.abspath("../bytemaker/native_types"))
 
 
-project = 'bytemaker'
-copyright = '2023, DEMcKnight'
-author = 'DEMcKnight'
+project = "bytemaker"
+copyright = "2023, DEMcKnight"
+author = "DEMcKnight"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
-extensions = [
-    'sphinx.ext.viewcode',
-    'sphinx.ext.napoleon'
-]
+extensions = ["sphinx.ext.viewcode", "sphinx.ext.napoleon"]
 
-templates_path = ['_templates']
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+templates_path = ["_templates"]
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
-autodoc_member_order = 'bysource'
+autodoc_member_order = "bysource"
 
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
 html_css_files = [
-    'custom.css',
+    "custom.css",
 ]
-html_theme = 'piccolo_theme'
-html_static_path = ['_static']
+html_theme = "piccolo_theme"
+html_static_path = ["_static"]
 
 
 html_css_files = [
-    'css/custom.css',
+    "css/custom.css",
 ]
 
 

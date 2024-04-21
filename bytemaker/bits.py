@@ -1,14 +1,16 @@
 from __future__ import annotations
-from math import ceil
+
 import operator
 import typing
+from math import ceil
 from typing import Iterable, Protocol, runtime_checkable
+
 from bytemaker.utils import ByteConvertible, twos_complement_bit_length
 
 
 @runtime_checkable
 class BitsCastable(Protocol):
-    def __Bits__(self) -> "Bits":
+    def __Bits__(self) -> Bits:
         pass
 
 
@@ -16,6 +18,7 @@ class Bits:
     """
     A class for storing and manipulating bits.
     """
+
     def __init__(self, source: BitsConstructorType = None, deep_copy: bool = False):
         if source is None:
             source = list()
@@ -29,31 +32,39 @@ class Bits:
             if isinstance(source, BitsCastable):
                 if isinstance(source, Bits):
                     bitlist = source.bitlist
-                elif hasattr(source, '__Bits__'):
+                elif hasattr(source, "__Bits__"):
                     bitlist = source.__Bits__().bitlist
             elif isinstance(source, int):
                 bitlist = [0 for _ in range(source)]
             elif isinstance(source, str):
                 bitlist = Bits.from_string(source).bitlist
             elif isinstance(source, (bytes, bytearray, memoryview)):
-                bitlist = [int(bit) for byte in source for bit in format(byte, '08b')]
-            elif isinstance(source, Iterable):  # Iterable[int | bool] in more modern Python versions
+                bitlist = [int(bit) for byte in source for bit in format(byte, "08b")]
+            elif isinstance(
+                source, Iterable
+            ):  # Iterable[int | bool] in more modern Python versions
                 bitlist = [int(bit) for bit in source]
             elif isinstance(source, ByteConvertible):
-                bitlist = [int(bit) for byte in bytes(source) for bit in format(byte, '08b')]
+                bitlist = [
+                    int(bit) for byte in bytes(source) for bit in format(byte, "08b")
+                ]
             else:
-                raise TypeError(f"Cannot convert {type(source)} to Bits. Must be {BitsConstructorType}.")
+                raise TypeError(
+                    f"Cannot convert {type(source)} to Bits. Must be {BitsConstructorType}."
+                )
 
             self.bitlist = bitlist
 
             if self.bitlist is None:
                 raise ValueError(
                     f"Could not convert {type(source)} to Bits despite the provided type being acceptable. "
-                    "The resulting bit_list was none")
+                    "The resulting bit_list was none"
+                )
 
-            assert all(bit in [0, 1] for bit in self.bitlist), \
-                (f"Bits can only be 1 or 0. The provided data produced bits other than 0 or 1."
-                 f"Final bitlist: {self.bitlist} Initial data: {source}")
+            assert all(bit in [0, 1] for bit in self.bitlist), (
+                f"Bits can only be 1 or 0. The provided data produced bits other than 0 or 1."
+                f"Final bitlist: {self.bitlist} Initial data: {source}"
+            )
 
         if deep_copy:
             self.bitlist = self.bitlist.copy()
@@ -67,7 +78,7 @@ class Bits:
         return bytearray(bytes(self))
 
     def __str__(self) -> str:
-        return self.str_(format_spec='b')
+        return self.str_(format_spec="b")
 
     def str_(self, format_spec) -> str:
         return format(self, format_spec)
@@ -81,9 +92,9 @@ class Bits:
     def __getitem__(self, index) -> int:
         if isinstance(index, int):
             return self.bitlist[index]
-        elif hasattr(index, '__index__'):
+        elif hasattr(index, "__index__"):
             return self.bitlist[index.__index__()]
-        elif hasattr(index, '__int__'):
+        elif hasattr(index, "__int__"):
             return self.bitlist[index.__int__()]
         elif isinstance(index, slice):
             return Bits(self.bitlist[index])
@@ -97,10 +108,10 @@ class Bits:
 
     def __setitem__(self, index, value):
         if not 0 <= value <= 1:
-            raise ValueError('Bits can only be 1 or 0')
+            raise ValueError("Bits can only be 1 or 0")
         self.bitlist[index] = value
 
-    def binop(self, other: BitsConstructorType, op: "operator", expand=False) -> Bits:
+    def binop(self, other: BitsConstructorType, op: operator, expand=False) -> Bits:
         if not isinstance(other, Bits):
             try:
                 other = Bits(other)
@@ -188,13 +199,13 @@ class Bits:
         return iter(self.bitlist)
 
     def __format__(self, format_spec) -> str:
-        if format_spec == 'b':
+        if format_spec == "b":
             retstring = "0b"
             for i in range(len(self.bitlist)):
                 if i % 8 == 0 and not i == 0:
                     retstring += "_"
                 retstring += str(self.bitlist[i])
-        elif format_spec == 'o':
+        elif format_spec == "o":
             retstring = "0o"
             for i in range(0, len(self.bitlist), 3):
                 if i % 8 == 0 and not i == 0:
@@ -204,7 +215,7 @@ class Bits:
                 for bit in self.bitlist[i:nibble_end_index]:
                     nibble = (nibble << 1) | bit
                 retstring += oct(nibble)[2:]
-        elif format_spec == 'x':
+        elif format_spec == "x":
             retstring = "0x"
             for i in range(0, len(self.bitlist), 4):
                 if i % 8 == 0 and not i == 0:
@@ -215,9 +226,11 @@ class Bits:
                     nibble = (nibble << 1) | bit
                 retstring += hex(nibble)[2:]
         else:
-            raise ValueError(f"Invalid format_spec: '{format_spec}'."
-                             f" Must be 'b', 'o', or 'x'."
-                             f" Object contents: {self.bitlist}.")
+            raise ValueError(
+                f"Invalid format_spec: '{format_spec}'."
+                f" Must be 'b', 'o', or 'x'."
+                f" Object contents: {self.bitlist}."
+            )
         return retstring
 
     def __bytes__(self) -> bytes:
@@ -229,7 +242,7 @@ class Bits:
     def append(self, value: int, inplace=True):
         value = int(value)
         if value not in [0, 1]:
-            raise ValueError('Bits can only be 1 or 0')
+            raise ValueError("Bits can only be 1 or 0")
         if inplace:
             self.bitlist.append(value)
             return self
@@ -294,21 +307,21 @@ class Bits:
         Converts a string to a Bits object. '_', '-', ' ', and ':' are stripped before conversion.
         The remaining string must be all binary or of the form '0b', '0o', or '0x' followed by digits.
         """
-        string = string.translate(str.maketrans('', '', '_- :'))
+        string = string.translate(str.maketrans("", "", "_- :"))
 
-        if string.startswith('0b'):
+        if string.startswith("0b"):
             binstring = string[2:]
-        elif string.startswith('0o'):
-            nonzeros = string[2:].lstrip('0')
+        elif string.startswith("0o"):
+            nonzeros = string[2:].lstrip("0")
             nonzeros_as_bin = bin(int(nonzeros, 8))[2:]
-            leading_zeros_as_bin = '0' * (len(string[2:]) * 3 - len(nonzeros_as_bin))
+            leading_zeros_as_bin = "0" * (len(string[2:]) * 3 - len(nonzeros_as_bin))
             binstring = leading_zeros_as_bin + nonzeros_as_bin
-        elif string.startswith('0x'):
-            nonzeros = string[2:].lstrip('0')
+        elif string.startswith("0x"):
+            nonzeros = string[2:].lstrip("0")
             nonzeros_as_bin = bin(int(nonzeros, 16))[2:]
-            leading_zeros_as_bin = '0' * (len(string[2:]) * 4 - len(nonzeros_as_bin))
+            leading_zeros_as_bin = "0" * (len(string[2:]) * 4 - len(nonzeros_as_bin))
             binstring = leading_zeros_as_bin + nonzeros_as_bin
-        elif all(char in '01' for char in string):
+        elif all(char in "01" for char in string):
             binstring = string
         else:
             raise ValueError(
@@ -332,7 +345,8 @@ class Bits:
         if integer.bit_length() > size:
             raise ValueError(
                 f"Cannot convert {integer} to Bits with size {size},"
-                f" because it requires {integer.bit_length()} bits to represent.")
+                f" because it requires {integer.bit_length()} bits to represent."
+            )
 
         bitlist = list()
         for index in range(size):
@@ -340,7 +354,7 @@ class Bits:
 
         return cls(bitlist)
 
-    def to_int(self, endianness='big', signed=True) -> int:
+    def to_int(self, endianness="big", signed=True) -> int:
         """
         Converts a Bits object to an integer. It does this
             by casting the Bits to bytes, and then converting the bytes to an integer
@@ -354,13 +368,13 @@ class Bits:
         return int.from_bytes(copy.to_bytes(), byteorder=endianness, signed=signed)
 
     def to_bin(self) -> str:
-        return self.str_(format_spec='b')
+        return self.str_(format_spec="b")
 
     def to_oct(self) -> str:
-        return self.str_(format_spec='o')
+        return self.str_(format_spec="o")
 
     def to_hex(self) -> str:
-        return self.str_(format_spec='x')
+        return self.str_(format_spec="x")
 
     def shrinkequals(self, other_bits: Bits) -> bool:
         """
@@ -389,4 +403,6 @@ class Bits:
             return ret_bits
 
 
-BitsConstructorType = typing.Union[int, str, bytes, bytearray, memoryview, Iterable[int], Bits, BitsCastable]
+BitsConstructorType = typing.Union[
+    int, str, bytes, bytearray, memoryview, Iterable[int], Bits, BitsCastable
+]

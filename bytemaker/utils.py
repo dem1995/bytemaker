@@ -1,7 +1,7 @@
 import dataclasses
 import typing
+from math import ceil, log2
 from typing import Any
-from math import log2, ceil
 
 #  General Python functionality
 
@@ -10,6 +10,7 @@ class classproperty(property):
     """
     Class property decorator.
     """
+
     def __get__(self, cls, owner):
         return classmethod(self.fget).__get__(None, owner)()
 
@@ -61,8 +62,10 @@ def is_instance_of_union(obj, union_type: type):
 
             # If the type is a multi-arg, non-union, non-generic type
             else:
-                raise ValueError(f"(Generic?) type {union_type} has origin {type_origin} and type args {type_args}."
-                                 "non-union types with multiple subscripts are not supported.")
+                raise ValueError(
+                    f"(Generic?) type {union_type} has origin {type_origin} and type args {type_args}."
+                    "non-union types with multiple subscripts are not supported."
+                )
         else:
             return False
 
@@ -112,22 +115,31 @@ def is_subclass_of_union(subtype: type, supertype: type):
 
         # If the supertype is a union type or an iterable generic
         if supertype_origin is typing.Union:
-            return any(is_subclass_of_union(subtype, union_type_part) for union_type_part in supertype_args)
+            return any(
+                is_subclass_of_union(subtype, union_type_part)
+                for union_type_part in supertype_args
+            )
         elif issubclass(supertype_origin, typing.Iterable) and len(supertype_args) == 1:
-            return issubclass(subtype, supertype_origin) and is_subclass_of_union(subtype, supertype_args[0])
+            return issubclass(subtype, supertype_origin) and is_subclass_of_union(
+                subtype, supertype_args[0]
+            )
 
         # If the supertype is a multi-arg, non-union, non-generic type
-        raise ValueError(f"Supertype {supertype} has origin {supertype_origin} and type args {supertype_args}."
-                         "non-union supertypes with multiple subscripts are not supported.")
+        raise ValueError(
+            f"Supertype {supertype} has origin {supertype_origin} and type args {supertype_args}."
+            "non-union supertypes with multiple subscripts are not supported."
+        )
 
 
 # Byte-related operations
+
 
 class _ByteConvertibleMeta(type):
     """
     This is used to create IsByteConvertible, a type to allow checking \
         whether an object or instances of a class can be converted to a bytes object using isinstance or issubclass.
     """
+
     def __instancecheck__(self, __instance: Any) -> bool:
         try:
             bytes(__instance)
@@ -137,10 +149,16 @@ class _ByteConvertibleMeta(type):
 
     def __subclasscheck__(self, __subclass: type) -> bool:
         return (
-            hasattr(__subclass, '__bytes__') or
-            is_subclass_of_union(__subclass, typing.Union[bytes, bytearray, memoryview]) or
-            (hasattr(__subclass, '__getitem__') and hasattr(__subclass, 'format') and
-                hasattr(__subclass, 'shape') and hasattr(__subclass, 'strides'))
+            hasattr(__subclass, "__bytes__")
+            or is_subclass_of_union(
+                __subclass, typing.Union[bytes, bytearray, memoryview]
+            )
+            or (
+                hasattr(__subclass, "__getitem__")
+                and hasattr(__subclass, "format")
+                and hasattr(__subclass, "shape")
+                and hasattr(__subclass, "strides")
+            )
         )
 
 
@@ -149,7 +167,6 @@ class ByteConvertible(metaclass=_ByteConvertibleMeta):
     Has __instancecheck__ and __subclasscheck__ methods to allow checking whether
         an object can be converted to a bytes object using :class:`python:bytes`
     """
-    pass
 
 
 # Aggregate type to bytes
@@ -198,5 +215,5 @@ def twos_complement(number, n_bits=32):
     """
     if number < 0:
         number = (1 << n_bits) + number
-    format_string = '{:0' + str(n_bits) + 'b}'
+    format_string = "{:0" + str(n_bits) + "b}"
     return format_string.format(number)

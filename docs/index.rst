@@ -42,4 +42,3 @@ Index
    YTypes <source/bytemaker.ytypes>
    source/modules
    source/sub_index
-

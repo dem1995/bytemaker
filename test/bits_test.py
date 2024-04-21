@@ -1,6 +1,6 @@
+import pytest
 
 from bytemaker.bits import Bits
-import pytest
 
 
 # Fixture for an empty Bits instance
@@ -21,7 +21,6 @@ def byte_bits():
     return Bits([1, 0, 1, 0, 0, 0, 0, 0])
 
 
-
 # Test the initialization of the Bits class
 def test_bits_init(empty_bits, some_bits):
     # Test with empty initialization
@@ -35,51 +34,51 @@ def test_bits_init(empty_bits, some_bits):
 
 # Test the string representation of Bits
 def test_bits_str(some_bits):
-    assert str(some_bits) == '0b101'
+    assert str(some_bits) == "0b101"
 
 
 # Test the append method
 def test_bits_append(some_bits):
     new_some_bits = some_bits.append(1, inplace=False)
-    assert str(new_some_bits) == '0b1011'
-    assert str(some_bits) == '0b101'
+    assert str(new_some_bits) == "0b1011"
+    assert str(some_bits) == "0b101"
 
     some_bits.append(1, inplace=True)
-    assert str(some_bits) == '0b1011'
+    assert str(some_bits) == "0b1011"
 
 
 # Test padding
 def test_bits_padright(some_bits):
     new_some_bits = some_bits.padright(up_to_size=5, inplace=False)
-    assert str(new_some_bits) == '0b10100'
-    assert str(some_bits) == '0b101'
+    assert str(new_some_bits) == "0b10100"
+    assert str(some_bits) == "0b101"
 
     some_bits.padright(up_to_size=5, inplace=True)
-    assert str(some_bits) == '0b10100'
+    assert str(some_bits) == "0b10100"
 
 
 def test_bits_padleft(some_bits):
     new_some_bits = some_bits.padleft(up_to_size=5, inplace=False)
-    assert str(new_some_bits) == '0b00101'
-    assert str(some_bits) == '0b101'
+    assert str(new_some_bits) == "0b00101"
+    assert str(some_bits) == "0b101"
 
     some_bits.padleft(up_to_size=5, inplace=True)
-    assert str(some_bits) == '0b00101'
+    assert str(some_bits) == "0b00101"
 
 
 # Test the pop method
 def test_bits_pop(some_bits, byte_bits):
     bit = some_bits.pop(inplace=False)
     assert bit == 1
-    assert str(some_bits) == '0b101'
+    assert str(some_bits) == "0b101"
 
     bit = byte_bits.pop(2, inplace=False)
     assert bit == 1
-    assert str(byte_bits) == '0b10100000'
+    assert str(byte_bits) == "0b10100000"
 
     bit = some_bits.pop(inplace=True)
     assert bit == 1
-    assert str(some_bits) == '0b10'
+    assert str(some_bits) == "0b10"
 
 
 # Test the to_bytes method
@@ -87,43 +86,74 @@ def test_bits_to_bytes(byte_bits):
     print(byte_bits)
     print(int(byte_bits))
     [print(bit) for bit in byte_bits]
-    assert byte_bits.to_bytes() == b'\xa0'
+    assert byte_bits.to_bytes() == b"\xa0"
 
 
 # Test the from_bytes class method
 def test_bits_from_bytes():
-    bits = Bits.from_bytes(b'\xa0')
+    bits = Bits.from_bytes(b"\xa0")
     bits_right = [int(i) for i in bin(160)[2:].zfill(len(bits))]
-    assert (bits.bitlist == bits_right)
+    assert bits.bitlist == bits_right
 
 
 def test_bits_from_str():
-    bits = Bits('0b101')
+    bits = Bits("0b101")
     assert bits.bitlist == [1, 0, 1]
-    bits = Bits('0b1_01')
+    bits = Bits("0b1_01")
     assert bits.bitlist == [1, 0, 1]
-    bits = Bits('101')
+    bits = Bits("101")
     assert bits.bitlist == [1, 0, 1]
 
-    bits = Bits('01_10 11:11 0-0-0-0')
+    bits = Bits("01_10 11:11 0-0-0-0")
     assert bits.bitlist == [0, 1, 1, 0, 1, 1, 1, 1, 0, 0, 0, 0]
 
-    bits = Bits('0xFE')
+    bits = Bits("0xFE")
     assert bits.bitlist == [1, 1, 1, 1, 1, 1, 1, 0]
 
-    bits1 = Bits('0x0000_0F0F')
-    bits2 = Bits('0x00000F0F')
+    bits1 = Bits("0x0000_0F0F")
+    bits2 = Bits("0x00000F0F")
     assert bits1 == bits2
 
-    bits = Bits('0x00000f0f')
+    bits = Bits("0x00000f0f")
     assert bits.bitlist == [
-        0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1]
-    assert bits.to_hex().replace("_", "") == '0x00000f0f'
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        1,
+        1,
+    ]
+    assert bits.to_hex().replace("_", "") == "0x00000f0f"
 
-    bits = Bits('0o707')
+    bits = Bits("0o707")
     assert bits.bitlist == [1, 1, 1, 0, 0, 0, 1, 1, 1]
+
 
 def test_bits_from_int():
     integer = 5
@@ -132,24 +162,53 @@ def test_bits_from_int():
 
     bits = Bits.from_int(integer, 32)
     assert bits.bitlist == [
-        0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 1, 0, 1
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        1,
     ]
+
 
 # Test the to_int method
 def test_bits_to_int():
-    pos_num = Bits('0b0101')
+    pos_num = Bits("0b0101")
     assert pos_num.to_int() == 5
 
-    neg_num = Bits('0b101')
+    neg_num = Bits("0b101")
     assert Bits(neg_num).to_int() == -3
 
-    neg_num = Bits('0b10101')
+    neg_num = Bits("0b10101")
     assert Bits(neg_num).to_int() == -11
 
-    assert Bits('0b1_01').to_int() == -3
+    assert Bits("0b1_01").to_int() == -3
 
 
 # Test the equality method
@@ -187,11 +246,28 @@ def test_bits_join():
 
     bits6 = bits0.join([bits1, bits2, bits1])
     assert bits6.bitlist == [
-        1, 1, 0, 0,
-        1, 0, 1, 1, 0,
-        0, 1, 1, 1,
-        1, 0, 1, 1, 0,
-        1, 1, 0, 0
+        1,
+        1,
+        0,
+        0,
+        1,
+        0,
+        1,
+        1,
+        0,
+        0,
+        1,
+        1,
+        1,
+        1,
+        0,
+        1,
+        1,
+        0,
+        1,
+        1,
+        0,
+        0,
     ]
 
 

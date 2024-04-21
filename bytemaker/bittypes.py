@@ -1,12 +1,13 @@
-
 from __future__ import annotations
-from abc import ABC, abstractmethod
+
+import inspect
 import math
 import struct
-import inspect
-from typing import Any, Callable, Optional
+from abc import ABC, abstractmethod
+from typing import Any, Callable
+
 from bytemaker.bits import Bits, BitsConstructorType
-from bytemaker.utils import classproperty, ByteConvertible, is_instance_of_union
+from bytemaker.utils import ByteConvertible, classproperty, is_instance_of_union
 
 
 class BitTypeRegistry:
@@ -27,7 +28,7 @@ class BitTypeRegistry:
         Class decorator to register all non-abstract subclasses.
         """
         # Preserve the original __init_subclass__ if it exists
-        orig_init_subclass = base_cls.__dict__.get('__init_subclass__', None)
+        orig_init_subclass = base_cls.__dict__.get("__init_subclass__", None)
 
         @classmethod
         def __init_subclass__(cls, **kwargs):
@@ -123,7 +124,9 @@ class BitType(ABC):
         if not inspect.isabstract(cls):
             BitTypeRegistry.find_type(cls.__name__)
 
-    def __init__(self, value: bytes | bytearray | Bits | Any, test_creation=True, *args, **kwargs) -> None:
+    def __init__(
+        self, value: bytes | bytearray | Bits | Any, test_creation=True, *args, **kwargs
+    ) -> None:
         """
         Initializes the BitType object.
 
@@ -162,8 +165,10 @@ class BitType(ABC):
                 newvalue = self.value_type(value)
                 self._value = newvalue
             except Exception as e:
-                raise TypeError(f"Expecting {self.value_type}, got {type(value)}"
-                                f"Exception details: {e}")
+                raise TypeError(
+                    f"Expecting {self.value_type}, got {type(value)}"
+                    f"Exception details: {e}"
+                )
 
         if test_creation:
             self.validate_value(value)
@@ -185,7 +190,6 @@ class BitType(ABC):
         """
         Returns the number of bits that represent the values of members of the class.
         """
-        pass
 
     @classproperty
     def num_bits(cls) -> int:
@@ -211,7 +215,6 @@ class BitType(ABC):
         """
         Returns the value type of the subclass.
         """
-        pass
 
     @classproperty
     def value_type(cls):
@@ -223,12 +226,14 @@ class BitType(ABC):
         """
         Returns the value the instance of the BitType represents.
         """
-        if hasattr(self, '_value'):
+        if hasattr(self, "_value"):
             return self._value
         else:
-            raise AttributeError(f"Object of type {type(self)} has no attribute '_value'."
-                                 f"All BitType objects should have an attribute '_value' that yields"
-                                 f" the represented value of the object.")
+            raise AttributeError(
+                f"Object of type {type(self)} has no attribute '_value'."
+                f"All BitType objects should have an attribute '_value' that yields"
+                f" the represented value of the object."
+            )
 
     def set_value(self, new_value):
         """
@@ -253,7 +258,6 @@ class BitType(ABC):
         Returns the bitstring.Bits representation of the value the object represents
             in the number of bits specified by the class.
         """
-        pass
 
     @classmethod
     @abstractmethod
@@ -261,7 +265,6 @@ class BitType(ABC):
         """
         Returns an instance of the subclass representing the object represented by the_bits.
         """
-        pass
 
     def __Bits__(self) -> Bits:
         """
@@ -329,7 +332,9 @@ class BitType(ABC):
         elif isinstance(other, StructPackedBitType):
             if self.value_type == other.value_type:
                 both_floats = self.value_type == float and other.value_type == float
-                both_nans = both_floats and math.isnan(self.value) and math.isnan(other.value)
+                both_nans = (
+                    both_floats and math.isnan(self.value) and math.isnan(other.value)
+                )
                 if not both_nans:
                     return self.value == other.value
         elif is_instance_of_union(other, BitsConstructorType):
@@ -348,7 +353,7 @@ class BitType(ABC):
         Returns:
         - the string representation of the object.
         """
-        classname = str(self.__class__).split('.')[-1].split("'")[0]
+        classname = str(self.__class__).split(".")[-1].split("'")[0]
         return f"{classname}, value {str(self.value)}"
 
 
@@ -357,7 +362,7 @@ class StructPackedBitType(BitType):
     Abstract base class for all BitType objects that involve using struct for packing/unpacking.
     """
 
-    def to_bits(self, *args, endianness='big', **kwargs):
+    def to_bits(self, *args, endianness="big", **kwargs):
         """
         Returns the bytes representation of the object.
 
@@ -371,7 +376,7 @@ class StructPackedBitType(BitType):
         return Bits(struct.pack(packing_format, self.value, *args))
 
     @classmethod
-    def from_bits(cls, the_bits, *args, endianness='big', **kwargs):
+    def from_bits(cls, the_bits, *args, endianness="big", **kwargs):
         """
         Returns the StructPackedBitType object from the bytes representation.
 
@@ -390,7 +395,6 @@ class StructPackedBitType(BitType):
         """
         Returns the struct-packing format letter for the class.
         """
-        pass
 
     @classproperty
     def packing_format_letter(cls):
@@ -398,7 +402,7 @@ class StructPackedBitType(BitType):
         return cls.get_packing_format_letter()
 
     @classmethod
-    def get_packing_format(cls, endianness='big'):
+    def get_packing_format(cls, endianness="big"):
         """
         Returns the packing format for the class.
 
@@ -408,12 +412,14 @@ class StructPackedBitType(BitType):
         Returns:
         - the struct packing format for the subclass.
         """
-        if endianness == 'little':
+        if endianness == "little":
             return f"<{cls.packing_format_letter}"
-        elif endianness == 'big':
+        elif endianness == "big":
             return f">{cls.packing_format_letter}"
         else:
-            raise ValueError(f"Endianness must be either 'little' or 'big', not {endianness}")
+            raise ValueError(
+                f"Endianness must be either 'little' or 'big', not {endianness}"
+            )
 
 
 # Concrete classes
@@ -422,6 +428,7 @@ class BitBitType(BitType):
     """
     Abstract base class for all BitType objects that represent bit values.
     """
+
     def to_bits(self, *args, **kwargs) -> Bits:
         return self.value
         # default_bits = Bits.from_int(self.value, size=self.num_bits, *args, **kwargs)
@@ -471,19 +478,56 @@ def BitsTypeFactory(size_in_bits: int) -> type[BitBitType]:
     return NewBitBitType
 
 
-class Bit1(BitsTypeFactory(1)): pass
-class Bit2(BitsTypeFactory(2)): pass
-class Bit3(BitsTypeFactory(3)): pass
-class Bit4(BitsTypeFactory(4)): pass
-class Bit5(BitsTypeFactory(5)): pass
-class Bit6(BitsTypeFactory(6)): pass
-class Bit7(BitsTypeFactory(7)): pass
-class Bit8(BitsTypeFactory(8)): pass
-class Bit16(BitsTypeFactory(16)): pass
-class Bit24(BitsTypeFactory(24)): pass
-class Bit32(BitsTypeFactory(32)): pass
-class Bit64(BitsTypeFactory(64)): pass
-class Bit128(BitsTypeFactory(128)): pass
+class Bit1(BitsTypeFactory(1)):
+    pass
+
+
+class Bit2(BitsTypeFactory(2)):
+    pass
+
+
+class Bit3(BitsTypeFactory(3)):
+    pass
+
+
+class Bit4(BitsTypeFactory(4)):
+    pass
+
+
+class Bit5(BitsTypeFactory(5)):
+    pass
+
+
+class Bit6(BitsTypeFactory(6)):
+    pass
+
+
+class Bit7(BitsTypeFactory(7)):
+    pass
+
+
+class Bit8(BitsTypeFactory(8)):
+    pass
+
+
+class Bit16(BitsTypeFactory(16)):
+    pass
+
+
+class Bit24(BitsTypeFactory(24)):
+    pass
+
+
+class Bit32(BitsTypeFactory(32)):
+    pass
+
+
+class Bit64(BitsTypeFactory(64)):
+    pass
+
+
+class Bit128(BitsTypeFactory(128)):
+    pass
 
 
 # Byte Types
@@ -496,12 +540,13 @@ class ByteBitType(BitType, bytearray):
         default_bytes = self.value
         diff = math.ceil(self.num_bytes) - len(default_bytes)
         if diff > 0:
-            return default_bytes + bytes(b'\x00' * diff)
+            return default_bytes + bytes(b"\x00" * diff)
         elif diff < 0:
             raise ValueError(
                 f"Cannot convert {self} to Bits."
                 f" The number of bits in the self.num_bits, ({self.num_bits})"
-                f" is greater than the number of bits in the object ({len(default_bytes)})")
+                f" is greater than the number of bits in the object ({len(default_bytes)})"
+            )
         else:
             return Bits(default_bytes)
 
@@ -531,12 +576,28 @@ def BytesTypeFactory(size_in_bits: int) -> type[ByteBitType]:
     return NewByteBitType
 
 
-class Byte8(BytesTypeFactory(8)): pass
-class Byte16(BytesTypeFactory(16)): pass
-class Byte24(BytesTypeFactory(24)): pass
-class Byte32(BytesTypeFactory(32)): pass
-class Byte64(BytesTypeFactory(64)): pass
-class Byte128(BytesTypeFactory(128)): pass
+class Byte8(BytesTypeFactory(8)):
+    pass
+
+
+class Byte16(BytesTypeFactory(16)):
+    pass
+
+
+class Byte24(BytesTypeFactory(24)):
+    pass
+
+
+class Byte32(BytesTypeFactory(32)):
+    pass
+
+
+class Byte64(BytesTypeFactory(64)):
+    pass
+
+
+class Byte128(BytesTypeFactory(128)):
+    pass
 
 
 # Integer Types
@@ -549,12 +610,10 @@ class IntBitType(BitType):
         """
         Returns whether the subclass represents a signed (vs unsigned) integer.
         """
-        pass
 
     @classproperty
     def is_signed(self):
         __doc__ = self.get_is_signed.__doc__
-        pass
 
     @classmethod
     def get_value_type(cls):
@@ -571,7 +630,9 @@ class UInt(IntBitType):
         return False
 
 
-def _UIntStructPackedTypeFactory(size_in_bits: int, packing_format_letter: str) -> type[UInt]:
+def _UIntStructPackedTypeFactory(
+    size_in_bits: int, packing_format_letter: str
+) -> type[UInt]:
     init_type_name = f"UInt{size_in_bits}"
     existing_type = BitTypeRegistry.find_type(init_type_name)
     if existing_type is not None:
@@ -589,11 +650,24 @@ def _UIntStructPackedTypeFactory(size_in_bits: int, packing_format_letter: str) 
     return NewUIntBitType
 
 
-class UInt8(_UIntStructPackedTypeFactory(8, 'B')): pass
-class UInt16(_UIntStructPackedTypeFactory(16, 'H')): pass
-class UInt24(_UIntStructPackedTypeFactory(24, 'I')): pass
-class UInt32(_UIntStructPackedTypeFactory(32, 'I')): pass
-class UInt64(_UIntStructPackedTypeFactory(64, 'Q')): pass
+class UInt8(_UIntStructPackedTypeFactory(8, "B")):
+    pass
+
+
+class UInt16(_UIntStructPackedTypeFactory(16, "H")):
+    pass
+
+
+class UInt24(_UIntStructPackedTypeFactory(24, "I")):
+    pass
+
+
+class UInt32(_UIntStructPackedTypeFactory(32, "I")):
+    pass
+
+
+class UInt64(_UIntStructPackedTypeFactory(64, "Q")):
+    pass
 
 
 # Signed ints
@@ -616,17 +690,33 @@ def _SIntStructPackedTypeFactory(size_in_bits: int, packing_format_letter: str) 
     return NewSIntBitType
 
 
-class SInt8(_SIntStructPackedTypeFactory(8, 'b')): pass
-class SInt16(_SIntStructPackedTypeFactory(16, 'h')): pass
-class SInt24(_SIntStructPackedTypeFactory(24, 'i')): pass
-class SInt32(_SIntStructPackedTypeFactory(32, 'i')): pass
-class SInt64(_SIntStructPackedTypeFactory(64, 'q')): pass
+class SInt8(_SIntStructPackedTypeFactory(8, "b")):
+    pass
+
+
+class SInt16(_SIntStructPackedTypeFactory(16, "h")):
+    pass
+
+
+class SInt24(_SIntStructPackedTypeFactory(24, "i")):
+    pass
+
+
+class SInt32(_SIntStructPackedTypeFactory(32, "i")):
+    pass
+
+
+class SInt64(_SIntStructPackedTypeFactory(64, "q")):
+    pass
 
 
 # Floats
 
+
 class FloatBitType(BitType):
-    def __init__(self, value: float | bytes | bytearray | FloatBitType, *args, **kwargs):
+    def __init__(
+        self, value: float | bytes | bytearray | FloatBitType, *args, **kwargs
+    ):
         super().__init__(value, *args, **kwargs)
 
     @classmethod
@@ -637,7 +727,9 @@ class FloatBitType(BitType):
         return self.value
 
 
-def _FloatStructPackedTypeFactory(size_in_bits: int, packing_format_letter: str) -> type[FloatBitType]:
+def _FloatStructPackedTypeFactory(
+    size_in_bits: int, packing_format_letter: str
+) -> type[FloatBitType]:
     class NewFloatBitType(FloatBitType, StructPackedBitType):
         @classmethod
         def get_num_bits(cls) -> int:
@@ -650,12 +742,20 @@ def _FloatStructPackedTypeFactory(size_in_bits: int, packing_format_letter: str)
     return NewFloatBitType
 
 
-class Float16(_FloatStructPackedTypeFactory(16, 'e')): pass
-class Float32(_FloatStructPackedTypeFactory(32, 'f')): pass
-class Float64(_FloatStructPackedTypeFactory(64, 'd')): pass
+class Float16(_FloatStructPackedTypeFactory(16, "e")):
+    pass
+
+
+class Float32(_FloatStructPackedTypeFactory(32, "f")):
+    pass
+
+
+class Float64(_FloatStructPackedTypeFactory(64, "d")):
+    pass
 
 
 # Strings
+
 
 class StrBitType(BitType):
     def __init__(self, value: str | bytes | bytearray | StrBitType, *args, **kwargs):
@@ -698,10 +798,11 @@ class DefaultCodings:
 
 
 def StrTypeFactory(
-        size_in_bits: int,
-        encode_method: Callable[[str], Bits] = DefaultCodings.str_enc,
-        decode_method: Callable[[Bits], str] = DefaultCodings.str_dec,
-        custom_type_name=None) -> type[StrBitType]:
+    size_in_bits: int,
+    encode_method: Callable[[str], Bits] = DefaultCodings.str_enc,
+    decode_method: Callable[[Bits], str] = DefaultCodings.str_dec,
+    custom_type_name=None,
+) -> type[StrBitType]:
     if custom_type_name is None:
         init_type_name = f"Str{size_in_bits}"
     else:
@@ -713,8 +814,8 @@ def StrTypeFactory(
     counter = 0
     while existing_type is not None:
         if (
-            existing_type.encode_method == encode_method and
-            existing_type.decode_method == decode_method
+            existing_type.encode_method == encode_method
+            and existing_type.decode_method == decode_method
         ):
             return existing_type
         else:
@@ -722,10 +823,16 @@ def StrTypeFactory(
             existing_type = BitTypeRegistry.find_type(cur_type_name)
 
     class NewStrBitType(StrBitType):
-        def __init__(self, value: str | Bits | bytes | bytearray | StrBitType, *args, **kwargs):
+        def __init__(
+            self, value: str | Bits | bytes | bytearray | StrBitType, *args, **kwargs
+        ):
             if isinstance(value, str):
                 self._value = value
-            elif isinstance(value, bytes) or isinstance(value, bytearray) or isinstance(value, Bits):
+            elif (
+                isinstance(value, bytes)
+                or isinstance(value, bytearray)
+                or isinstance(value, Bits)
+            ):
                 self._value = decode_method(value, *args, **kwargs)
 
             super().__init__(value, *args, **kwargs)
@@ -794,7 +901,8 @@ def StrTypeFactory(
     return NewStrBitType
 
 
-class Str8(StrTypeFactory(8)): pass
+class Str8(StrTypeFactory(8)):
+    pass
 
 
 # BitTypeRegistry.str_types = {
@@ -844,7 +952,9 @@ class Str8(StrTypeFactory(8)): pass
 # }
 
 
-def get_bittype(typing_representation: str | BitType | type, num_bits: int = None) -> BitType:
+def get_bittype(
+    typing_representation: str | BitType | type, num_bits: int = None
+) -> BitType:
     matched_type = BitTypeRegistry.find_type(typing_representation)
     if matched_type is not None:
         return matched_type
@@ -884,12 +994,12 @@ def get_bittype(typing_representation: str | BitType | type, num_bits: int = Non
     assert isinstance(typing_representation, str)
     if not num_bits:
         number_in_string = [s for s in list(typing_representation) if s.isdigit()]
-        number_in_string = ''.join(number_in_string)
+        number_in_string = "".join(number_in_string)
         if number_in_string:
             num_bits = int(number_in_string)
 
     # Get only alphabetic characters
-    typing_representation = ''.join([i for i in typing_representation if i.isalpha()])
+    typing_representation = "".join([i for i in typing_representation if i.isalpha()])
 
     typing_representation = typing_representation.lower()
     if typing_representation == "int":
@@ -914,14 +1024,18 @@ def get_bittype(typing_representation: str | BitType | type, num_bits: int = Non
         return None
 
 
-def bittype_to_bytes(unit: BitType, num_bytes: Optional[int] = None, reverse_endianness: bool = False) -> bytes:
+def bittype_to_bytes(
+    unit: BitType, num_bytes: int | None = None, reverse_endianness: bool = False
+) -> bytes:
     if isinstance(unit, BitType):
         return unit.to_bytes(num_bytes=num_bytes, reverse_endianness=reverse_endianness)
     else:
         raise TypeError(f"Expecting BitType, got {type(unit)}")
 
 
-def bytes_to_bittype(unitbytes: bytes, unittype: BitType, reverse_endianness: bool = False) -> BitType:
+def bytes_to_bittype(
+    unitbytes: bytes, unittype: BitType, reverse_endianness: bool = False
+) -> BitType:
     if reverse_endianness:
         unitbytes = unitbytes[::-1]
 

@@ -77,5 +77,3 @@ Example code
     #   ctype_aggregate=CTypeAggregate(a=c_long(382), b=c_float(3.140000104904175), c=c_char(b'A')),
     #   ytype_aggregate=YTypeAggregate(a=SInt32, value 382, b=Float32, value 3.140000104904175, c=Bits([0, 1, 0, 0])),
     #   hp=255)
-
-

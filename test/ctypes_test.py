@@ -1,6 +1,8 @@
+from ctypes import Array, Structure, Union, c_char, c_int, c_uint
+
 import pytest
-from ctypes import c_int, c_uint, Structure, Union, Array, c_char
-from bytemaker.native_types.ctypes_ import ctype_to_bytes, bytes_to_ctype
+
+from bytemaker.native_types.ctypes_ import bytes_to_ctype, ctype_to_bytes
 
 
 class TestStructure(Structure):
@@ -17,19 +19,25 @@ class TestArray(Array):
 
 
 # Test converting ctypes to bytes
-@pytest.mark.parametrize("ctype_obj, expected_bytes", [
-    (c_int(42), b'\x00\x00\x00\x2a'),
-    (TestStructure(1, 2), b'\x00\x00\x00\x01\x00\x00\x00\x02'),
-])
+@pytest.mark.parametrize(
+    "ctype_obj, expected_bytes",
+    [
+        (c_int(42), b"\x00\x00\x00\x2a"),
+        (TestStructure(1, 2), b"\x00\x00\x00\x01\x00\x00\x00\x02"),
+    ],
+)
 def test_ctype_to_bytes(ctype_obj, expected_bytes):
     assert ctype_to_bytes(ctype_obj) == expected_bytes
 
 
 # Test converting bytes to ctypes
-@pytest.mark.parametrize("bytes_obj, ctype_type, expected_ctype_obj", [
-    (b'\x00\x00\x00\x2a', c_int, c_int(42)),
-    (b'\x00\x00\x00\x01\x00\x00\x00\x02', TestStructure, TestStructure(1, 2)),
-])
+@pytest.mark.parametrize(
+    "bytes_obj, ctype_type, expected_ctype_obj",
+    [
+        (b"\x00\x00\x00\x2a", c_int, c_int(42)),
+        (b"\x00\x00\x00\x01\x00\x00\x00\x02", TestStructure, TestStructure(1, 2)),
+    ],
+)
 def test_bytes_to_ctype(bytes_obj, ctype_type, expected_ctype_obj):
     ctype_instance = bytes_to_ctype(bytes_obj, ctype_type)
     if isinstance(ctype_instance, Structure):
@@ -40,12 +48,17 @@ def test_bytes_to_ctype(bytes_obj, ctype_type, expected_ctype_obj):
 
 
 # Test reversing endianness
-@pytest.mark.parametrize("ctype_obj, expected_bytes_unreversed", [
-    (c_int(42), b'\x2a\x00\x00\00'),
-    (TestStructure(1, 2), b'\x01\x00\x00\x00\x02\x00\x00\x00'),
-])
+@pytest.mark.parametrize(
+    "ctype_obj, expected_bytes_unreversed",
+    [
+        (c_int(42), b"\x2a\x00\x00\00"),
+        (TestStructure(1, 2), b"\x01\x00\x00\x00\x02\x00\x00\x00"),
+    ],
+)
 def test_unreversed_endianness(ctype_obj, expected_bytes_unreversed):
-    assert ctype_to_bytes(ctype_obj, reverse_endianness=False) == expected_bytes_unreversed
+    assert (
+        ctype_to_bytes(ctype_obj, reverse_endianness=False) == expected_bytes_unreversed
+    )
 
 
 # Test invalid inputs
@@ -56,4 +69,4 @@ def test_invalid_ctype_to_bytes():
 
 def test_invalid_bytes_to_ctype():
     with pytest.raises(TypeError):
-        bytes_to_ctype(b'\x2a\x00\x00\x00', int)  # Not a ctype type
+        bytes_to_ctype(b"\x2a\x00\x00\x00", int)  # Not a ctype type

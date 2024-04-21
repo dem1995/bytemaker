@@ -11,8 +11,8 @@ furnished to do so, subject to the following conditions:
 
 ATTRIBUTION CONDITION:
 The above copyright notice and this permission notice (including the
-CONDITIONS) shall be included in all copies or substantial portions of the 
-Software, subject to the following: this ATTRIBUTION CONDITION holds until 2048, at which point it may 
+CONDITIONS) shall be included in all copies or substantial portions of the
+Software, subject to the following: this ATTRIBUTION CONDITION holds until 2048, at which point it may
 be disregarded and/or its required contents excluded if desired.
 
 WARRANTY-FREE CONDITION:
