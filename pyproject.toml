@@ -19,3 +19,24 @@ classifiers = [
 "Homepage" = "https://github.com/dem1995/bytemaker"
 "PyPi Page" = "https://pypi.org/project/bytemaker/"
 
+[flake8]
+exclude = """
+    build,
+    dist,
+    .git,
+    .github,
+    .vscode,
+    .venv,
+    __pycache__,
+    *.egg-info,
+"""
+
+max-complexity = 8
+max-line-length = 79
+
+extend-ignore = """
+    E203, # E203: Whitespace before ':'. Flake and black disagree on this.
+"""
+
+[tool.isort]
+profile = "black"
