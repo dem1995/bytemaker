@@ -10,10 +10,17 @@ permissions:
   contents: read
 
 jobs:
-  build:
-
+  pre-commit:
+    name: Pre-commit/formatting
     runs-on: ubuntu-latest
-    
+    uses: less-action/reusables/.github/workflows/pre-commit.yaml@v8
+    with:
+      python-version: "3.12"
+
+  build:
+    name: Testing
+    runs-on: ubuntu-latest
+
     strategy:
       matrix:
         python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13-dev"]

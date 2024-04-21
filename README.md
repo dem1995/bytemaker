@@ -1,5 +1,5 @@
 # bytemaker
-[![python-app](https://github.com/dem1995/bytemaker/actions/workflows/python-app.yml/badge.svg)](https://github.com/dem1995/bytemaker/actions/workflows/python-app.yml)
+[![python-app](https://github.com/dem1995/bytemaker/actions/workflows/ci.yml/badge.svg)](https://github.com/dem1995/bytemaker/actions/workflows/ci.yml)
 [![PyPI version](https://badge.fury.io/py/bytemaker.svg)](https://badge.fury.io/py/bytemaker)
 [![PEP8](https://img.shields.io/badge/code%20style-pep8-orange.svg)](https://www.python.org/dev/peps/pep-0008/)
 [![Licence - MIT](https://img.shields.io/badge/licence-MIT-750014)](https://github.com/dem1995/bytemaker/blob/main/LICENCE.md)
@@ -19,7 +19,7 @@ bytemaker is a Python 3.8-compatible zero-dependency library for byte serializat
 Run `python -m pip install bytemaker`.
 
 ## Project intent
-The main goal of the project is to ease development of projects working with compiled code (e.g. ROM hacking). As such, streaming features are currently deemphasized, although I may implement them at some later date. 
+The main goal of the project is to ease development of projects working with compiled code (e.g. ROM hacking). As such, streaming features are currently deemphasized, although I may implement them at some later date.
 
 ## Errata
 At present, bytemaker assumes big-endianness (à la N64). Full support for reading from and writing to little-endian ROMs will come very soon.
