@@ -50,14 +50,10 @@ def is_instance_of_union(obj, union_type: type):
         #   or if the object is an iterable and its first element
         #       is an instance of the first type argument
         if type_origin is typing.Union:
-            return any(
-                is_instance_of_union(obj, type_arg)
-                for type_arg in type_args)
+            return any(is_instance_of_union(obj, type_arg) for type_arg in type_args)
         elif isinstance(obj, type_origin):
             if len(type_args) == 1 and isinstance(obj, typing.Iterable):
-                return (
-                    bool(obj)
-                    or is_instance_of_union(next(iter(obj)), type_args[0]))
+                return bool(obj) or is_instance_of_union(next(iter(obj)), type_args[0])
 
             # If the type is a multi-arg, non-union, non-generic type
             else:
@@ -105,11 +101,10 @@ def is_subclass_of_union(subtype: type, supertype: type):
                 is_subclass_of_union(subtype, union_type_part)
                 for union_type_part in supertype_args
             )
-        elif (issubclass(supertype_origin, typing.Iterable)
-              and len(supertype_args) == 1):
-            return (issubclass(subtype, supertype_origin)
-                    and is_subclass_of_union(
-                subtype, supertype_args[0]))
+        elif issubclass(supertype_origin, typing.Iterable) and len(supertype_args) == 1:
+            return issubclass(subtype, supertype_origin) and is_subclass_of_union(
+                subtype, supertype_args[0]
+            )
 
         # If the supertype is a multi-arg, non-union, non-generic type
         raise ValueError(

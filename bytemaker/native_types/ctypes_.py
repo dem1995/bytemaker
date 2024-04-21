@@ -84,10 +84,7 @@ def ctype_to_bits(ctype_obj: CType, reverse_endianness=True) -> Bits:
     Returns:
         Bits: The Bits representation of the ctypes object
     """
-    return Bits(ctype_to_bytes(
-        ctype_obj,
-        reverse_endianness=reverse_endianness)
-    )
+    return Bits(ctype_to_bytes(ctype_obj, reverse_endianness=reverse_endianness))
 
 
 def bytes_to_ctype(
@@ -139,7 +136,5 @@ def bits_to_ctype(bits_obj: Bits, ctype_type: type, reverse_endianness=True) -> 
             The ctypes object representation of the bits
     """
     return bytes_to_ctype(
-        bits_obj.to_bytes(),
-        ctype_type,
-        reverse_endianness=reverse_endianness
+        bits_obj.to_bytes(), ctype_type, reverse_endianness=reverse_endianness
     )

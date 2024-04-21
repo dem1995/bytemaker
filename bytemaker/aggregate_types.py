@@ -231,7 +231,7 @@ def to_bits_aggregate(convertible_object: AggregateTypeByteConvertible) -> Bits:
             for field in fields
         ]
         # print("types", field_types)
-        # print("type_is_dataclass", [isinstance(field_type, DataClassType) 
+        # print("type_is_dataclass", [isinstance(field_type, DataClassType)
         # for field_type in field_types])
         field_values = [
             trycast(field_value, field_type)

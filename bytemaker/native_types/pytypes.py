@@ -75,19 +75,17 @@ class ConversionConfig:
             could_map_key_to_conv_pytype_conversion = is_subclass_of_union(
                 key, conversion_info.pytype
             )
-            conv_pytype_is_stricter_match_than_existing = (
-                is_subclass_of_union(
-                    conversion_info.pytype, value))
+            conv_pytype_is_stricter_match_than_existing = is_subclass_of_union(
+                conversion_info.pytype, value
+            )
             if (
                 could_map_key_to_conv_pytype_conversion
                 and conv_pytype_is_stricter_match_than_existing
             ):
-                cls._known_furthest_descendant_mappings[key] = \
-                    conversion_info.pytype
+                cls._known_furthest_descendant_mappings[key] = conversion_info.pytype
 
         # Set the conversion info
-        cls._implemented_conversions[conversion_info.pytype] = \
-            conversion_info
+        cls._implemented_conversions[conversion_info.pytype] = conversion_info
         cls._known_furthest_descendant_mappings[
             conversion_info.pytype
         ] = conversion_info.pytype
@@ -100,15 +98,13 @@ class ConversionConfig:
         #   that type as a suitable conversion
         types_known_to_not_have_suitable_conversion = [
             pytype
-            for pytype, has_suitable_conversion
-            in cls._has_a_suitable_conversion.items()
+            for pytype, has_suitable_conversion in cls._has_a_suitable_conversion.items()
             if not has_suitable_conversion
         ]
 
         for pytype in types_known_to_not_have_suitable_conversion:
             if is_subclass_of_union(conversion_info.pytype, pytype):
-                cls._known_furthest_descendant_mappings[pytype] = \
-                    conversion_info.pytype
+                cls._known_furthest_descendant_mappings[pytype] = conversion_info.pytype
                 cls._has_a_suitable_conversion[pytype] = True
 
     @classmethod
@@ -139,24 +135,21 @@ class ConversionConfig:
         # return the conversion for the superclass
         if cls.has_suitable_conversion(pytype):
             cur_suitable_implemented_pytype = None
-            for candidate_implemented_pytype in\
-                    cls._implemented_conversions.keys():
+            for candidate_implemented_pytype in cls._implemented_conversions.keys():
                 pytype_is_subclass_of_candidate = is_subclass_of_union(
                     pytype, candidate_implemented_pytype
                 )
                 candidate_is_stricter_than_current = (
                     cur_suitable_implemented_pytype is None
                     or is_subclass_of_union(
-                        candidate_implemented_pytype,
-                        cur_suitable_implemented_pytype
+                        candidate_implemented_pytype, cur_suitable_implemented_pytype
                     )
                 )
                 if (
                     pytype_is_subclass_of_candidate
                     and candidate_is_stricter_than_current
                 ):
-                    cur_suitable_implemented_pytype = \
-                        candidate_implemented_pytype
+                    cur_suitable_implemented_pytype = candidate_implemented_pytype
 
             if cur_suitable_implemented_pytype is not None:
                 cls._known_furthest_descendant_mappings[
@@ -206,7 +199,7 @@ ConversionConfig.set_conversion_info(bool_conversion_info)
 # def _int_to_bits(num: int) -> Bits:
 #     if issubclass(type(num), bool):
 #         to_convert = int(num)
-#     return Bits(to_convert, 
+#     return Bits(to_convert,
 #       to_convert.to_bytes(
 #           twos_complement_bit_length(num),
 #           byteorder='little', signed=num >= 0))
