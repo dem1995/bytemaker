@@ -32,7 +32,7 @@ exclude = """
 """
 
 max-complexity = 8
-max-line-length = 79
+max-line-length = 88
 
 extend-ignore = """
     E203, # E203: Whitespace before ':'. Flake and black disagree on this.
