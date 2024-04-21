@@ -30,7 +30,8 @@ UnitType = Union[CType, BitType, PyType]
 
 def count_bits_in_unit_type(unit_type: UnitType) -> int:
     """
-    Function to count the number of bits in a UnitType- a Python, type, ctype, or YType (bytemaker type).
+    Function to count the number of bits in a UnitType-\
+        a Python, type, ctype, or BitType (bytemaker type).
     """
 
     # print("Counting bits in unit type", unit_type)
@@ -53,7 +54,8 @@ def count_bits_in_unit_type(unit_type: UnitType) -> int:
 
 def count_bits_in_aggregate_type(aggregate_type: type) -> int:
     """
-    Function to count the number of bits in an aggregate type- a Python, type, ctype, or YType (bytemaker type).
+    Function to count the number of bits in an aggregate type-\
+     a Python, type, ctype, or BitType (bytemaker type).
     """
     if is_subclass_of_union(aggregate_type, UnitType):
         return count_bits_in_unit_type(aggregate_type)
@@ -70,7 +72,7 @@ def count_bits_in_aggregate_type(aggregate_type: type) -> int:
 def count_bytes_in_unit_type(unit_type: UnitType) -> int:
     """
     Function to count the number of bytes in a UnitType-
-        a Python numeric/binary/string type, ctype, or YType (bytemaker type).
+        a Python numeric/binary/string type, ctype, or BitType (bytemaker type).
     """
     return (count_bits_in_unit_type(unit_type) + 1) // 8
 
@@ -87,7 +89,8 @@ def to_bits_individual(unit: UnitType) -> Bits:
         return pytype_to_bits(unit)
     else:
         raise Exception(
-            f"Cannot convert {unit} to bits because the unit type is not a CType, YType, or PyType"
+            f"Cannot convert {unit} to bits because"
+            f" the unit type is not a CType, YType, or PyType"
         )
 
 
@@ -104,7 +107,8 @@ def to_bytes_individual(unit: UnitType, reverse_endianness: bool = False) -> byt
         return pytype_to_bytes(unit, reverse_endianness=reverse_endianness)
     else:
         raise Exception(
-            f"Cannot convert {unit} to bytes because the unit type is not a CType, YType, or PyType"
+            f"Cannot convert {unit} to bytes because"
+            f" the unit type is not a CType, YType, or PyType"
         )
 
 
@@ -115,7 +119,8 @@ def from_bits_individual(unitbits: Bits, unittype: type) -> PyType:
 
     Args:
         unitbits (Bits): The Bits object to convert to a UnitType
-        unittype (type): The type of the UnitType to convert to. Must be a member of UnitType
+        unittype (type): The type of the UnitType to convert to.
+            Must be a member of UnitType
     """
 
     size_in_bits = count_bits_in_unit_type(unittype)
@@ -150,8 +155,8 @@ def from_bytes_individual(
         unitbytes (bytes): The bytes object to convert to a UnitType
         unittype (type): The type of the UnitType to convert to.
             Must be a member of UnitType
-        reverse_endianness (bool, optional): Whether to reverse the endianness of the bytes before converting.
-            Defaults to False.
+        reverse_endianness (bool, optional): Whether to reverse the endianness of
+            the bytes before converting. Defaults to False.
     """
 
     size_in_bits = count_bits_in_unit_type(unittype)
@@ -191,12 +196,16 @@ def trycast(obj, type_):
 
 def to_bits_aggregate(convertible_object: AggregateTypeByteConvertible) -> Bits:
     """
-    Function to convert fixed-byte Python types (int, float, char), ctypes, and YTypes into Bits.
-        Also converts dataclasses annotated with these types into bits (this support is recursive).
-        Technically supports Iterables as well, but note that from_bits_aggregate will not work on Iterables.
+    Function to convert fixed-byte Python types (int, float, char),\
+            ctypes, and YTypes into Bits.\
+        Also converts dataclasses annotated with these types into bits\
+            (this support is recursive).\
+        Technically supports Iterables as well, but note that from_bits_aggregate\
+            will not work on Iterables.
 
     Args:
-        units (DataClassType | YType | CType | PyType | Iterable): The object to convert to Bits
+        units (DataClassType | YType | CType | PyType | Iterable):\
+            The object to convert to Bits
 
     Returns:
         Bits: The Bits representation of the object
@@ -206,7 +215,8 @@ def to_bits_aggregate(convertible_object: AggregateTypeByteConvertible) -> Bits:
 
     # print("to_bits_aggregate", convertible_object)
     # print("type(units)", type(convertible_object))
-    # print("isinstance(units, DataClassType)", isinstance(convertible_object, DataClassType))
+    # print("isinstance(units, DataClassType)",
+    # isinstance(convertible_object, DataClassType))
 
     # try:
     if is_instance_of_union(convertible_object, UnitType) and not (
@@ -221,7 +231,8 @@ def to_bits_aggregate(convertible_object: AggregateTypeByteConvertible) -> Bits:
             for field in fields
         ]
         # print("types", field_types)
-        # print("type_is_dataclass", [isinstance(field_type, DataClassType) for field_type in field_types])
+        # print("type_is_dataclass", [isinstance(field_type, DataClassType) 
+        # for field_type in field_types])
         field_values = [
             trycast(field_value, field_type)
             for field_type, field_value in zip(field_types, field_values)
@@ -230,18 +241,20 @@ def to_bits_aggregate(convertible_object: AggregateTypeByteConvertible) -> Bits:
         for field_value in field_values:
             bitsified = to_bits_aggregate(field_value)
             field_value_bits.append(bitsified)
-        # field_value_bits = [to_bits_aggregate(field_value) for field_value in field_values]
+        # field_value_bits = [to_bits_aggregate(field_value)
+        # for field_value in field_values]
         ret_bits = Bits().join(field_value_bits)
     elif isinstance(convertible_object, Iterable):
         for unit in convertible_object:
             ret_bits.extend(to_bits_aggregate(unit))
     else:
         raise Exception(
-            f"Cannot convert {convertible_object} to bits because the unit type is not a CType, YType, or PyType"
+            f"Cannot convert {convertible_object} to bits because the unit type"
+            f" is not a CType, YType, or PyType"
         )
     # except Exception as e:
-
-    #     raise Exception(f"Cannot convert {convertible_object} to bits.\nNext-level error: {e}") from e
+    #     raise Exception(f"Cannot convert {convertible_object} to bits.\n
+    #                     f"Next-level error: {e}") from e
 
     return ret_bits
 
@@ -356,8 +369,8 @@ def from_bytes_aggregate(
             if len(bytes_obj) * 8 != size_in_bits:
                 raise Exception(
                     f"Cannot convert {bytes_obj} to {aggregate_type}"
-                    f" because the number of bits in the bytes object ({len(bytes_obj) * 8})"
-                    f" does not match the number of bits in the unit type ({size_in_bits})"
+                    f" because the # of bits in the bytes object ({len(bytes_obj) * 8})"
+                    f" does not match the # of bits in the unit type ({size_in_bits})"
                 )
 
             read_fields = list()
