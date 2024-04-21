@@ -98,7 +98,8 @@ class ConversionConfig:
         #   that type as a suitable conversion
         types_known_to_not_have_suitable_conversion = [
             pytype
-            for pytype, has_suitable_conversion in cls._has_a_suitable_conversion.items()
+            for pytype, has_suitable_conversion
+            in cls._has_a_suitable_conversion.items()
             if not has_suitable_conversion
         ]
 
