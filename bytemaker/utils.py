@@ -17,7 +17,8 @@ class classproperty(property):
 
 def is_instance_of_union(obj, union_type: type):
     """
-    Determines if an object is an instance of a union type (to support Python versions <3.10).
+    Determines if an object is an instance of a union type
+     (to support Python versions <3.10).
 
     Args:
         obj (object): The object to check
@@ -27,20 +28,12 @@ def is_instance_of_union(obj, union_type: type):
         bool: Whether the object is an instance of the union type
     """
 
-    # # Correct for unresolved references
-    # if isinstance(union_type, ForwardRef):
-    #     union_type = union_type.__forward_arg__
-    # if isinstance(union_type, str):
-    #     try:
-    #         union_type = eval(union_type, globals(), locals())
-    #     except NameError:
-    #         raise ValueError(f"String or forward reference {union_type} could not be resolved.")
-
     # Try the default isinstance method
     try:
         return isinstance(obj, union_type)
 
-    # If that does not work, try to process the union type instance recursively or generic type instance
+    # If that does not work, try to process the union type
+    # instance recursively or as generic type instance
     except TypeError:
         type_origin = typing.get_origin(union_type)
 
@@ -52,19 +45,27 @@ def is_instance_of_union(obj, union_type: type):
         type_args = typing.get_args(union_type)
 
         # If the type is a union type or its instances are iterable
-        #   check if the object is an instance of any of the constituent types
-        #   or if the object is an iterable and its first element is an instance of the first type argument
+        #   check if the object is an instance of any
+        #       of the constituent types
+        #   or if the object is an iterable and its first element
+        #       is an instance of the first type argument
         if type_origin is typing.Union:
-            return any(is_instance_of_union(obj, type_arg) for type_arg in type_args)
+            return any(
+                is_instance_of_union(obj, type_arg)
+                for type_arg in type_args)
         elif isinstance(obj, type_origin):
             if len(type_args) == 1 and isinstance(obj, typing.Iterable):
-                return bool(obj) or is_instance_of_union(next(iter(obj)), type_args[0])
+                return (
+                    bool(obj)
+                    or is_instance_of_union(next(iter(obj)), type_args[0]))
 
             # If the type is a multi-arg, non-union, non-generic type
             else:
                 raise ValueError(
-                    f"(Generic?) type {union_type} has origin {type_origin} and type args {type_args}."
-                    "non-union types with multiple subscripts are not supported."
+                    f"(Generic?) type {union_type} has origin {type_origin}"
+                    f" and type args {type_args}."
+                    f" Non-union types with multiple subscripts are not"
+                    f" supported."
                 )
         else:
             return False
@@ -72,7 +73,8 @@ def is_instance_of_union(obj, union_type: type):
 
 def is_subclass_of_union(subtype: type, supertype: type):
     """
-    Determines if an object is a subclass of a union type (to support Python versions <3.10).
+    Determines if an object is a subclass of a union type
+        (to support Python versions <3.10).
 
     Args:
         subtype (type): The object type to check
@@ -82,28 +84,12 @@ def is_subclass_of_union(subtype: type, supertype: type):
         bool: Whether the object is a subclass of the union type
     """
 
-    # # Correct for unresolved references
-    # if isinstance(subtype, ForwardRef):
-    #     subtype = subtype.__forward_arg__
-    # if isinstance(subtype, str):
-    #     try:
-    #         subtype = eval(subtype, globals(), locals())
-    #     except NameError:
-    #         raise ValueError(f"String or forward reference {subtype} could not be resolved.")
-
-    # if isinstance(supertype, ForwardRef):
-    #     supertype = supertype.__forward_arg__
-    # if isinstance(supertype, str):
-    #     try:
-    #         supertype = eval(supertype, globals(), locals())
-    #     except NameError:
-    #         raise ValueError(f"String or forward reference {supertype} could not be resolved.")
-
     # Try the default issubclass method
     try:
         return issubclass(subtype, supertype)
 
-    # If that does not work, try to process the union type recursively or generic type
+    # If that does not work, try to process the union type recursively
+    # or as a generic type
     except TypeError:
         supertype_origin = typing.get_origin(supertype)
 
@@ -119,15 +105,17 @@ def is_subclass_of_union(subtype: type, supertype: type):
                 is_subclass_of_union(subtype, union_type_part)
                 for union_type_part in supertype_args
             )
-        elif issubclass(supertype_origin, typing.Iterable) and len(supertype_args) == 1:
-            return issubclass(subtype, supertype_origin) and is_subclass_of_union(
-                subtype, supertype_args[0]
-            )
+        elif (issubclass(supertype_origin, typing.Iterable)
+              and len(supertype_args) == 1):
+            return (issubclass(subtype, supertype_origin)
+                    and is_subclass_of_union(
+                subtype, supertype_args[0]))
 
         # If the supertype is a multi-arg, non-union, non-generic type
         raise ValueError(
-            f"Supertype {supertype} has origin {supertype_origin} and type args {supertype_args}."
-            "non-union supertypes with multiple subscripts are not supported."
+            f"Supertype {supertype} has origin {supertype_origin}"
+            f" and type args {supertype_args}."
+            "Non-union supertypes with multiple subscripts are not supported."
         )
 
 
@@ -136,8 +124,9 @@ def is_subclass_of_union(subtype: type, supertype: type):
 
 class _ByteConvertibleMeta(type):
     """
-    This is used to create IsByteConvertible, a type to allow checking \
-        whether an object or instances of a class can be converted to a bytes object using isinstance or issubclass.
+    This is used to create IsByteConvertible, a type to allow checking\
+        whether an object or instances of a class can be converted to a\
+        bytes object using isinstance or issubclass.
     """
 
     def __instancecheck__(self, __instance: Any) -> bool:
@@ -164,8 +153,9 @@ class _ByteConvertibleMeta(type):
 
 class ByteConvertible(metaclass=_ByteConvertibleMeta):
     """
-    Has __instancecheck__ and __subclasscheck__ methods to allow checking whether
-        an object can be converted to a bytes object using :class:`python:bytes`
+    Has __instancecheck__ and __subclasscheck__ methods\
+        to allow checking whether an object can be converted to a bytes\
+        object using :class:`python:bytes`
     """
 
 
@@ -184,23 +174,28 @@ class DataClassType(metaclass=DataClassTypeMeta):
 
 def twos_complement_bit_length(n: int):
     """
-    Determines the number of bits required to represent a signed integer in two's complement.
+    Determines the number of bits required to represent a signed\
+        integer in two's complement.
 
     Args:
-        n (int): The (signed) integer for which to determine the number of bits required
+        n (int): The (signed) integer for which to determine the number\
+            of bits required
 
     Returns:
-        int: The number of bits required to represent the integer in two's-complement notation
+        int: The number of bits required to represent the integer in\
+            two's-complement notation
     """
     if n == 0:
-        return 1  # Technically can represent 0 with 0 bits in two's complement, but this is not useful
+        return 1  # Technically can represent 0 with 0 bits in
+        # two's complement, but this is not useful
 
     is_greq_than_zero = n >= 0
     abs_val = abs(n)
     is_power_of_two = (abs_val & (abs_val - 1)) == 0
 
     if is_greq_than_zero or not is_power_of_two:
-        return ceil(log2(abs_val + 1)) + 1  # Account for extra at negative extreme
+        return ceil(log2(abs_val + 1)) + 1  # Account for extra
+        # at negative extreme
     else:
         return int(log2(abs_val)) + 1
 
