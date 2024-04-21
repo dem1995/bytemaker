@@ -50,20 +50,21 @@ class Bits:
                 ]
             else:
                 raise TypeError(
-                    f"Cannot convert {type(source)} to Bits. Must be {BitsConstructorType}."
+                    f"Cannot convert {type(source)} to Bits."
+                    f" Must be {BitsConstructorType}."
                 )
 
             self.bitlist = bitlist
 
             if self.bitlist is None:
                 raise ValueError(
-                    f"Could not convert {type(source)} to Bits despite the provided type being acceptable. "
-                    "The resulting bit_list was none"
+                    f"Could not convert {type(source)} to Bits despite the provided"
+                    f" type being acceptable. The resulting bit_list was none"
                 )
 
             assert all(bit in [0, 1] for bit in self.bitlist), (
-                f"Bits can only be 1 or 0. The provided data produced bits other than 0 or 1."
-                f"Final bitlist: {self.bitlist} Initial data: {source}"
+                f"Bits can only be 1 or 0. The provided data produced bits different"
+                f" from 0 or 1. Final bitlist: {self.bitlist} Initial data: {source}"
             )
 
         if deep_copy:
@@ -102,8 +103,8 @@ class Bits:
             return Bits([self.bitlist[i] for i in index])
         else:
             raise TypeError(
-                f"Index must be an int, slice, or iterable of ints, or have __index__ or __int__ method,"
-                f" not {type(index)}"
+                f"Index must be an int, slice, or iterable of ints,"
+                f" or have __index__ or __int__ method, not {type(index)}"
             )
 
     def __setitem__(self, index, value):
@@ -117,8 +118,8 @@ class Bits:
                 other = Bits(other)
             except Exception as e:
                 raise TypeError(
-                    f"Can only perform bitwise operations on Bits objects, not {type(other)}"
-                    f"Exception details {e}"
+                    f"Can only perform bitwise operations on Bits"
+                    f" objects, not {type(other)}. Exception details: {e}"
                 )
 
         bitsleftlen = len(self)
@@ -304,8 +305,10 @@ class Bits:
     @classmethod
     def from_string(cls, string: str):
         """
-        Converts a string to a Bits object. '_', '-', ' ', and ':' are stripped before conversion.
-        The remaining string must be all binary or of the form '0b', '0o', or '0x' followed by digits.
+        Converts a string to a Bits object. '_', '-', ' ', and ':'\
+         are stripped before conversion.
+        The remaining string must be all binary or of the form\
+         '0b', '0o', or '0x' followed by digits.
         """
         string = string.translate(str.maketrans("", "", "_- :"))
 
@@ -326,7 +329,8 @@ class Bits:
         else:
             raise ValueError(
                 f"Cannot convert {string} to Bits."
-                f"Strings passed should be all binary or of the form '0b', '0o', or '0x' followed by digits."
+                f"Strings passed should be all binary or"
+                f" of the form '0b', '0o', or '0x' followed by digits."
             )
 
         # print("binstring: ", binstring)
@@ -337,8 +341,10 @@ class Bits:
     @classmethod
     def from_int(cls, integer: int, size=None):
         """
-        Converts an integer to a Bits object. The size parameter determines the number of bits to use.
-        If size is not provided, the number of bits required to represent the integer is used.
+        Converts an integer to a Bits object.
+         The size parameter determines the number of bits to use.\
+         If size is not provided, the number of bits required to \
+         represent the integer is used.
         """
         if size is None:
             size = twos_complement_bit_length(integer)
@@ -378,7 +384,8 @@ class Bits:
 
     def shrinkequals(self, other_bits: Bits) -> bool:
         """
-        Returns True if both Bits objects are equal after removing leading zeros from the longer Bits object.
+        Returns True if both Bits objects are equal after\
+         removing leading zeros from the longer Bits object.
         """
         return self | other_bits == self & other_bits
 
