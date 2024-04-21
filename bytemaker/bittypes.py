@@ -71,17 +71,17 @@ class BitType(ABC):
     Required Abstract Methods:
     -----------------
     get_num_bits() -> int:
-        Abstract class method that returns the number of bits in instances of the BitType.
+        Abstract class method. Returns the number of bits in instances of the BitType.
 
     get_value_type() -> type:
-        Abstract class method that returns the type of the values of instances of the BitType.
+        Abstract class method. Returns the type of values of instances of the BitType.
 
 
     to_bits(*args, **kwargs) -> Bits:
         Abstract instance method that converts the BitType object to bitstring.Bits.
 
     from_bits(the_bits: Bits, *args, **kwargs):
-        Abstract class method that converts bitstring.Bits to an instance of the BitType.
+        Abstract class method. Converts bitstring.Bits to an instance of the BitType.
 
 
 
@@ -113,7 +113,8 @@ class BitType(ABC):
 
     __repr__() -> str:
         Instance method that returns the string representation of the object.
-        Useful for repr(theObject), or if the class has not overridden __str__, str(thObject)
+        Useful for repr(theObject),
+         or if the class has not overridden __str__, str(thObject)
     """
 
     def __init_subclass__(cls, **kwargs):
@@ -131,20 +132,26 @@ class BitType(ABC):
         Initializes the BitType object.
 
         Attempts the following:
-        - If value is an instance of the valuetype of the BitType subclass, sets the value directly.
-        - If value is an instance of BitType and the valuetype of both BitTypes match, \
+        - If value is an instance of the valuetype of the BitType subclass,
+            sets the value directly.
+        - If value is an instance of BitType and the valuetype of both BitTypes match,
             sets the value to the value of the BitType subclass.
-        - If value is an instance of bitstring.Bits, calls from_bits(Bits(value)) from the BitType subclass.
-        - If value is an instance of bytes or bytearray, calls from_bytes(bytes(value)) from the BitType subclass.
-        - If value is an instance of BitsConstructorType, calls from_bits(Bits(value)) from the BitType subclass.
-        - If value is an instance of ByteConvertible, calls from_bytes(bytes(value)) from the BitType subclass.
-        - If value is castable to the valuetype of the BitType subclass, sets the value to the casted value.
+        - If value is an instance of bitstring.Bits, calls from_bits(Bits(value)) from
+            the BitType subclass.
+        - If value is an instance of bytes or bytearray, calls
+            from_bytes(bytes(value)) from the BitType subclass.
+        - If value is an instance of BitsConstructorType, calls from_bits(Bits(value))
+            from the BitType subclass.
+        - If value is an instance of ByteConvertible, calls from_bytes(bytes(value))
+            from the BitType subclass.
+        - If value is castable to the valuetype of the BitType subclass, sets the value
+            to the cast value.
         - Otherwise, raises a TypeError.
 
         Args:
         - value: the value of the object.
-        - test_creation: a boolean indicating whether to test the creation of the object.
-            If true, calls to_bytes() to test if the object is properly convertible to bytes.
+        - test_creation: a boolean indicating whether to test proper object creation.
+            If true, calls to_bytes() to see if the object is convertible to bytes.
         """
         super().__init__()
 
@@ -193,7 +200,7 @@ class BitType(ABC):
 
     @classproperty
     def num_bits(cls) -> int:
-        __doc__ = cls.get_num_bits.__doc__
+        __doc__ = cls.get_num_bits.__doc__  # noqa: F841
         return cls.get_num_bits()
 
     @classmethod
@@ -205,7 +212,7 @@ class BitType(ABC):
 
     @classproperty
     def num_bytes(cls):
-        __doc__ = cls.get_num_bytes.__doc__
+        __doc__ = cls.get_num_bytes.__doc__  # noqa: F841
         return cls.get_num_bytes()
 
     # Value type info
@@ -218,7 +225,7 @@ class BitType(ABC):
 
     @classproperty
     def value_type(cls):
-        __doc__ = cls.get_value_type.__doc__
+        __doc__ = cls.get_value_type.__doc__  # noqa: F841
         return cls.get_value_type()
 
     # Value info
@@ -243,12 +250,12 @@ class BitType(ABC):
 
     @property
     def value(self):
-        __doc__ = self.get_value.__doc__
+        __doc__ = self.get_value.__doc__  # noqa: F841
         return self.get_value()
 
     @value.setter
     def value(self, new_value):
-        __doc__ = self.set_value.__doc__
+        __doc__ = self.set_value.__doc__  # noqa: F841
         self.set_value(new_value)
 
     # Conversions to/from bits and bytes
@@ -263,7 +270,7 @@ class BitType(ABC):
     @abstractmethod
     def from_bits(cls, the_bits: Bits, *args, **kwargs):
         """
-        Returns an instance of the subclass representing the object represented by the_bits.
+        Returns an instance of the subclass representing the object given by the_bits.
         """
 
     def __Bits__(self) -> Bits:
@@ -283,7 +290,7 @@ class BitType(ABC):
     @classmethod
     def from_bytes(cls, the_bytes, *args, **kwargs):
         """
-        Returns an instance of the subclass representing the object represented by the_bytes.
+        Returns an instance of the subclass representing the object given by the_bytes.
         """
         return cls.from_bits(Bits(the_bytes), *args, **kwargs)
 
@@ -297,20 +304,22 @@ class BitType(ABC):
     # Alternative bytes/bytearray/bits representations
     @property
     def bytes(self) -> bytes:
-        __doc__ = self.to_bytes.__doc__
+        __doc__ = self.to_bytes.__doc__  # noqa: F841
         return bytes(self)
 
     @property
     def bytearray(self) -> bytearray:
         """
-        Returns a bytearray representation of the bytes representation of the value represented by the object.
+        Returns a bytearray representation of the bytes representation of the
+         value represented by the object.
         """
         return bytearray(bytes(self))
 
     @property
     def bits(self) -> Bits:
         """
-        Returns a bitstring.Bits representation of the bytes representation of the value represented by the object.
+        Returns a bitstring.Bits representation of the bytes representation of the
+         value represented by the object.
         """
         return Bits(self)
 
@@ -321,9 +330,12 @@ class BitType(ABC):
             Here, this could mean the following, checked in order:
             - This object is a BitType and its value equals the other object
             - Both objects are BitTypes and contain equivalent values.
-                In the case of the values being floats, if both are nans, they are still considered equal
-            - Both objects are implicitly bit-convertible through __Bits__() and have equivalent bit conversions
-            - Both objects are implicitly byte-convertible through __bytes__() and have equivalent byte conversions
+                In the case of the values being floats, if both are nans,
+                they are still considered equal
+            - Both objects are implicitly bit-convertible through __Bits__()
+                and have equivalent bit conversions
+            - Both objects are implicitly byte-convertible through __bytes__()
+                and have equivalent byte conversions
             - Both objects are the same object (default behavior of parent class)
         """
 
@@ -359,7 +371,7 @@ class BitType(ABC):
 
 class StructPackedBitType(BitType):
     """
-    Abstract base class for all BitType objects that involve using struct for packing/unpacking.
+    Abstract base class for all BitType objects that use struct for packing/unpacking.
     """
 
     def to_bits(self, *args, endianness="big", **kwargs):
@@ -398,7 +410,7 @@ class StructPackedBitType(BitType):
 
     @classproperty
     def packing_format_letter(cls):
-        __doc__ = cls.get_packing_format_letter.__doc__
+        __doc__ = cls.get_packing_format_letter.__doc__  # noqa: F841
         return cls.get_packing_format_letter()
 
     @classmethod
@@ -439,7 +451,7 @@ class BitBitType(BitType):
         #     raise ValueError(
         #         f"Cannot convert {self} to Bits"
         #         f"because the number of bits in the object ({self.num_bits})"
-        #         f"is greater than the number of bits in the object ({len(default_bits)})")
+        #         f"is greater than the number of bits ({len(default_bits)})")
         # else:
         #     return default_bits
 
@@ -452,10 +464,10 @@ class BitBitType(BitType):
         return Bits
 
 
-def BitsTypeFactory(size_in_bits: int) -> type[BitBitType]:
+def BitsTypeFactory(size_in_bits: int) -> type[BitType]:
     """
-    Factory function for creating BitBitType subclasses with the given number of bits.
-        In the event there is an existing BitBitType with the specified number of bits,
+    Factory function for creating BitType subclasses with the given number of bits.
+        In the event there is an existing BitType with the specified number of bits,
         retrieves it instead.
     Args:
     - size_in_bits: the number of bits the subclass represents.
@@ -468,14 +480,14 @@ def BitsTypeFactory(size_in_bits: int) -> type[BitBitType]:
     if existing_type is not None:
         return existing_type
 
-    class NewBitBitType(BitBitType):
+    class NewBitType(BitBitType):
         @classmethod
         def get_num_bits(cls) -> int:
             return size_in_bits
 
-    NewBitBitType.__name__ = init_type_name
-    BitTypeRegistry.registered_types[init_type_name] = NewBitBitType
-    return NewBitBitType
+    NewBitType.__name__ = init_type_name
+    BitTypeRegistry.registered_types[init_type_name] = NewBitType
+    return NewBitType
 
 
 class Bit1(BitsTypeFactory(1)):
@@ -545,7 +557,7 @@ class ByteBitType(BitType, bytearray):
             raise ValueError(
                 f"Cannot convert {self} to Bits."
                 f" The number of bits in the self.num_bits, ({self.num_bits})"
-                f" is greater than the number of bits in the object ({len(default_bytes)})"
+                f" is greater than the number of default bits ({len(default_bytes)})"
             )
         else:
             return Bits(default_bytes)
@@ -613,7 +625,7 @@ class IntBitType(BitType):
 
     @classproperty
     def is_signed(self):
-        __doc__ = self.get_is_signed.__doc__
+        __doc__ = self.get_is_signed.__doc__  # noqa: F841
 
     @classmethod
     def get_value_type(cls):
@@ -793,8 +805,8 @@ class StrBitType(BitType):
 
 
 class DefaultCodings:
-    str_dec = lambda the_bits: bytes(the_bits).decode(encoding="UTF-8")
-    str_enc = lambda the_str: Bits(the_str.encode(encoding="UTF-8"))
+    str_dec = lambda the_bits: bytes(the_bits).decode(encoding="UTF-8")  # noqa: E731
+    str_enc = lambda the_str: Bits(the_str.encode(encoding="UTF-8"))  # noqa: E731
 
 
 def StrTypeFactory(
