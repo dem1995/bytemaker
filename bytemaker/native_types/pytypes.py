@@ -11,8 +11,9 @@ from bytemaker.utils import is_subclass_of_union
 
 class PyTypeMeta(type):
     """
-    This is used to create IsByteConvertible, a type to allow checking \
-        whether an object or instances of a class can be converted to a bytes object using isinstance or issubclass.
+    This is used to create IsByteConvertible, a type to allow checking\
+        whether an object or instances of a class can be converted to a\
+        bytes object using isinstance or issubclass.
     """
 
     def __instancecheck__(self, __instance) -> bool:
@@ -59,45 +60,55 @@ class ConversionConfig:
 
     @classmethod
     def set_conversion_info(cls, conversion_info: ConversionInfo):
-        # # If the conversion info pytype is an exact match for an already-mapped type,
-        # #   replace any prior mappings to superclasses for that pytype with the new conversion
+        # # If the conversion info pytype is an exact match for an
+        # # already-mapped type,
+        # #   replace any prior mappings to superclasses for that
+        # # pytype with the new conversion
         # if conversion_info.pytype in cls._implemented_conversions:
-        #     cls._known_furthest_descendant_mappings[conversion_info.pytype] = conversion_info.pytype
+        #     cls._known_furthest_descendant_mappings[conversion_info.pytype] =
+        #   conversion_info.pytype
 
-        # If the conversion info pytype is a stricter subclass of an already-mapped type,
+        # If the conversion info pytype is a stricter subclass of an
+        #   already-mapped type,
         #   replace the mapping for the superclass with the new conversion
         for key, value in cls._known_furthest_descendant_mappings.items():
             could_map_key_to_conv_pytype_conversion = is_subclass_of_union(
                 key, conversion_info.pytype
             )
-            conv_pytype_is_stricter_match_than_existing = is_subclass_of_union(
-                conversion_info.pytype, value
-            )
+            conv_pytype_is_stricter_match_than_existing = (
+                is_subclass_of_union(
+                    conversion_info.pytype, value))
             if (
                 could_map_key_to_conv_pytype_conversion
                 and conv_pytype_is_stricter_match_than_existing
             ):
-                cls._known_furthest_descendant_mappings[key] = conversion_info.pytype
+                cls._known_furthest_descendant_mappings[key] = \
+                    conversion_info.pytype
 
         # Set the conversion info
-        cls._implemented_conversions[conversion_info.pytype] = conversion_info
+        cls._implemented_conversions[conversion_info.pytype] = \
+            conversion_info
         cls._known_furthest_descendant_mappings[
             conversion_info.pytype
         ] = conversion_info.pytype
         cls._has_a_suitable_conversion[conversion_info.pytype] = True
 
         # Check types previously ascertained to have no suitable conversion
-        #  if this new version involves a superclass of that type, set this new conversion type
-        #  as the furthest descendant mapping for that type and flag that type as a suitable conversion
+        #  if this new version involves a superclass of that type,
+        #   set this new conversion type
+        #  as the furthest descendant mapping for that type and flag
+        #   that type as a suitable conversion
         types_known_to_not_have_suitable_conversion = [
             pytype
-            for pytype, has_suitable_conversion in cls._has_a_suitable_conversion.items()
+            for pytype, has_suitable_conversion
+            in cls._has_a_suitable_conversion.items()
             if not has_suitable_conversion
         ]
 
         for pytype in types_known_to_not_have_suitable_conversion:
             if is_subclass_of_union(conversion_info.pytype, pytype):
-                cls._known_furthest_descendant_mappings[pytype] = conversion_info.pytype
+                cls._known_furthest_descendant_mappings[pytype] = \
+                    conversion_info.pytype
                 cls._has_a_suitable_conversion[pytype] = True
 
     @classmethod
@@ -112,34 +123,40 @@ class ConversionConfig:
 
     @classmethod
     def get_conversion_info(cls, pytype: type) -> ConversionInfo:
-        # If the pytype is an exact match for a conversion, return that conversion
+        # If the pytype is an exact match for a conversion,
+        # return that conversion
         if pytype in cls._implemented_conversions:
             return cls._implemented_conversions[pytype]
 
-        # If the pytype is a known subclass of a conversion, return the conversion for the superclass
+        # If the pytype is a known subclass of a conversion,
+        # return the conversion for the superclass
         if pytype in cls._known_furthest_descendant_mappings:
             return cls._implemented_conversions[
                 cls._known_furthest_descendant_mappings[pytype]
             ]
 
-        # If the pytype is a subclass of a conversion, return the conversion for the superclass
+        # If the pytype is a subclass of a conversion,
+        # return the conversion for the superclass
         if cls.has_suitable_conversion(pytype):
             cur_suitable_implemented_pytype = None
-            for candidate_implemented_pytype in cls._implemented_conversions.keys():
+            for candidate_implemented_pytype in\
+                    cls._implemented_conversions.keys():
                 pytype_is_subclass_of_candidate = is_subclass_of_union(
                     pytype, candidate_implemented_pytype
                 )
                 candidate_is_stricter_than_current = (
                     cur_suitable_implemented_pytype is None
                     or is_subclass_of_union(
-                        candidate_implemented_pytype, cur_suitable_implemented_pytype
+                        candidate_implemented_pytype,
+                        cur_suitable_implemented_pytype
                     )
                 )
                 if (
                     pytype_is_subclass_of_candidate
                     and candidate_is_stricter_than_current
                 ):
-                    cur_suitable_implemented_pytype = candidate_implemented_pytype
+                    cur_suitable_implemented_pytype = \
+                        candidate_implemented_pytype
 
             if cur_suitable_implemented_pytype is not None:
                 cls._known_furthest_descendant_mappings[
@@ -189,7 +206,10 @@ ConversionConfig.set_conversion_info(bool_conversion_info)
 # def _int_to_bits(num: int) -> Bits:
 #     if issubclass(type(num), bool):
 #         to_convert = int(num)
-#     return Bits(to_convert, to_convert.to_bytes(twos_complement_bit_length(num), byteorder='little', signed=num >= 0))
+#     return Bits(to_convert, 
+#       to_convert.to_bytes(
+#           twos_complement_bit_length(num),
+#           byteorder='little', signed=num >= 0))
 
 
 int_conversion_info = ConversionInfo(
@@ -254,10 +274,12 @@ def bits_to_pytype(bits_obj: Bits, pytype: type):
 
     Args:
         bytes_obj (bytes): The bits object to convert to a Python primitive
-        py_prim_type (type): The type of the Python primitive to convert to. Must be a member of PyTypeWithDefaultBytes
+        py_prim_type (type): The type of the Python primitive to convert to.
+            Must be a member of PyTypeWithDefaultBytes
 
     Returns:
-        pytype: The instance of thee provided Python type represented by the bits
+        pytype: The instance of thee provided Python type represented by the
+            bits
     """
 
     conversion = ConversionConfig.get_conversion_info(pytype)
@@ -274,10 +296,12 @@ def bytes_to_pytype(bytes_obj: Bits, pytype: type):
 
     Args:
         bytes_obj (bytes): The bytes object to convert to a Python primitive
-        py_prim_type (type): The type of the Python primitive to convert to. Must be a member of PyTypeWithDefaultBytes
+        py_prim_type (type): The type of the Python primitive to convert to.
+            Must be a member of PyTypeWithDefaultBytes
 
     Returns:
-        pytype: The instance of thee provided Python type represented by the bytes
+        pytype: The instance of thee provided Python type represented by the
+            bytes
     """
 
     return bits_to_pytype(Bits(bytes_obj), pytype)
