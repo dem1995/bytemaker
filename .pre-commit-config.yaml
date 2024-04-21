@@ -30,7 +30,7 @@ repos:
         args:
           - --config=pyproject.toml
         entry: pflake8
-    cqa/isort
+  - repo: https://github.com/pycqa/isort
     rev: 5.13.2
     hooks:
       - id: isort
