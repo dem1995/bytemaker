@@ -11,32 +11,30 @@ requires-python = ">=3.8"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
-    "Operating System :: OS Independent",
-]
+    "Operating System :: OS Independent"]
 
 
 [project.urls]
 "Homepage" = "https://github.com/dem1995/bytemaker"
 "PyPi Page" = "https://pypi.org/project/bytemaker/"
 
-[flake8]
-exclude = """
-    build,
-    dist,
-    .git,
-    .github,
-    .vscode,
-    .venv,
-    __pycache__,
-    *.egg-info,
-"""
+[tool.flake8]
+exclude = [
+    'build',
+    'dist',
+    '.git',
+    '.github',
+    '.vscode',
+    '.venv',
+    '__pycache__',
+    '*.egg-info']
 
 max-complexity = 8
 max-line-length = 88
 
-extend-ignore = """
-    E203, # E203: Whitespace before ':'. Flake and black disagree on this.
-"""
+extend-ignore = [
+    'E203', # E203: Whitespace before ':'. Flake and black disagree on this.
+    'C901'] # C901: Function is too complex. We are ignoring this for now.
 
 [tool.isort]
 profile = "black"
