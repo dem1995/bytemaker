@@ -1,6 +1,6 @@
 import ctypes
 import dataclasses
-from typing import Iterable, Union
+from typing_redirect import Iterable, Union
 
 from bytemaker.bits import Bits
 from bytemaker.bittypes import BitType, bytes_to_bittype

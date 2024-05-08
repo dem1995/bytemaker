@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import struct
-import typing
 from dataclasses import dataclass
-from typing import Callable
 
+from bytemaker.typing_redirect import Any, Callable
 from bytemaker.bits import Bits
 from bytemaker.utils import is_subclass_of_union
 
@@ -31,9 +30,9 @@ class PyType(metaclass=PyTypeMeta):
 @dataclass
 class ConversionInfo:
     pytype: type
-    to_bits: Callable[[typing.Any], Bits]
-    from_bits: Callable[[Bits], typing.Any]
-    num_bits: Callable[[typing.Any], int]
+    to_bits: Callable[[Any], Bits]
+    from_bits: Callable[[Bits], Any]
+    num_bits: Callable[[Any], int]
 
     @classmethod
     def num_bytes(cls, typeinstance) -> int:
@@ -45,7 +44,7 @@ class ConversionInfo:
         return bytes(cls.to_bits(pytype))
 
     @classmethod
-    def from_bytes(cls, bytes_obj) -> typing.Any:
+    def from_bytes(cls, bytes_obj) -> Any:
         return cls.from_bits(Bits(bytes_obj))
 
 

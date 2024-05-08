@@ -1,12 +1,12 @@
 # CType Handling
 import ctypes
-import typing
 from ctypes import Array, Structure, Union, _SimpleCData
 
 from bytemaker.bits import Bits
 from bytemaker.utils import is_instance_of_union, is_subclass_of_union
+import bytemaker.typing_redirect as typing_redirect
 
-CType = typing.Union[_SimpleCData, Structure, Union, Array]
+CType = typing_redirect.Union[_SimpleCData, Structure, Union, Array]
 
 
 def reverse_bytes_unit(unit: _SimpleCData):

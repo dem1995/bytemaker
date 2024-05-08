@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import operator
-import typing
 from math import ceil
-from typing import Iterable, Protocol, runtime_checkable
 
-from bytemaker.utils import ByteConvertible, twos_complement_bit_length
+from typing_redirect import Iterable, Iterator, Protocol, Union, runtime_checkable
+from utils import ByteConvertible, twos_complement_bit_length
 
 
 @runtime_checkable
@@ -196,7 +195,7 @@ class Bits:
     def __index__(self) -> int:
         return int(self)
 
-    def __iter__(self) -> typing.Iterator[int]:
+    def __iter__(self) -> Iterator[int]:
         return iter(self.bitlist)
 
     def __format__(self, format_spec) -> str:
@@ -410,6 +409,6 @@ class Bits:
             return ret_bits
 
 
-BitsConstructorType = typing.Union[
+BitsConstructorType = Union[
     int, str, bytes, bytearray, memoryview, Iterable[int], Bits, BitsCastable
 ]
