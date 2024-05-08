@@ -26,7 +26,9 @@ repos:
     hooks:
       - id: "flake8"
         entry: pflake8
-        additional_dependencies: [pyproject-flake8]
+        additional_dependencies: [
+          pyproject-flake8,
+          flake8-pyi]
         args:
           - --config=pyproject.toml
         entry: pflake8
