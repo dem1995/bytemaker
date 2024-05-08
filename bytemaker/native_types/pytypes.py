@@ -3,8 +3,8 @@ from __future__ import annotations
 import struct
 from dataclasses import dataclass
 
-from bytemaker.typing_redirect import Any, Callable
 from bytemaker.bits import Bits
+from bytemaker.typing_redirect import Any, Callable
 from bytemaker.utils import is_subclass_of_union
 
 
