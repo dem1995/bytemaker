@@ -1,7 +1,7 @@
 import dataclasses
-import typing
 from math import ceil, log2
-from typing import Any
+
+from typing_redirect import Any, Iterable, Union, get_args, get_origin
 
 #  General Python functionality
 
@@ -35,24 +35,24 @@ def is_instance_of_union(obj, union_type: type):
     # If that does not work, try to process the union type
     # instance recursively or as generic type instance
     except TypeError:
-        type_origin = typing.get_origin(union_type)
+        type_origin = get_origin(union_type)
 
         # If the type is non-generic and non-union
         #   use the default isinstance method with the type origin
         if type_origin is None:
             return isinstance(obj, union_type)
 
-        type_args = typing.get_args(union_type)
+        type_args = get_args(union_type)
 
         # If the type is a union type or its instances are iterable
         #   check if the object is an instance of any
         #       of the constituent types
         #   or if the object is an iterable and its first element
         #       is an instance of the first type argument
-        if type_origin is typing.Union:
+        if type_origin is Union:
             return any(is_instance_of_union(obj, type_arg) for type_arg in type_args)
         elif isinstance(obj, type_origin):
-            if len(type_args) == 1 and isinstance(obj, typing.Iterable):
+            if len(type_args) == 1 and isinstance(obj, Iterable):
                 return bool(obj) or is_instance_of_union(next(iter(obj)), type_args[0])
 
             # If the type is a multi-arg, non-union, non-generic type
@@ -67,7 +67,7 @@ def is_instance_of_union(obj, union_type: type):
             return False
 
 
-def is_subclass_of_union(subtype: type, supertype: type):
+def is_subclass_of_union(subtype: type, supertype):
     """
     Determines if an object is a subclass of a union type
         (to support Python versions <3.10).
@@ -87,21 +87,21 @@ def is_subclass_of_union(subtype: type, supertype: type):
     # If that does not work, try to process the union type recursively
     # or as a generic type
     except TypeError:
-        supertype_origin = typing.get_origin(supertype)
+        supertype_origin = get_origin(supertype)
 
         # If the supertype is a single-arged, non-generic, non-union type
         if supertype_origin is None:
             return issubclass(subtype, supertype)
 
-        supertype_args = typing.get_args(supertype)
+        supertype_args = get_args(supertype)
 
         # If the supertype is a union type or an iterable generic
-        if supertype_origin is typing.Union:
+        if supertype_origin is Union:
             return any(
                 is_subclass_of_union(subtype, union_type_part)
                 for union_type_part in supertype_args
             )
-        elif issubclass(supertype_origin, typing.Iterable) and len(supertype_args) == 1:
+        elif issubclass(supertype_origin, Iterable) and len(supertype_args) == 1:
             return issubclass(subtype, supertype_origin) and is_subclass_of_union(
                 subtype, supertype_args[0]
             )
@@ -131,12 +131,10 @@ class _ByteConvertibleMeta(type):
         except Exception:
             return False
 
-    def __subclasscheck__(self, __subclass: type) -> bool:
+    def __subclasscheck__(self, __subclass: Any) -> bool:
         return (
             hasattr(__subclass, "__bytes__")
-            or is_subclass_of_union(
-                __subclass, typing.Union[bytes, bytearray, memoryview]
-            )
+            or is_subclass_of_union(__subclass, Union[bytes, bytearray, memoryview])
             or (
                 hasattr(__subclass, "__getitem__")
                 and hasattr(__subclass, "format")
