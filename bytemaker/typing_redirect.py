@@ -8,7 +8,14 @@ This module allows for Python version-agnostic typing and collections.abc import
 import sys
 
 if sys.version_info < (3, 9):
-    from typing import Callable, Iterable, Mapping, MutableMapping, Sequence
+    from typing import (
+        Callable,
+        Iterable,
+        Mapping,
+        MutableMapping,
+        MutableSequence,
+        Sequence
+    )
 else:
     from collections.abc import (
         Callable,
