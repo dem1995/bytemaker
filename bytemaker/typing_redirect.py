@@ -14,7 +14,7 @@ if sys.version_info < (3, 9):
         Mapping,
         MutableMapping,
         MutableSequence,
-        Sequence
+        Sequence,
     )
 else:
     from collections.abc import (
