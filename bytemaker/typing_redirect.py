@@ -2,37 +2,13 @@
 typing_redirect.py
 
 This module allows for Python version-agnostic typing and collections.abc imports.
-    It uses Python standard library batteries for verions >=3.9.
-    For versions <3.9, it uses the typing_extensions module.
+    It uses Python standard library batteries where possible.
+    For older versions, this module will export from typing_extensions.
 """
 import sys
 
 if sys.version_info < (3, 9):
-    from typing import ClassVar, Final, Protocol, Type, runtime_checkable
-
-    from typing_extensions import (
-        Annotated,
-        Any,
-        Callable,
-        Dict,
-        ForwardRef,
-        Iterable,
-        Iterator,
-        List,
-        Mapping,
-        MutableMapping,
-        MutableSequence,
-        Optional,
-        Self,
-        Sequence,
-        Tuple,
-        TypeVar,
-        Union,
-        get_args,
-        get_origin,
-        get_type_hints,
-        overload,
-    )
+    from typing import Callable, Iterable, Mapping, MutableMapping, Sequence
 else:
     from collections.abc import (
         Callable,
@@ -42,31 +18,29 @@ else:
         MutableSequence,
         Sequence,
     )
-    from typing import (
-        Annotated,
-        Any,
-        ClassVar,
-        Dict,
-        Final,
-        ForwardRef,
-        Iterator,
-        List,
-        Optional,
-        Protocol,
-        Self,
-        Tuple,
-        Type,
-        TypeVar,
-        Union,
-        get_args,
-        get_origin,
-        get_type_hints,
-        overload,
-        runtime_checkable,
-    )
+
+from typing import (
+    Any,
+    ClassVar,
+    Dict,
+    Final,
+    ForwardRef,
+    Iterator,
+    List,
+    Optional,
+    Protocol,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+    get_args,
+    get_origin,
+    get_type_hints,
+    overload,
+    runtime_checkable,
+)
 
 __all__ = [
-    "Annotated",
     "Any",
     "Callable",
     "ClassVar",
@@ -81,7 +55,6 @@ __all__ = [
     "MutableSequence",
     "Optional",
     "Protocol",
-    "Self",
     "Sequence",
     "Tuple",
     "Type",
@@ -93,3 +66,8 @@ __all__ = [
     "overload",
     "runtime_checkable",
 ]
+
+if sys.version_info >= (3, 11):
+    from typing import Self  # noqa: F401
+
+    __all__.append("Self")
