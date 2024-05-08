@@ -13,8 +13,8 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent"]
 
-[project.dependencies]
-typing-extensions = ['typing-extensions >= 4.11; python_version < "3.9"']
+dependencies = [
+    "typing-extensions >= 4.11; python_version < '3.9'"]
 
 [project.urls]
 "Homepage" = "https://github.com/dem1995/bytemaker"
