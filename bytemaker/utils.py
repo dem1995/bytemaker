@@ -1,7 +1,16 @@
+from __future__ import annotations
+
 import dataclasses
 from math import ceil, log2
 
-from typing_redirect import Any, Iterable, Union, get_args, get_origin
+from bytemaker.typing_redirect import (
+    Any,
+    Iterable,
+    Sequence,
+    Union,
+    get_args,
+    get_origin,
+)
 
 #  General Python functionality
 
@@ -13,6 +22,38 @@ class classproperty(property):
 
     def __get__(self, cls, owner):
         return classmethod(self.fget).__get__(None, owner)()
+
+
+class Trie:
+    def __init__(self):
+        self.children = {}
+        self.is_end_of_suffix = False
+        self.is_start_of_prefix = False
+
+    @staticmethod
+    def _build_suffix_trie(suffixes: Iterable[Sequence[int]]) -> Trie:
+        root = Trie()
+        for suffix in suffixes:
+            current = root
+            # Insert reversed suffix into trie
+            for bit in reversed(suffix):
+                if bit not in current.children:
+                    current.children[bit] = Trie()
+                current = current.children[bit]
+            current.is_end_of_suffix = True
+        return root
+
+    @staticmethod
+    def _build_prefix_trie(prefixes: Iterable[Iterable[int]]) -> Trie:
+        root = Trie()
+        for prefix in prefixes:
+            current = root
+            for bit in prefix:
+                if bit not in current.children:
+                    current.children[bit] = Trie()
+                current = current.children[bit]
+            current.is_start_of_prefix = True
+        return root
 
 
 def is_instance_of_union(obj, union_type: type):
