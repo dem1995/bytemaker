@@ -20,7 +20,7 @@ dependencies = [
 #     "typing-extensions >= 4.11; python_version < '3.11'"]
 
 [tool.setuptools]
-packages = { include = ["bytemaker*"] }
+packages = ["bytemaker"]
 
 [project.urls]
 "Homepage" = "https://github.com/dem1995/bytemaker"
