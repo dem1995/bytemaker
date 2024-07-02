@@ -31,7 +31,7 @@ class Trie:
         self.is_start_of_prefix = False
 
     @staticmethod
-    def _build_suffix_trie(suffixes: Iterable[Sequence[int]]) -> Trie:
+    def build_suffix_trie(suffixes: Iterable[Sequence[int]]) -> Trie:
         root = Trie()
         for suffix in suffixes:
             current = root
@@ -44,7 +44,7 @@ class Trie:
         return root
 
     @staticmethod
-    def _build_prefix_trie(prefixes: Iterable[Iterable[int]]) -> Trie:
+    def build_prefix_trie(prefixes: Iterable[Iterable[int]]) -> Trie:
         root = Trie()
         for prefix in prefixes:
             current = root
