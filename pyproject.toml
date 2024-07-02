@@ -13,8 +13,14 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent"]
 
+dependencies = [
+    "bitarray >= 2.9.0"]
+
 # dependencies = [
 #     "typing-extensions >= 4.11; python_version < '3.11'"]
+
+[tool.setuptools]
+packages = { include = ["bytemaker*"] }
 
 [project.urls]
 "Homepage" = "https://github.com/dem1995/bytemaker"
