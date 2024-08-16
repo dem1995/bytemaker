@@ -1423,6 +1423,16 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
     def strip(self: Self, bits: Optional[Union[Literal[0], Literal[1]]] = None) -> Self:
         return self.lstrip(bits).rstrip(bits)
 
+    def lpad(self: Self, width: int, fillbit: Literal[0, 1] = 0) -> Self:
+        if len(self) >= width:
+            return self
+        return type(self)([fillbit] * (width - len(self))) + self
+
+    def rpad(self: Self, width: int, fillbit: Literal[0, 1] = 0) -> Self:
+        if len(self) >= width:
+            return self
+        return self + type(self)([fillbit] * (width - len(self)))
+
     @classmethod
     def cast_if_not_bitarray(
         cls: type[Self], obj: BitsConstructible
