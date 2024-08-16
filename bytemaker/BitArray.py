@@ -7,6 +7,6 @@ if find_spec("bitarray"):
         BitsConstructible,
     )
 else:
-    raise NotImplementedError("TODO")
+    raise NotImplementedError("Add non-bitarray implementation")
 
 __all__ = ["BitArray", "BitsCastable", "BitsConstructible"]
