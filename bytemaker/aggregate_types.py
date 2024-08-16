@@ -1,8 +1,6 @@
 import ctypes
 import dataclasses
 
-from typing_redirect import Iterable, Union
-
 from bytemaker.bits import Bits
 from bytemaker.bittypes import BitType, bytes_to_bittype
 from bytemaker.native_types.ctypes_ import (
@@ -20,6 +18,7 @@ from bytemaker.native_types.pytypes import (
     pytype_to_bits,
     pytype_to_bytes,
 )
+from bytemaker.typing_redirect import Iterable, Union
 from bytemaker.utils import DataClassType, is_instance_of_union, is_subclass_of_union
 
 UnitType = Union[CType, BitType, PyType]

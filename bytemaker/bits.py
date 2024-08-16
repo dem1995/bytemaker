@@ -3,8 +3,14 @@ from __future__ import annotations
 import operator
 from math import ceil
 
-from typing_redirect import Iterable, Iterator, Protocol, Union, runtime_checkable
-from utils import ByteConvertible, twos_complement_bit_length
+from bytemaker.typing_redirect import (
+    Iterable,
+    Iterator,
+    Protocol,
+    Union,
+    runtime_checkable,
+)
+from bytemaker.utils import ByteConvertible, twos_complement_bit_length
 
 
 @runtime_checkable
