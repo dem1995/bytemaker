@@ -109,7 +109,7 @@ class BitArray(MutableSequence[Literal[0, 1]]):
         base: int,
         endianness: Literal["little", "big"] = "big",
     ) -> Self: ...
-    # @classmethod  # todo
+    # @classmethod  # TODO
     # def from_int(cls, value: int, length: int, signed: bool = True) -> Self: ...
     # This is complicated by PEP 467, which is slightly different functionality
     # @classmethod
@@ -130,7 +130,7 @@ class BitArray(MutableSequence[Literal[0, 1]]):
     def tobase(
         self, base: int, sep: Optional[str] = None, bytes_per_sep: int = 1
     ) -> str: ...
-    # def to_int(self, signed: bool = True) -> int: ...  # todo
+    # def to_int(self, signed: bool = True) -> int: ...  # TODO
     def to_chararray(
         self, encoding: Union[str, dict[BitsConstructible, str]] = "utf-8"
     ) -> str: ...
@@ -193,14 +193,14 @@ class BitArray(MutableSequence[Literal[0, 1]]):
     def __deepcopy__(self: Self, memo: dict[int, object]) -> Self: ...
     #     constructor deepcopy default
     # def __reduce__(self
-    #   ) -> Tuple[Type[Self], Tuple[Union[bytes, str], str, str, str]]: ... # todo
+    #   ) -> Tuple[Type[Self], Tuple[Union[bytes, str], str, str, str]]: ... # TODO
     # def __reduce_ex__(self, protocol: int
-    #   ) -> Tuple[Type[Self], Tuple[Union[bytes, str], str, str, str]]: ... # todo
-    # def __getnewargs_ex__(self) -> Tuple[Union[bytes, str], str, str, str]: ... # todo
-    # def __getnewargs__(self) -> Tuple[Union[bytes, str], str, str, str]: ... # todo
-    # def __getstate__(self) -> Tuple[Union[bytes, str], str, str, str]: ... # todo
+    #   ) -> Tuple[Type[Self], Tuple[Union[bytes, str], str, str, str]]: ... # TODO
+    # def __getnewargs_ex__(self) -> Tuple[Union[bytes, str], str, str, str]: ... # TODO
+    # def __getnewargs__(self) -> Tuple[Union[bytes, str], str, str, str]: ... # TODO
+    # def __getstate__(self) -> Tuple[Union[bytes, str], str, str, str]: ... # TODO
     # def __setstate__(self, state: Tuple[Union[bytes, str], str, str, str]
-    #   ) -> None: ... # todo
+    #   ) -> None: ... # TODO
     def __sizeof__(self) -> int: ...
 
     # Basic Operations
@@ -261,21 +261,21 @@ class BitArray(MutableSequence[Literal[0, 1]]):
     ) -> Self: ...
     # def translate(self,
     #   table: List[BitArray] | bytes, delete: Optional[List[BitArray]] = None
-    #   ) -> Self: ... # todo
-    # def maketrans(self, x, y=None, z=None) -> list[BitArray]: ...  # todo
+    #   ) -> Self: ... # TODO
+    # def maketrans(self, x, y=None, z=None) -> list[BitArray]: ...  # TODO
     def join(self: Self, iterable: Iterable[BitsConstructible]) -> Self: ...
     # def split(self, sep: Optional[bytes] = None, maxsplit: int = -1
-    #   ) -> List[bytes]: ... # todo
+    #   ) -> List[bytes]: ... # TODO
     # def rsplit(
     #     self, sep: Optional[bytes] = None, maxsplit: int = -1
-    # ) -> List[bytes]: ... #todo
+    # ) -> List[bytes]: ... #TODO
     def partition(self, sep: BitArray) -> Tuple[Self, Self, Self]: ...
     def rpartition(self, sep: BitArray) -> Tuple[Self, Self, Self]: ...
     def lstrip(self: Self, bits: Optional[Literal[0, 1]] = None) -> Self: ...
     def rstrip(self: Self, bits: Optional[Literal[0, 1]] = None) -> Self: ...
     def strip(self: Self, bits: Optional[Literal[0, 1]] = None) -> Self: ...
 
-    # Text and Alignment Methods # todo
+    # Text and Alignment Methods # TODO
     # def decode(self, encoding: str = "utf-8", errors: str = "strict") -> str: ...
     # def expandtabs(self, tabsize: int = 8) -> Self: ...
     # def ljust(self, width: int, fillbyte: bytes = b" ") -> Self: ...
@@ -300,5 +300,5 @@ class BitArray(MutableSequence[Literal[0, 1]]):
         cls: type[Self], obj: BitsConstructible
     ) -> Union[Self, BitArray]: ...
 
-# class FrozenBitArray(frozenbitarray): # todo
+# class FrozenBitArray(frozenbitarray): # TODO
 #     def __hash__(self) -> int: ...
