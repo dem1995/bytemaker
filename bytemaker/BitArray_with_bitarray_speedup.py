@@ -77,9 +77,10 @@ class BitsCastable(Protocol):
         ...
 
 
-BitsConstructible = Union[
-    "BitArray", bytes, str, Iterable[Literal[0, 1]], BitsCastable, bitarray
-]  # Warning! Long-term support for bitarray is not guaranteed
+__annotations__ = {
+    "BitsConstructible": 'Union["BitArray", bytes, str, Iterable[Literal[0, 1]]'
+    ", BitsCastable, bitarray.bitarray]"
+}  # Warning! Long-term support for bitarray is not guaranteed
 """The Union of types that can be used to construct a BitArray."""
 
 
@@ -942,7 +943,7 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
     def __str__(self) -> str:
         """
         Get a string representation of the BitArray.
-            This is e.g. "type(self)[endian]('010.....')".
+            This is e.g. "type(self)('010.....')".
         """
         zerosandones = self.to01()
         # chunk the list into 8-bit chunks
@@ -950,15 +951,12 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
             zerosandones[i : i + 8] for i in range(0, len(zerosandones), 8)
         ]
         # join the chunks with spaces
-        return (
-            f"{type(self).__name__}[{self.endian()}]"
-            f"('{' '.join(zeroesandoneslist)}')"
-        )
+        return f"{type(self).__name__}" f"('{' '.join(zeroesandoneslist)}')"
 
     def __repr__(self) -> str:
         """
         Get a reconstructible representation of the BitArray.
-            This is e.g. "type(self)('010.....', endian='big')".
+            This is e.g. "type(self)('010.....')".
         """
         zerosandones = self.to01()
         # chunk the list into 8-bit chunks
@@ -966,10 +964,7 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
             zerosandones[i : i + 8] for i in range(0, len(zerosandones), 8)
         ]
         # join the chunks with spaces
-        return (
-            f"{type(self).__name__}"
-            f"('{' '.join(zeroesandoneslist)}', endianness='{self.endian()}')"
-        )
+        return f"{type(self).__name__}" f"('{' '.join(zeroesandoneslist)}')"
 
     def __bytes__(self) -> bytes:
         """
@@ -1439,6 +1434,10 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
     ) -> Union[Self, BitArray]:
         return cls(obj) if not isinstance(obj, BitArray) else obj
 
+
+BitsConstructible = Union[
+    BitArray, bytes, str, Iterable[Literal[0, 1]], BitsCastable, bitarray
+]
 
 if __name__ == "__main__":
     print("-------------------------------")
