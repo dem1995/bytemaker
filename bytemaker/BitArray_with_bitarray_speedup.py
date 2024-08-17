@@ -541,7 +541,7 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
 
     def oct(self, sep: Optional[str] = None, bytes_per_sep: int = 1) -> str:
         """
-        Convert the BitArray to an octal string prefixed by 0x.
+        Convert the BitArray to an octal string prefixed by 0o.
         If `sep` is not None, the string is split into chunks of `bytes_per_sep` bytes
            punctuated by `sep`.
 
@@ -557,7 +557,7 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
 
     def bin(self, sep: Optional[str] = None, bytes_per_sep: int = 1) -> str:
         """
-        Convert the BitArray to a binary string prefixed by 0x.
+        Convert the BitArray to a binary string prefixed by 0b.
         If `sep` is not None, the string is split into chunks of `bytes_per_sep` bytes
            punctuated by `sep`.
 
