@@ -3,7 +3,7 @@ import ctypes
 from ctypes import Array, Structure, Union, _SimpleCData
 
 import bytemaker.typing_redirect as typing_redirect
-from bytemaker.bits import Bits
+from bytemaker.bitvector import BitVector
 from bytemaker.utils import is_instance_of_union, is_subclass_of_union
 
 CType = typing_redirect.Union[_SimpleCData, Structure, Union, Array]
@@ -69,22 +69,22 @@ def ctype_to_bytes(ctype_obj: CType, reverse_endianness=True) -> bytes:
     return retbytes
 
 
-def ctype_to_bits(ctype_obj: CType, reverse_endianness=True) -> Bits:
+def ctype_to_bits(ctype_obj: CType, reverse_endianness=True) -> BitVector:
     """
-    Function to convert ctypes into Bits objects
+    Function to convert ctypes into BitVector objects
 
     Args:
         ctype_obj (ctypes._SimpleCData | ctypes.Structure\
                 | ctypes.Union | ctypes.Array):
-            The ctypes object to convert to Bits
+            The ctypes object to convert to BitVector
         reverse_endianness (bool, optional):
-            Whether to reverse the endianness of the Bits\
+            Whether to reverse the endianness of the BitVector\
                 after converting. Defaults to False.
 
     Returns:
-        Bits: The Bits representation of the ctypes object
+        BitVector: The BitVector representation of the ctypes object
     """
-    return Bits(ctype_to_bytes(ctype_obj, reverse_endianness=reverse_endianness))
+    return BitVector(ctype_to_bytes(ctype_obj, reverse_endianness=reverse_endianness))
 
 
 def bytes_to_ctype(
@@ -119,12 +119,14 @@ def bytes_to_ctype(
     return ctype_obj
 
 
-def bits_to_ctype(bits_obj: Bits, ctype_type: type, reverse_endianness=True) -> CType:
+def bits_to_ctype(
+    bits_obj: BitVector, ctype_type: type, reverse_endianness=True
+) -> CType:
     """
     Function to convert bits into ctypes objects
 
     Args:
-        bits_obj (Bits): The bits object to convert to a ctypes object
+        bits_obj (BitVector): The bits object to convert to a ctypes object
         ctype_type (type): The type of the ctypes object to convert to.
             Must be a member of CType
         reverse_endianness (bool, optional): Whether to reverse the

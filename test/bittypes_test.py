@@ -1,6 +1,5 @@
 import pytest
 
-from bytemaker.bits import Bits
 from bytemaker.bittypes import (
     Bit4,
     Bit8,
@@ -20,6 +19,7 @@ from bytemaker.bittypes import (
     UInt32,
     UInt64,
 )
+from bytemaker.bitvector import BitVector
 
 
 @pytest.mark.parametrize(
@@ -29,7 +29,11 @@ from bytemaker.bittypes import (
         (SInt16, -(2**15), 2**8),
         (Float32, 3.1415926535, 2.7182818284),
         (Str8, "a", "b"),
-        (Bit8, Bits([0, 1, 1, 1, 0, 1, 0, 1]), Bits([1, 0, 1, 0, 1, 1, 1, 0])),
+        (
+            Bit8,
+            BitVector([0, 1, 1, 1, 0, 1, 0, 1]),
+            BitVector([1, 0, 1, 0, 1, 1, 1, 0]),
+        ),
     ],
 )
 def test_cru_bittype(bittype_class, constructor_arg, update_arg):
@@ -45,10 +49,10 @@ def test_cru_bittype(bittype_class, constructor_arg, update_arg):
 @pytest.mark.parametrize(
     "bittype_class, input_value, expected_bits",
     [
-        (UInt8, 255, Bits([1] * 8)),
-        (UInt16, 65535, Bits([1] * 16)),
-        (UInt32, 2**32 - 1, Bits([1] * 32)),
-        (UInt64, 2**64 - 1, Bits([1] * 64)),
+        (UInt8, 255, BitVector([1] * 8)),
+        (UInt16, 65535, BitVector([1] * 16)),
+        (UInt32, 2**32 - 1, BitVector([1] * 32)),
+        (UInt64, 2**64 - 1, BitVector([1] * 64)),
     ],
 )
 def test_uint_serialization(bittype_class, input_value, expected_bits):
@@ -59,10 +63,10 @@ def test_uint_serialization(bittype_class, input_value, expected_bits):
 @pytest.mark.parametrize(
     "bittype_class, input_bits, expected_value",
     [
-        (UInt8, Bits([1] * 8), 255),
-        (UInt16, Bits([1] * 16), 65535),
-        (UInt32, Bits([1] * 32), 2**32 - 1),
-        (UInt64, Bits([1] * 64), 2**64 - 1),
+        (UInt8, BitVector([1] * 8), 255),
+        (UInt16, BitVector([1] * 16), 65535),
+        (UInt32, BitVector([1] * 32), 2**32 - 1),
+        (UInt64, BitVector([1] * 64), 2**64 - 1),
     ],
 )
 def test_uint_deserialization(bittype_class, input_bits, expected_value):
@@ -122,17 +126,21 @@ def test_str_serialization_and_deserialization(
 @pytest.mark.parametrize(
     "bittype_class, input_value, expected_bits_length",
     [
-        (Bit4, Bits([0, 1, 1, 1]), Bits([0, 1, 1, 1])),
-        (Bit8, Bits([0, 1, 1, 1, 0, 1, 0, 1]), Bits([0, 1, 1, 1, 0, 1, 0, 1])),
+        (Bit4, BitVector([0, 1, 1, 1]), BitVector([0, 1, 1, 1])),
+        (
+            Bit8,
+            BitVector([0, 1, 1, 1, 0, 1, 0, 1]),
+            BitVector([0, 1, 1, 1, 0, 1, 0, 1]),
+        ),
         (
             Bit16,
-            Bits([0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1]),
-            Bits([0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1]),
+            BitVector([0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1]),
+            BitVector([0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1]),
         ),
         (
             Bit32,
             # fmt: off
-            Bits(
+            BitVector(
                 [0, 1, 1, 1, 0, 1, 0, 1,
                  0, 1, 1, 1, 0, 1, 0, 1,
                  0, 1, 1, 1, 0, 1, 0, 1,
@@ -140,7 +148,7 @@ def test_str_serialization_and_deserialization(
             ),
             # fmt: on
             # fmt: off
-            Bits(
+            BitVector(
                 [0, 1, 1, 1, 0, 1, 0, 1,
                  0, 1, 1, 1, 0, 1, 0, 1,
                  0, 1, 1, 1, 0, 1, 0, 1,
@@ -151,7 +159,7 @@ def test_str_serialization_and_deserialization(
             Bit64,
             # fmt: on
             # fmt: off
-            Bits(
+            BitVector(
                 [0, 1, 1, 1, 0, 1, 0, 1,
                  0, 1, 1, 1, 0, 1, 0, 1,
                  0, 1, 1, 1, 0, 1, 0, 1,
@@ -162,7 +170,7 @@ def test_str_serialization_and_deserialization(
             ),
             # fmt: on
             # fmt: off
-            Bits(
+            BitVector(
                 [0, 1, 1, 1, 0, 1, 0, 1,
                  0, 1, 1, 1, 0, 1, 0, 1,
                  0, 1, 1, 1, 0, 1, 0, 1,

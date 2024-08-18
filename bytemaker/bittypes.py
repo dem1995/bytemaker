@@ -6,7 +6,7 @@ import struct
 from abc import ABC, abstractmethod
 from typing import Any, Callable
 
-from bytemaker.bits import Bits, BitsConstructorType
+from bytemaker.bitvector import BitsConstructible, BitVector
 from bytemaker.utils import ByteConvertible, classproperty, is_instance_of_union
 
 
@@ -65,8 +65,8 @@ class BitType(ABC):
         The bytes representation of the BitType object.
     bytearray : bytearray
         The bytearray representation of the BitType object.
-    bits : Bits
-        The bitstring representation of the BitType object.
+    bits : BitVector
+        The BitVector representation of the BitType object.
 
     Required Abstract Methods:
     -----------------
@@ -77,11 +77,11 @@ class BitType(ABC):
         Abstract class method. Returns the type of values of instances of the BitType.
 
 
-    to_bits(*args, **kwargs) -> Bits:
-        Abstract instance method that converts the BitType object to bitstring.Bits.
+    to_bits(*args, **kwargs) -> BitVector:
+        Abstract instance method that converts the BitType object to a BitVector.
 
-    from_bits(the_bits: Bits, *args, **kwargs):
-        Abstract class method. Converts bitstring.Bits to an instance of the BitType.
+    from_bits(the_bits: BitVector, *args, **kwargs):
+        Abstract class method. Converts BitVector to an instance of the BitType.
 
 
 
@@ -103,9 +103,9 @@ class BitType(ABC):
     __eq__(other) -> bool:
         Instance method that compares the BitType object with another object.
 
-    __Bits__() -> Bits:
-        Instance method that converts the BitType object to bitstring.Bits.
-        Useful for Bits(theObject).
+    __BitVector__() -> BitVector:
+        Instance method that converts the BitType object to BitVector.
+        Useful for BitVector(theObject).
 
     __bytes__() -> bytes:
         Instance method that converts the BitType object to bytes.
@@ -126,7 +126,11 @@ class BitType(ABC):
             BitTypeRegistry.find_type(cls.__name__)
 
     def __init__(
-        self, value: bytes | bytearray | Bits | Any, test_creation=True, *args, **kwargs
+        self,
+        value: bytes | bytearray | BitVector | Any,
+        test_creation=True,
+        *args,
+        **kwargs,
     ) -> None:
         """
         Initializes the BitType object.
@@ -136,12 +140,12 @@ class BitType(ABC):
             sets the value directly.
         - If value is an instance of BitType and the valuetype of both BitTypes match,
             sets the value to the value of the BitType subclass.
-        - If value is an instance of bitstring.Bits, calls from_bits(Bits(value)) from
+        - If value is an instance of BitVector, calls from_bits(BitVector(value)) from
             the BitType subclass.
         - If value is an instance of bytes or bytearray, calls
             from_bytes(bytes(value)) from the BitType subclass.
-        - If value is an instance of BitsConstructorType, calls from_bits(Bits(value))
-            from the BitType subclass.
+        - If value is an instance of BitsConstructible, calls
+             from_bits(BitVector(value)) from the BitType subclass.
         - If value is an instance of ByteConvertible, calls from_bytes(bytes(value))
             from the BitType subclass.
         - If value is castable to the valuetype of the BitType subclass, sets the value
@@ -159,12 +163,12 @@ class BitType(ABC):
             self._value = value
         elif isinstance(value, BitType) and self.value_type == value.value_type:
             self._value = value.value
-        elif isinstance(value, Bits):
+        elif isinstance(value, BitVector):
             self._value = self.from_bits(value).value
         elif isinstance(value, (bytes, bytearray)):
             self._value = self.from_bytes(value).value
-        elif is_instance_of_union(value, BitsConstructorType):
-            self._value = self.from_bits(Bits(value)).value
+        elif is_instance_of_union(value, BitsConstructible):
+            self._value = self.from_bits(BitVector(value)).value
         elif isinstance(value, ByteConvertible):
             self._value = self.from_bytes(bytes(value)).value
         else:
@@ -190,7 +194,7 @@ class BitType(ABC):
         except Exception as e:
             raise type(e)(f"Object {value} is not properly convertible to bytes.")
 
-    # Bits/bytes counting
+    # BitVector/bytes counting
     @classmethod
     @abstractmethod
     def get_num_bits(cls) -> int:
@@ -260,23 +264,23 @@ class BitType(ABC):
 
     # Conversions to/from bits and bytes
     @abstractmethod
-    def to_bits(self, *args, **kwargs) -> Bits:
+    def to_bits(self, *args, **kwargs) -> BitVector:
         """
-        Returns the bitstring.Bits representation of the value the object represents
+        Returns the BitVector representation of the value the object represents
             in the number of bits specified by the class.
         """
 
     @classmethod
     @abstractmethod
-    def from_bits(cls, the_bits: Bits, *args, **kwargs):
+    def from_bits(cls, the_bits: BitVector, *args, **kwargs):
         """
         Returns an instance of the subclass representing the object given by the_bits.
         """
 
-    def __Bits__(self) -> Bits:
+    def __BitVector__(self) -> BitVector:
         """
-        Returns the bitstring.Bits representation of the value the object represents
-            Used by Bits(theObject)
+        Returns the BitVector representation of the value the object represents
+            Used by BitVector(theObject)
         """
         return self.to_bits()
 
@@ -292,7 +296,7 @@ class BitType(ABC):
         """
         Returns an instance of the subclass representing the object given by the_bytes.
         """
-        return cls.from_bits(Bits(the_bytes), *args, **kwargs)
+        return cls.from_bits(BitVector(the_bytes), *args, **kwargs)
 
     def __bytes__(self) -> bytes:
         """
@@ -316,12 +320,12 @@ class BitType(ABC):
         return bytearray(bytes(self))
 
     @property
-    def bits(self) -> Bits:
+    def bits(self) -> BitVector:
         """
-        Returns a bitstring.Bits representation of the bytes representation of the
+        Returns a BitVector representation of the bytes representation of the
          value represented by the object.
         """
-        return Bits(self)
+        return BitVector(self)
 
     # Operators
     def __eq__(self, other) -> bool:
@@ -332,7 +336,7 @@ class BitType(ABC):
             - Both objects are BitTypes and contain equivalent values.
                 In the case of the values being floats, if both are nans,
                 they are still considered equal
-            - Both objects are implicitly bit-convertible through __Bits__()
+            - Both objects are implicitly bit-convertible through __BitVector__()
                 and have equivalent bit conversions
             - Both objects are implicitly byte-convertible through __bytes__()
                 and have equivalent byte conversions
@@ -349,8 +353,8 @@ class BitType(ABC):
                 )
                 if not both_nans:
                     return self.value == other.value
-        elif is_instance_of_union(other, BitsConstructorType):
-            return Bits(self) == other.bits
+        elif is_instance_of_union(other, BitsConstructible):
+            return BitVector(self) == other.bits
         elif isinstance(other, ByteConvertible):
             return bytes(self) == bytes(other)
 
@@ -385,7 +389,7 @@ class StructPackedBitType(BitType):
         - the bytes representation of the object.
         """
         packing_format = self.get_packing_format(endianness)
-        return Bits(struct.pack(packing_format, self.value, *args))
+        return BitVector(struct.pack(packing_format, self.value, *args))
 
     @classmethod
     def from_bits(cls, the_bits, *args, endianness="big", **kwargs):
@@ -441,30 +445,19 @@ class BitBitType(BitType):
     Abstract base class for all BitType objects that represent bit values.
     """
 
-    def to_bits(self, *args, **kwargs) -> Bits:
+    def to_bits(self, *args, **kwargs) -> BitVector:
         return self.value
-        # default_bits = Bits.from_int(self.value, size=self.num_bits, *args, **kwargs)
-        # diff = self.num_bits - len(default_bits)
-        # if diff > 0:
-        #     return default_bits + Bits([0] * diff)
-        # elif diff < 0:
-        #     raise ValueError(
-        #         f"Cannot convert {self} to Bits"
-        #         f"because the number of bits in the object ({self.num_bits})"
-        #         f"is greater than the number of bits ({len(default_bits)})")
-        # else:
-        #     return default_bits
 
     @classmethod
-    def from_bits(cls, the_bits: Bits, *args, **kwargs):
+    def from_bits(cls, the_bits: BitVector, *args, **kwargs):
         return cls(the_bits, *args, **kwargs)
 
     @classmethod
     def get_value_type(cls):
-        return Bits
+        return BitVector
 
 
-def BitsTypeFactory(size_in_bits: int) -> type[BitType]:
+def BitVectorTypeFactory(size_in_bits: int) -> type[BitType]:
     """
     Factory function for creating BitType subclasses with the given number of bits.
         In the event there is an existing BitType with the specified number of bits,
@@ -490,55 +483,55 @@ def BitsTypeFactory(size_in_bits: int) -> type[BitType]:
     return NewBitType
 
 
-class Bit1(BitsTypeFactory(1)):
+class Bit1(BitVectorTypeFactory(1)):
     pass
 
 
-class Bit2(BitsTypeFactory(2)):
+class Bit2(BitVectorTypeFactory(2)):
     pass
 
 
-class Bit3(BitsTypeFactory(3)):
+class Bit3(BitVectorTypeFactory(3)):
     pass
 
 
-class Bit4(BitsTypeFactory(4)):
+class Bit4(BitVectorTypeFactory(4)):
     pass
 
 
-class Bit5(BitsTypeFactory(5)):
+class Bit5(BitVectorTypeFactory(5)):
     pass
 
 
-class Bit6(BitsTypeFactory(6)):
+class Bit6(BitVectorTypeFactory(6)):
     pass
 
 
-class Bit7(BitsTypeFactory(7)):
+class Bit7(BitVectorTypeFactory(7)):
     pass
 
 
-class Bit8(BitsTypeFactory(8)):
+class Bit8(BitVectorTypeFactory(8)):
     pass
 
 
-class Bit16(BitsTypeFactory(16)):
+class Bit16(BitVectorTypeFactory(16)):
     pass
 
 
-class Bit24(BitsTypeFactory(24)):
+class Bit24(BitVectorTypeFactory(24)):
     pass
 
 
-class Bit32(BitsTypeFactory(32)):
+class Bit32(BitVectorTypeFactory(32)):
     pass
 
 
-class Bit64(BitsTypeFactory(64)):
+class Bit64(BitVectorTypeFactory(64)):
     pass
 
 
-class Bit128(BitsTypeFactory(128)):
+class Bit128(BitVectorTypeFactory(128)):
     pass
 
 
@@ -548,22 +541,22 @@ class ByteBitType(BitType, bytearray):
     Abstract base class for all BitType objects that represent raw byte values.
     """
 
-    def to_bits(self, *args, **kwargs) -> Bits:
+    def to_bits(self, *args, **kwargs) -> BitVector:
         default_bytes = self.value
         diff = math.ceil(self.num_bytes) - len(default_bytes)
         if diff > 0:
             return default_bytes + bytes(b"\x00" * diff)
         elif diff < 0:
             raise ValueError(
-                f"Cannot convert {self} to Bits."
+                f"Cannot convert {self} to BitVector."
                 f" The number of bits in the self.num_bits, ({self.num_bits})"
                 f" is greater than the number of default bits ({len(default_bytes)})"
             )
         else:
-            return Bits(default_bytes)
+            return BitVector(default_bytes)
 
     @classmethod
-    def from_bits(cls, the_bits: Bits, *args, **kwargs):
+    def from_bits(cls, the_bits: BitVector, *args, **kwargs):
         return cls(bytes(the_bits), *args, **kwargs)
 
     @classmethod
@@ -806,13 +799,13 @@ class StrBitType(BitType):
 
 class DefaultCodings:
     str_dec = lambda the_bits: bytes(the_bits).decode(encoding="UTF-8")  # noqa: E731
-    str_enc = lambda the_str: Bits(the_str.encode(encoding="UTF-8"))  # noqa: E731
+    str_enc = lambda the_str: BitVector(the_str.encode(encoding="UTF-8"))  # noqa: E731
 
 
 def StrTypeFactory(
     size_in_bits: int,
-    encode_method: Callable[[str], Bits] = DefaultCodings.str_enc,
-    decode_method: Callable[[Bits], str] = DefaultCodings.str_dec,
+    encode_method: Callable[[str], BitVector] = DefaultCodings.str_enc,
+    decode_method: Callable[[BitVector], str] = DefaultCodings.str_dec,
     custom_type_name=None,
 ) -> type[StrBitType]:
     if custom_type_name is None:
@@ -836,14 +829,17 @@ def StrTypeFactory(
 
     class NewStrBitType(StrBitType):
         def __init__(
-            self, value: str | Bits | bytes | bytearray | StrBitType, *args, **kwargs
+            self,
+            value: str | BitVector | bytes | bytearray | StrBitType,
+            *args,
+            **kwargs,
         ):
             if isinstance(value, str):
                 self._value = value
             elif (
                 isinstance(value, bytes)
                 or isinstance(value, bytearray)
-                or isinstance(value, Bits)
+                or isinstance(value, BitVector)
             ):
                 self._value = decode_method(value, *args, **kwargs)
 
@@ -853,10 +849,10 @@ def StrTypeFactory(
         def get_num_bits(cls) -> int:
             return size_in_bits
 
-        def to_bits(self, *args, **kwargs) -> Bits:
+        def to_bits(self, *args, **kwargs) -> BitVector:
             str_len = len(encode_method(self.value))
             diff = self.num_bits - str_len
-            default_bits = Bits(encode_method(self.value), *args, **kwargs)
+            default_bits = BitVector(encode_method(self.value), *args, **kwargs)
 
             # print("before", len(default_bits))
             if diff > 0:
@@ -1060,7 +1056,7 @@ def bytes_to_bittype(
 
 
 if __name__ == "__main__":
-    the_bytes = Bits(StrTypeFactory(10 * 8)("fish"))
+    the_bytes = BitVector(StrTypeFactory(10 * 8)("fish"))
     print(the_bytes)
     print(bytes_to_bittype(the_bytes, StrTypeFactory(20), reverse_endianness=False))
 

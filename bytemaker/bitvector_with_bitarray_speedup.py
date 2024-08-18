@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING
 from bitarray import bitarray
 from bitarray.util import ba2base, base2ba
 
+from bytemaker.utils import twos_complement_bit_length
+
 try:
     from bytemaker.typing_redirect import (
         Buffer,
@@ -39,51 +41,51 @@ except ImportError:
     from utils import Trie, is_instance_of_union
 
 if TYPE_CHECKING:
-    Self = TypeVar("Self", bound="BitArray")
+    Self = TypeVar("Self", bound="BitVector")
 else:
     try:
         from typing_redirect import Self
     except ImportError:
-        Self = TypeVar("Self", bound="BitArray")
+        Self = TypeVar("Self", bound="BitVector")
 T = TypeVar("T")
 
 
 @runtime_checkable
 class BitsCastable(Protocol):
     """
-    Protocol for objects that can be cast to a BitArray.
+    Protocol for objects that can be cast to a BitVector.
 
-    If provided object is not itself a BitArray, this protocol will be
-       prioritized when BitArraySubtype(object) is called
+    If provided object is not itself a BitVector, this protocol will be
+       prioritized when BitVectorSubtype(object) is called
        over any other possible behavior.
 
-    __Bits__ returns a BitArray representation of the object
+    __Bits__ returns a BitVector representation of the object
         that should not be a shallow copy (unless you want)
         the cast object to share memory with the original object).
     """
 
     def __Bits__(
         self,
-    ) -> BitArray:
+    ) -> BitVector:
         """
-        Returns a deep BitArray representation of the object.
+        Returns a deep BitVector representation of the object.
 
-        This method is prioritized when BitArraySubtype(object) is called.
+        This method is prioritized when BitVectorSubtype(object) is called.
 
         Returns:
-            BitArray: The BitArray representation of the object
+            BitVector: The BitVector representation of the object
         """
         ...
 
 
 __annotations__ = {
-    "BitsConstructible": 'Union["BitArray", bytes, str, Iterable[Literal[0, 1]]'
+    "BitsConstructible": 'Union["BitVector", bytes, str, Iterable[Literal[0, 1]]'
     ", BitsCastable, bitarray.bitarray]"
 }  # Warning! Long-term support for bitarray is not guaranteed
-"""The Union of types that can be used to construct a BitArray."""
+"""The Union of types that can be used to construct a BitVector."""
 
 
-class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
+class BitVector(bitarray, MutableSequence[Literal[0, 1]]):
     """
     A mutable sequence of bits.
 
@@ -105,29 +107,30 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
         **kwargs,
     ) -> Self:
         """
-        Constructs a BitArray.
+        Constructs a BitVector.
         * The bits are drawn from `buffer`, else `source`.
 
-        If `buffer` is set, the BitArray bit memory is shared with provided
+        If `buffer` is set, the BitVector bit memory is shared with provided
             object. The buffer object must support the buffer protocol
             (https://docs.python.org/3/c-api/buffer.html).
 
-        Otherwise, `source` determines the BitArray's bits.
-        * If `source` is  None, the BitArray is empty.
+        Otherwise, `source` determines the BitVector's bits.
+        * If `source` is  None, the BitVector is empty.
         * If `source` is a str, the bits are obtained by prefix-determined classmethod\
            that allow `source` to be interspersed with "_", "-", " ", or ":" characters.
            * "" invokes `from01`
            * "0b" invokes `frombin`
            * "0o" invokes `fromoct`
            * "0x" invokes `fromhex`
-        * If `source` is an int, the BitArray is created with that many bits (set to 0).
+        * If `source` is an int, the BitVector is created with that many bits\
+            (set to 0).
 
         Args:
             source (Optional[Union[BitsConstructible, int]]): The bits of the bitarray
-            * If None, a BitArray with no bits is created.
+            * If None, a BitVector with no bits is created.
             * If a string, uses the prefix (none, 0b, 0o, or 0x) to call\
                     (`from01`, `frombin`, `fromoct`, `fromhex`).\
-            * If an int, a BitArray with that many bits (set to 0) is created.\
+            * If an int, a BitVector with that many bits (set to 0) is created.\
             encoding (Optional[str]): The encoding to use (NOT IMPLEMENTED)
             errors (Optional[str]): The error handling to use for encoding \
                 (not implemented)
@@ -136,7 +139,7 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
         """
 
         # Buffer constructor
-        # If buffer is not none, then this BitArray
+        # If buffer is not none, then this BitVector
         # shares its memory with the object given in the buffer
         # Buffer objects must support the buffer protocol
         #   (https://docs.python.org/3/c-api/buffer.html)
@@ -147,7 +150,7 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
             )
             return self
         # Default constructor
-        # If source is None, then this BitArray is empty
+        # If source is None, then this BitVector is empty
         elif source is None:
             self: Self = super().__new__(
                 cls,
@@ -205,25 +208,25 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
         buffer: Buffer = None,  # type: ignore
     ) -> None:
         """
-        If `buffer` is not None, the BitArray bit memory is shared with provided
+        If `buffer` is not None, the BitVector bit memory is shared with provided
             buffer object. The buffer object must support the buffer protocol
             (https://docs.python.org/3/c-api/buffer.html).
 
-        Otherwise, `source` determines the BitArray's bits.
-        * If `source` is None, the BitArray is empty.
+        Otherwise, `source` determines the BitVector's bits.
+        * If `source` is None, the BitVector is empty.
         * If `source` is a str, the bits are obtained by prefix-determined classmethod
            * "" invokes `from01`
            * "0b" invokes `frombin`
            * "0o" invokes `fromoct`
            * "0x" invokes `fromhex`
-        * If `source` is an int, the BitArray is created with that many bits set to 0.
+        * If `source` is an int, the BitVector is created with that many bits set to 0.
 
         Args:
             source (Optional[Union[BitsConstructible, int]]): The bits of the bitarray
-               If None, a BitArray with no bits is created.\
+               If None, a BitVector with no bits is created.\
                If a string, uses the prefix (none, 0b, 0o, or 0x) to call\
                     (`from01`, `frombin`, `fromoct`, `fromhex`).\
-                If an int, a BitArray with that many bits (set to 0) is created.\
+                If an int, a BitVector with that many bits (set to 0) is created.\
             encoding (Optional[str]): The encoding to use
             errors (Optional[str]): The error handling to use. TODO
             buffer (Buffer): The buffer to use
@@ -238,7 +241,7 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
         string: str,
     ) -> Self:
         """
-        Create a BitArray from a hexadecimal string.
+        Create a BitVector from a hexadecimal string.
         The string may contain any of '_', '-', ' ', or ':'.
         The string may start with "0x".
 
@@ -246,7 +249,7 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
             string (str): The hexadecimal string to convert
 
         Returns:
-            BitArray: The BitArray created from the hexadecimal string
+            BitVector: The BitVector created from the hexadecimal string
         """
         string = string.translate(str.maketrans("", "", "_- :"))
         if string.startswith("0x"):
@@ -260,7 +263,7 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
         string: str,
     ) -> Self:
         """
-        Create a BitArray from an octal string.
+        Create a BitVector from an octal string.
         The string may contain any of '_', '-', ' ', or ':'.
         The string may start with "0o".
 
@@ -268,7 +271,7 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
             string (str): The octal string to convert
 
         Returns:
-            BitArray: The BitArray created from the octal string
+            BitVector: The BitVector created from the octal string
         """
         string = string.translate(str.maketrans("", "", "_- :"))
         if string.startswith("0o"):
@@ -282,7 +285,7 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
         string: str,
     ) -> Self:
         """
-        Create a BitArray from a binary string.
+        Create a BitVector from a binary string.
         The string may contain any of '_', '-', ' ', or ':'.
         The string may start with "0b".
 
@@ -290,7 +293,7 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
             string (str): The binary string to convert
 
         Returns:
-            BitArray: The BitArray created from the binary string
+            BitVector: The BitVector created from the binary string
         """
         if string.startswith("0b"):
             string = string[2:]
@@ -302,7 +305,7 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
         string: str,
     ) -> Self:
         """
-        Create a BitArray from a binary string.
+        Create a BitVector from a binary string.
         The string may contain any of '_', '-', ' ', or ':'.
         The string must contain only 0s and 1s other than these.
 
@@ -310,7 +313,7 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
             string (str): The binary string to convert
 
         Returns:
-            BitArray: The BitArray created from the binary string
+            BitVector: The BitVector created from the binary string
         """
         string = string.translate(str.maketrans("", "", "_- :"))
         bit_array = bitarray(string)
@@ -323,13 +326,13 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
         /,  # We do not know what the name in PEP 467 will be
     ) -> Self:
         """
-        Create a BitArray with `size` bits, all set to 0.
+        Create a BitVector with `size` bits, all set to 0.
 
         Args:
-            size (int): The size of the BitArray to create
+            size (int): The size of the BitVector to create
 
         Returns:
-            BitArray: The BitArray created with the given size
+            BitVector: The BitVector created with the given size
         """
         source: list[Literal[0, 1]] = [0] * size
         return cls(source)
@@ -341,7 +344,7 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
         base: int,
     ) -> Self:
         """
-        Create a BitArray from a string in a given base.
+        Create a BitVector from a string in a given base.
         The string may contain any of '_', '-', ' ', or ':'.
         In the case of bases 2, 8, and 16,
             the string may start with "0b", "0o", or "0x" respectively.
@@ -351,7 +354,7 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
             base (int): The base of the string
 
         Returns:
-            BitArray: The BitArray created from the string
+            BitVector: The BitVector created from the string
         """
         if base == 2:
             return cls.frombin(string)
@@ -372,14 +375,14 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
     #         bytes: bytes,
     #         endianness: Literal["little", "big"] = "big") -> Self:
     #     """
-    #     Create a BitArray from a bytes object.
+    #     Create a BitVector from a bytes object.
 
     #     Args:
     #         bytes (bytes): The bytes object to convert
-    #         endianness (Literal["little", "big"]): The endianness of the BitArray
+    #         endianness (Literal["little", "big"]): The endianness of the BitVector
 
     #     Returns:
-    #         BitArray: The BitArray created from the bytes object
+    #         BitVector: The BitVector created from the bytes object
     #     """
     #     return cls(bytes, endianness=endianness)
 
@@ -394,21 +397,21 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
         encoding: Union[str, dict[str, BitsConstructible]] = "utf-8",
     ) -> Self:
         """
-        Create a BitArray from a `char_array` string where each character is a byte.
+        Create a BitVector from a `char_array` string where each character is a byte.
         The string is encoded using the given `encoding`. If this is a standard
            byte encoding, str.encode is used to convert the string to bytes.
         Otherwise, the string is converted to bytes using the given mapping,
             iterating over the `char_array` and building up substrings
             until a substring is found in the encoding mapping to convert to
-            a BitArray. These converted BitArrays are concatenated together
-            to form the final returned BitArray.
+            a BitVector. These converted BitVectors are concatenated together
+            to form the final returned BitVector.
 
         Args:
             char_array (str): The string to convert
             encoding (Union[str, dict[str, BitsConstructible]]): The encoding to use
 
         Returns:
-            BitArray: The BitArray created from the string
+            BitVector: The BitVector created from the string
         """
         if isinstance(encoding, str):
             char_array_as_bytes: bytes = char_array.encode(encoding)
@@ -437,7 +440,7 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
         self, base: int, sep: Optional[str] = None, bytes_per_sep: int = 1
     ) -> str:
         """
-        Convert the BitArray to a string in a given base.
+        Convert the BitVector to a string in a given base.
         If `sep` is not None, the string is split into chunks of `bytes_per_sep` bytes
            punctuated by `sep`.
 
@@ -447,7 +450,7 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
             bytes_per_sep (int): The number of bytes per separator
 
         Returns:
-            str: The BitArray converted to a string in the given base
+            str: The BitVector converted to a string in the given base
         """
         # TODO support non-multiple-of-two bases
         if base not in {2, 4, 8, 16, 32, 64}:
@@ -465,7 +468,7 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
 
     def hex(self, sep: Optional[str] = None, bytes_per_sep: int = 1) -> str:
         """
-        Convert the BitArray to a hexadecimal string prefixed by 0x.
+        Convert the BitVector to a hexadecimal string prefixed by 0x.
         If `sep` is not None, the string is split into chunks of `bytes_per_sep` bytes
            punctuated by `sep`.
 
@@ -474,7 +477,7 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
             bytes_per_sep (int): The number of bytes per separator
 
         Returns:
-            str: The BitArray converted to a hexadecimal string
+            str: The BitVector converted to a hexadecimal string
         """
 
         retval = "0x" + self.tobase(16, sep, bytes_per_sep)
@@ -482,7 +485,7 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
 
     def oct(self, sep: Optional[str] = None, bytes_per_sep: int = 1) -> str:
         """
-        Convert the BitArray to an octal string prefixed by 0x.
+        Convert the BitVector to an octal string prefixed by 0x.
         If `sep` is not None, the string is split into chunks of `bytes_per_sep` bytes
            punctuated by `sep`.
 
@@ -491,14 +494,14 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
             bytes_per_sep (int): The number of bytes per separator
 
         Returns:
-            str: The BitArray converted to an octal string
+            str: The BitVector converted to an octal string
         """
         retval = "0o" + self.tobase(8, sep, bytes_per_sep)
         return retval
 
     def bin(self, sep: Optional[str] = None, bytes_per_sep: int = 1) -> str:
         """
-        Convert the BitArray to a binary string prefixed by 0x.
+        Convert the BitVector to a binary string prefixed by 0x.
         If `sep` is not None, the string is split into chunks of `bytes_per_sep` bytes
            punctuated by `sep`.
 
@@ -507,13 +510,13 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
             bytes_per_sep (int): The number of bytes per separator
 
         Returns:
-            str: The BitArray converted to a binary string
+            str: The BitVector converted to a binary string
         """
         return "0b" + self.to01(sep, bytes_per_sep)
 
     def to01(self, sep: Optional[str] = None, bytes_per_sep: int = 1) -> str:
         """
-        Convert the BitArray to an unprefixed binary string.
+        Convert the BitVector to an unprefixed binary string.
         If `sep` is not None, the string is split into chunks of `bytes_per_sep` bytes
            punctuated by `sep`.
         """
@@ -531,7 +534,7 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
         self, encoding: Union[str, dict[BitsConstructible, str]] = "utf-8"
     ) -> str:
         """
-        Convert the BitArray to a string where each byte is a character.
+        Convert the BitVector to a string where each byte is a character.
         The string is decoded using the given `encoding`. If this is a standard
            byte encoding, bytes.decode is used to convert the bytes to a string.
         Otherwise, the bytes are converted to strings using the given mapping.
@@ -540,13 +543,13 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
             encoding (Union[str, dict[BitsConstructible, str]]): The encoding to use
 
         Returns:
-            str: The BitArray converted to a string
+            str: The BitVector converted to a string
         """
         cls = type(self)
         if isinstance(encoding, str):
             assert (
                 len(self) % 8 == 0
-            ), "BitArray length must be a multiple of 8\
+            ), "BitVector length must be a multiple of 8\
                 to use a standard encoding"
             return bytes(self).decode(encoding)
         else:
@@ -584,29 +587,29 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
     # Magic Methods and Overloads
     def __eq__(self, other: object) -> bool:
         """
-        Returns whether this BitArray's bits are equal to another object's bits.
-        This will only really true if both objects are BitArrays.
+        Returns whether this BitVector's bits are equal to another object's bits.
+        This will only really true if both objects are BitVectors.
         """
         return super().__eq__(other)
 
     def __ne__(self, other: object) -> bool:
         """
-        Returns whether this BitArray's bits are not equal to another object's bits.
-        This will only really be false if both objects are BitArrays.
+        Returns whether this BitVector's bits are not equal to another object's bits.
+        This will only really be false if both objects are BitVectors.
         """
         return super().__ne__(other)
 
     def __lt__(self, other: bitarray) -> bool:
         """
         Returns True if, proceeding left-to-right, the first bit that differs
-            is 0 in this BitArray and 1 in the other BitArray.
+            is 0 in this BitVector and 1 in the other BitVector.
         """
         return super().__lt__(other)
 
     def __le__(self, other: bitarray) -> bool:
         """
         Returns True if, proceeding left-to-right, the first bit that differs
-            is 0 in this BitArray and 1 in the other BitArray.
+            is 0 in this BitVector and 1 in the other BitVector.
             or no bits differ.
         """
         return super().__le__(other)
@@ -614,49 +617,49 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
     def __gt__(self, other: bitarray) -> bool:
         """
         Returns True if, proceeding left-to-right, the first bit that differs
-            is 1 in this BitArray and 0 in the other BitArray.
+            is 1 in this BitVector and 0 in the other BitVector.
         """
         return super().__gt__(other)
 
     def __ge__(self, other: bitarray) -> bool:
         """
         Returns True if, proceeding left-to-right, the first bit that differs
-            is 1 in this BitArray and 0 in the other BitArray.
+            is 1 in this BitVector and 0 in the other BitVector.
             or no bits differ.
         """
         return super().__ge__(other)
 
     def __add__(self: Self, other: BitsConstructible) -> Self:
         """
-        Concatenation of a BitArray and something constructible to a BitArray.
+        Concatenation of a BitVector and something constructible to a BitVector.
            Non-commutative.
         """
         if not isinstance(other, bitarray):
-            other: Union[BitArray, Self] = self.cast_if_not_bitarray(other)
+            other: Union[BitVector, Self] = self.cast_if_not_bitarray(other)
         summation = super().__add__(other)
         assert isinstance(summation, type(self))
         return summation
 
     def __radd__(self: Self, other: BitsConstructible) -> Self:
         """
-        Concatenation of something constructible to a BitArray and a BitArray.
+        Concatenation of something constructible to a BitVector and a BitVector.
            Non-commutative.
         """
         return type(self)(other) + self
 
     def __iadd__(self: Self, other: BitsConstructible) -> Self:
         """
-        In-place concatenation of a BitArray and something constructible to a BitArray.
+        Inplace concatenation of a BitVector and something constructible to a BitVector.
         """
         if not isinstance(other, bitarray):
-            other = BitArray(other)
+            other = BitVector(other)
         summation = super().__iadd__(other)
         assert isinstance(summation, type(self))
         return summation
 
     def __mul__(self: Self, count: int) -> Self:
         """
-        Concatenation of `count` copies of the BitArray.
+        Concatenation of `count` copies of the BitVector.
         """
         product = super().__mul__(count)
         assert isinstance(product, type(self))
@@ -664,14 +667,14 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
 
     def __rmul__(self: Self, count: int) -> Self:
         """
-        Concatenation of `count` copies of the BitArray.
+        Concatenation of `count` copies of the BitVector.
         """
         product = self.__mul__(count)
         return product
 
     def __imul__(self: Self, count: int) -> Self:
         """
-        In-place assignment of the concatenation of `count` copies of the BitArray.
+        In-place assignment of the concatenation of `count` copies of the BitVector.
         """
         product = super().__imul__(count)
         assert isinstance(product, type(self))
@@ -679,7 +682,8 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
 
     def __and__(self: Self, other: BitsConstructible) -> Self:
         """
-        Bitwise AND of the bits of a BitArray and something constructible to a BitArray.
+        Bitwise AND of the bits of a BitVector and something constructible\
+           to a BitVector.
         """
         conjunction = super().__and__(type(self)(other))
         assert isinstance(conjunction, type(self))
@@ -687,21 +691,23 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
 
     def __rand__(self: Self, other: BitsConstructible) -> Self:
         """
-        Bitwise AND of the bits of something constructible to a BitArray and a BitArray.
+        Bitwise AND of the bits of something\
+           constructible to a BitVector and a BitVector.
         """
         return self & other
 
     def __iand__(self: Self, other: BitsConstructible) -> Self:
         """
-        In-place assignment of
-           the bitwise AND of the bits of a BitArray
-           and something constructible to a BitArray.
+        In-place assignment of\
+           the bitwise AND of the bits of a BitVector\
+           and something constructible to a BitVector.
         """
         return self & other
 
     def __or__(self: Self, other: BitsConstructible) -> Self:
         """
-        Bitwise OR of the bits of a BitArray and something constructible to a BitArray.
+        Bitwise OR of the bits of a BitVector and something constructible\
+           to a BitVector.
         """
         disjunction = super().__or__(type(self)(other))
         assert isinstance(disjunction, type(self))
@@ -709,21 +715,23 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
 
     def __ror__(self: Self, other: BitsConstructible) -> Self:
         """
-        Bitwise OR of the bits of something constructible to a BitArray and a BitArray.
+        Bitwise OR of the bits of\
+           something constructible to a BitVector and a BitVector.
         """
         return self | other
 
     def __ior__(self: Self, other: BitsConstructible) -> Self:
         """
         In-place assignment of
-           the bitwise OR of the bits of a BitArray
-           and something constructible to a BitArray.
+           the bitwise OR of the bits of a BitVector
+           and something constructible to a BitVector.
         """
         return self | other
 
     def __xor__(self: Self, other: BitsConstructible) -> Self:
         """
-        Bitwise XOR of the bits of a BitArray and something constructible to a BitArray.
+        Bitwise XOR of the bits of a BitVector and something constructible\
+           to a BitVector.
         """
         exclusive_disjunction = super().__xor__(type(self)(other))
         assert isinstance(exclusive_disjunction, type(self))
@@ -731,21 +739,22 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
 
     def __rxor__(self: Self, other: BitsConstructible) -> Self:
         """
-        Bitwise XOR of the bits of something constructible to a BitArray and a BitArray.
+        Bitwise XOR of the bits of something constructible to a BitVector\
+           and a BitVector.
         """
         return self ^ other
 
     def __ixor__(self: Self, other: BitsConstructible) -> Self:
         """
-        In-place assignment of
-           the bitwise XOR of the bits of a BitArray
-           and something constructible to a BitArray.
+        In-place assignment of\
+           the bitwise XOR of the bits of a BitVector\
+           and something constructible to a BitVector.
         """
         return self ^ other
 
     def __lshift__(self: Self, count: int) -> Self:
         """
-        Left shift of the bits of a BitArray by `count` bits.
+        Left shift of the bits of a BitVector by `count` bits.
         """
         left_shift = super().__lshift__(count)
         assert isinstance(left_shift, type(self))
@@ -754,13 +763,13 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
     def __ilshift__(self: Self, count: int) -> Self:
         """
         In-place assignment of
-           the left shift of the bits of a BitArray by `count` bits.
+           the left shift of the bits of a BitVector by `count` bits.
         """
         return self << count
 
     def __rshift__(self: Self, count: int) -> Self:
         """
-        Right shift of the bits of a BitArray by `count` bits.
+        Right shift of the bits of a BitVector by `count` bits.
         """
         right_shift = super().__rshift__(count)
         assert isinstance(right_shift, type(self))
@@ -769,13 +778,13 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
     def __irshift__(self: Self, count: int) -> Self:
         """
         In-place assignment of
-           the right shift of the bits of a BitArray by `count` bits.
+           the right shift of the bits of a BitVector by `count` bits.
         """
         return self >> count
 
     def __invert__(self: Self) -> Self:
         """
-        Bitwise inversion of the bits of the BitArray.
+        Bitwise inversion of the bits of the BitVector.
         """
         inversion = super().__invert__()
         assert isinstance(inversion, type(self))
@@ -783,14 +792,14 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
 
     def __iter__(self) -> Iterator[Literal[0, 1]]:
         """
-        Iterate over the bits of the BitArray.
+        Iterate over the bits of the BitVector.
         """
         retiter = super().__iter__()
         return retiter  # type: ignore
 
     def __format__(self, format_spec: str) -> str:
         """
-        Format the BitArray as a binary, octal, or hexadecimal string.
+        Format the BitVector as a binary, octal, or hexadecimal string.
            "b" returns a binary string prefixed with "0b".
            "o" returns an octal string prefixed with "0o".
            "x" returns a hexadecimal string prefixed with "0x".
@@ -809,20 +818,20 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
 
     def __contains__(self, item: object) -> bool:
         """
-        Returns whether the BitArray contains
+        Returns whether the BitVector contains
             a given bit, if the item is an int,
-            a given BitArray, if the item is a BitArray,
-            a given BitArray constructed from item, if the item is a non-int
+            a given BitVector, if the item is a BitVector,
+            a given BitVector constructed from item, if the item is a non-int
                BitsConstructible,
             or False otherwise.
         """
         if isinstance(item, int):
             if item not in {0, 1}:
                 return False
-            item = BitArray([item])  # type: ignore
+            item = BitVector([item])  # type: ignore
         elif not isinstance(item, bitarray):
             if is_instance_of_union(item, Union[BitsConstructible, bitarray]):
-                item = BitArray(item)  # type: ignore
+                item = BitVector(item)  # type: ignore
             else:
                 return False
         if isinstance(item, bitarray):
@@ -833,7 +842,7 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
         self: Self, key: Union[int, slice, Iterable[int]]
     ) -> Union[Literal[0, 1], Self]:
         """
-        Get the bit at a given index or a BitArray of the bits
+        Get the bit at a given index or a BitVector of the bits
            across the indices given in slice or Iterable form.
         """
         # if isinstance(key, Iterable):
@@ -855,7 +864,7 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
         """
         if isinstance(key, int):
             if not isinstance(value, int):
-                value = BitArray(value)[0]
+                value = BitVector(value)[0]
         # if isinstance(key, Iterable):
         #     key = list(key)
         # elif isinstance(key, slice):
@@ -878,13 +887,13 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
 
     def __len__(self) -> int:
         """
-        Get the number of bits in the BitArray.
+        Get the number of bits in the BitVector.
         """
         return super().__len__()
 
     def __str__(self) -> str:
         """
-        Get a string representation of the BitArray.
+        Get a string representation of the BitVector.
             This is e.g. "type(self)('010.....')".
         """
         zerosandones = self.to01()
@@ -897,7 +906,7 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
 
     def __repr__(self) -> str:
         """
-        Get a reconstructible representation of the BitArray.
+        Get a reconstructible representation of the BitVector.
             This is e.g. "type(self)('010.....')".
         """
         zerosandones = self.to01()
@@ -910,9 +919,9 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
 
     def __bytes__(self) -> bytes:
         """
-        Convert the BitArray to a bytes object.
-        If the length of the BitArray is not a multiple of 8,
-            the BitArray is padded with 0s until the length is a multiple of 8.
+        Convert the BitVector to a bytes object.
+        If the length of the BitVector is not a multiple of 8,
+            the BitVector is padded with 0s until the length is a multiple of 8.
         """
         return self.tobytes()
 
@@ -924,7 +933,7 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
 
         See the `BitsCastable` protocol for more information.
 
-        Returns a BitArray version of the object.
+        Returns a BitVector version of the object.
         """
         self = super().__new__(type(self), self)
         return self
@@ -952,10 +961,10 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
 
     def __sizeof__(self) -> int:
         """
-        Get the size of the BitArray in bytes.
-        This will not be the same as the number of bits in the BitArray
+        Get the size of the BitVector in bytes.
+        This will not be the same as the number of bits in the BitVector
            divided by 8 (and, in fact, will be larger). This is because
-           the BitArray object itself has some overhead (and also
+           the BitVector object itself has some overhead (and also
            incidentally because of internal byte-padding).
         """
         return super().__sizeof__()
@@ -968,7 +977,7 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
         self, values: BitsConstructible
     ) -> None:
         if not isinstance(values, (Iterable)) or isinstance(values, str):
-            values = BitArray(values)
+            values = BitVector(values)
         super().extend(values)
 
     def insert(  # type: ignore[reportIncompatibleMethodOverride]
@@ -1013,10 +1022,10 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
         start: int = 0,
         end: Optional[int] = None,
     ) -> int:
-        if not is_instance_of_union(value, Union[int, BitArray]):
-            assert not isinstance(value, BitArray)
+        if not is_instance_of_union(value, Union[int, BitVector]):
+            assert not isinstance(value, BitVector)
             assert not isinstance(value, int)
-            value = BitArray(value)
+            value = BitVector(value)
         if end is None:
             end = len(self)
 
@@ -1027,9 +1036,9 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
         self,
         substrings: Union[
             BitsConstructible,
-            BitArray,
+            BitVector,
             Literal[0, 1],
-            Iterable[Union[BitsConstructible, BitArray]],
+            Iterable[Union[BitsConstructible, BitVector]],
         ],
         start: int = 0,
         stop: Optional[int] = None,
@@ -1042,20 +1051,20 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
         if isinstance(substrings, bitarray):
             conv_substrings = [substrings]
         elif isinstance(substrings, int):
-            conv_substrings = [BitArray([substrings])]
+            conv_substrings = [BitVector([substrings])]
         elif isinstance(substrings, (str, bytes, BitsCastable)):
-            conv_substrings = [BitArray(substrings)]
+            conv_substrings = [BitVector(substrings)]
         elif isinstance(substrings, Iterable):
             list_of_substrings = list(substrings)
             conv_substrings = list()
             if all(isinstance(substring, int) for substring in list_of_substrings):
-                conv_substrings = [BitArray(list_of_substrings)]  # type: ignore
+                conv_substrings = [BitVector(list_of_substrings)]  # type: ignore
             elif all(
                 is_instance_of_union(substring, BitsConstructible)
                 for substring in list_of_substrings
             ):
                 conv_substrings = [
-                    BitArray(substring)  # type: ignore
+                    BitVector(substring)  # type: ignore
                     for substring in list_of_substrings
                 ]
             else:
@@ -1067,7 +1076,7 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
         #     conv_substrings = list(substrings)
         # else:
         #     try:
-        #         conv_substrings = [BitArray(substrings)]
+        #         conv_substrings = [BitVector(substrings)]
         #     except TypeError:
         #         pass
 
@@ -1076,7 +1085,7 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
         #         if isinstance(substring, bitarray):
         #             conv_substrings.append(substring)
         #         else:
-        #             conv_substrings.append(BitArray(substring))
+        #             conv_substrings.append(BitVector(substring))
 
         if stop is None:
             stop = len(self)
@@ -1106,9 +1115,9 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
         self,
         substrings: Union[
             BitsConstructible,
-            BitArray,
+            BitVector,
             Literal[0, 1],
-            Iterable[Union[BitsConstructible, BitArray]],
+            Iterable[Union[BitsConstructible, BitVector]],
         ],
         start: int = 0,
         stop: Optional[int] = None,
@@ -1117,25 +1126,25 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
         Check if the bitarray ends with the given substring.
         """
 
-        if isinstance(substrings, BitArray):
+        if isinstance(substrings, BitVector):
             conv_substrings = [substrings]
         elif isinstance(substrings, bitarray):
-            conv_substrings = [BitArray(substrings)]
+            conv_substrings = [BitVector(substrings)]
         elif isinstance(substrings, int):
-            conv_substrings = [BitArray([substrings])]
+            conv_substrings = [BitVector([substrings])]
         elif isinstance(substrings, (str, bytes, BitsCastable)):
-            conv_substrings = [BitArray(substrings)]
+            conv_substrings = [BitVector(substrings)]
         elif isinstance(substrings, Iterable):
             list_of_substrings = list(substrings)
             conv_substrings = list()
             if all(isinstance(substring, int) for substring in list_of_substrings):
-                conv_substrings = [BitArray(list_of_substrings)]  # type: ignore
+                conv_substrings = [BitVector(list_of_substrings)]  # type: ignore
             elif all(
                 is_instance_of_union(substring, BitsConstructible)
                 for substring in list_of_substrings
             ):
                 conv_substrings = [
-                    BitArray(substring)  # type: ignore
+                    BitVector(substring)  # type: ignore
                     for substring in list_of_substrings
                 ]
             else:
@@ -1174,7 +1183,7 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
         if stop is None:
             stop = len(self)
         if not isinstance(value, (bitarray, int)):
-            value = BitArray(value)
+            value = BitVector(value)
 
         return super().find(value, start, stop)
 
@@ -1187,7 +1196,7 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
         if stop is None:
             stop = len(self)
         if not isinstance(value, (bitarray, int)):
-            value = BitArray(value)
+            value = BitVector(value)
         return super().find(value, start, stop, right=True)
 
     def index(  # type: ignore[reportIncompatibleMethodOverride]
@@ -1199,7 +1208,7 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
         if stop is None:
             stop = len(self)
         if not isinstance(value, (bitarray, int)):
-            value = BitArray(value)
+            value = BitVector(value)
 
         index = super().index(value, start, stop)
         if index == -1:
@@ -1215,7 +1224,7 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
         if stop is None:
             stop = len(self)
         if not isinstance(value, (bitarray, int)):
-            value = BitArray(value)
+            value = BitVector(value)
 
         index = super().index(value, start, stop, right=True)
 
@@ -1268,11 +1277,11 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
         return self
 
     # def translate(self,
-    #   table: List[BitArray] | bytes, delete: Optional[List[BitArray] | bytes] = None
+    #   table: List[BitVector] | bytes, delete: Optional[List[BitVector] | bytes] = None
     #   ) -> Self: ... # todo
 
-    # def maketrans(self, fromstr: List[BitArray]|bytes, tostr: List[BitArray]|bytes
-    #   ) -> list[BitArray]: ...  # todo
+    # def maketrans(self, fromstr: List[BitVector]|bytes, tostr: List[BitVector]|bytes
+    #   ) -> list[BitVector]: ...  # todo
 
     def join(self: Self, iterable: Iterable[BitsConstructible]) -> Self:
         self_as_str_bitlist = self.to01()
@@ -1283,7 +1292,7 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
         joined_bits = self_as_str_bitlist.join(another.to01() for another in iterable)
         return type(self)(joined_bits)
 
-    def partition(self: Self, sep: BitArray) -> tuple[Self, Self, Self]:
+    def partition(self: Self, sep: BitVector) -> tuple[Self, Self, Self]:
         index = self.find(sep)
         if index == -1:
             return self, type(self)(), type(self)()
@@ -1296,7 +1305,7 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
         assert isinstance(self_after_offset, type(self))
         return self_to_index, sep, self_after_offset
 
-    def rpartition(self: Self, sep: BitArray) -> tuple[Self, Self, Self]:
+    def rpartition(self: Self, sep: BitVector) -> tuple[Self, Self, Self]:
         index = self.rfind(sep)
         if index == -1:
             return type(self)(), type(self)(), self
@@ -1371,23 +1380,79 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
     @classmethod
     def cast_if_not_bitarray(
         cls: type[Self], obj: BitsConstructible
-    ) -> Union[Self, BitArray]:
-        return cls(obj) if not isinstance(obj, BitArray) else obj
+    ) -> Union[Self, BitVector]:
+        return cls(obj) if not isinstance(obj, BitVector) else obj
+
+    # Temporary methods. For transition from bits to bitarray only
+    @classmethod
+    def from_int(cls, integer: int, size=None):
+        """
+        Converts an integer to a Bits object.
+         The size parameter determines the number of bits to use.\
+         If size is not provided, the number of bits required to \
+         represent the integer is used.
+        """
+        if size is None:
+            size = twos_complement_bit_length(integer)
+        if integer.bit_length() > size:
+            raise ValueError(
+                f"Cannot convert {integer} to Bits with size {size},"
+                f" because it requires {integer.bit_length()} bits to represent."
+            )
+
+        bitlist = list()
+        for index in range(size):
+            bitlist.insert(0, (integer >> index) & 1)
+
+        return cls(bitlist)
+
+    @classmethod
+    def from_bytes(cls, byte_arr: bytes, reverse_endianness=False):
+        if reverse_endianness:
+            byte_arr = reversed(byte_arr)
+
+        return cls(byte_arr)
+
+    def to_int(self, endianness: Literal["big", "little"] = "big", signed=True) -> int:
+        """
+        Converts a Bits object to an integer. It does this
+            by casting the Bits to bytes, and then converting the bytes to an integer
+            using the provided endianness and signedness.
+        """
+        copy = BitVector(list(self))
+        if signed and len(copy) > 0 and copy[0] == 1:
+            next_multiple_of_8 = math.ceil(len(self) / 8) * 8
+            copy = copy.lpad(width=next_multiple_of_8, fillbit=1)
+
+        return int.from_bytes(copy.to_bytes(), byteorder=endianness, signed=signed)
+
+    def to_bytes(self, reverse_endianness=False) -> bytes:
+        byte_arr = bytearray()
+        for i in range(0, len(self), 8):
+            byte = 0
+            byte_end_index = min(i + 8, len(self))
+            for bit in self[i:byte_end_index]:
+                byte = (byte << 1) | bit
+            byte_arr.append(byte)
+
+        if reverse_endianness:
+            byte_arr = reversed(byte_arr)
+        return bytes(byte_arr)
 
 
 BitsConstructible = Union[
-    BitArray, bytes, str, Iterable[Literal[0, 1]], BitsCastable, bitarray
+    BitVector, bytes, str, Iterable[Literal[0, 1]], BitsCastable, bitarray
 ]
 
 if __name__ == "__main__":
     print("-------------------------------")
-    print(issubclass(BitArray, bitarray))
+    print(issubclass(BitVector, bitarray))
 
-    a_bitarray = BitArray("0o1011")
+    a_bitarray = BitVector("0o1011")
     a_bitarray_2 = bitarray("1011")
-    bitArray2 = BitArray(a_bitarray_2)
+    bitArray2 = BitVector(a_bitarray_2)
     a_bitarray += a_bitarray_2
-    bitArray3 = BitArray(a_bitarray)
+    bitArray3 = BitVector(a_bitarray)
     print("----------")
     print(a_bitarray.to01())
 
@@ -1411,32 +1476,32 @@ if __name__ == "__main__":
     print(bitArray3)
 
     # print(bytes(bitarray("00000000 11110000", endian="little")))
-    # print(bytes(BitArray("00000000 11110000", endianness="little")))
-    # print(BitArray("00000000 11110000 11100111", endianness="little").oct(sep="_"))
+    # print(bytes(BitVector("00000000 11110000", endianness="little")))
+    # print(BitVector("00000000 11110000 11100111", endianness="little").oct(sep="_"))
     print(bytes(bitarray("00000000 11110000")))
-    print(bytes(BitArray("00000000 11110000")))
-    print(BitArray("00000000 11110000 11100111").oct(sep="_"))
+    print(bytes(BitVector("00000000 11110000")))
+    print(BitVector("00000000 11110000 11100111").oct(sep="_"))
     print("---------------")
     print("-------------")
     print(bitArray2.__repr__())
     print("bitArray2", type(bitArray2))
 
     print(a_bitarray)
-    print(BitArray("00000000 11110011").replace("0011", "1010"))
+    print(BitVector("00000000 11110011").replace("0011", "1010"))
 
-    print(BitArray("0000").join([BitArray("111"), BitArray("101")]))
+    print(BitVector("0000").join([BitVector("111"), BitVector("101")]))
 
     print(a_bitarray.endswith(("101", "11")))
 
     print(a_bitarray.startswith(("101", "0")))
 
-    test_bitarray = BitArray("00011000 11110011")
+    test_bitarray = BitVector("00011000 11110011")
     print(test_bitarray.find("0001"))
     # print(test_bitarray.split("11"))
     # print(test_bitarray.split())
 
     print(base2ba(16, "0f"))
-    print(BitArray(base2ba(16, "0ff")).oct())
+    print(BitVector(base2ba(16, "0ff")).oct())
     print(a_bitarray.oct())
     # print(hex(int(a_bitaarray)))
     # print(ba2int(base2ba(16, "0f", endian="little")))
