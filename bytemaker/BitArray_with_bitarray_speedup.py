@@ -62,14 +62,13 @@ class BitsCastable(Protocol):
         the cast object to share memory with the original object).
     """
 
-    def __Bits__(self, endianness: Literal["little", "big"]) -> BitArray:
+    def __Bits__(
+        self,
+    ) -> BitArray:
         """
         Returns a deep BitArray representation of the object.
 
         This method is prioritized when BitArraySubtype(object) is called.
-
-        Args:
-            endianness (Literal["little", "big"]): The endianness of the BitArray
 
         Returns:
             BitArray: The BitArray representation of the object
@@ -85,8 +84,6 @@ __annotations__ = {
 
 
 class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
-    _endianness: Literal["little", "big"]
-
     """
     A mutable sequence of bits.
 
@@ -100,34 +97,16 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
         from the bitarray superclass) is guaranteed
     """
 
-    @property
-    def endianness(self) -> Literal["little", "big"]:
-        """
-        The endianness of the BitArray.
-
-        This is largely decorative, but is functional when
-           converting to and from other datatypes.
-
-        This property is read-only and cannot be modified after
-            the BitArray is created.
-        """
-        return self._endianness  # type: ignore
-
     def __new__(
         cls: type[Self],
         source: Optional[Union[BitsConstructible, int]] = None,
-        endianness: Literal["little", "big", "source_else_big"] = "source_else_big",
-        buffer: Buffer = None,  # type: ignore
+        buffer: Optional[Buffer] = None,
         *args,
         **kwargs,
     ) -> Self:
         """
         Constructs a BitArray.
         * The bits are drawn from `buffer`, else `source`.
-        * The endianness is determined by `endianness`.
-           1. "little" or "big" explicitly set the endianness
-           2. "source_else_big" (the default) goes big unless `source` is\
-                a little-endian BitArray (or BitsCastable).
 
         If `buffer` is set, the BitArray bit memory is shared with provided
             object. The buffer object must support the buffer protocol
@@ -145,27 +124,16 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
 
         Args:
             source (Optional[Union[BitsConstructible, int]]): The bits of the bitarray
-               If None, a BitArray with no bits is created.\
-               If a string, uses the prefix (none, 0b, 0o, or 0x) to call\
+            * If None, a BitArray with no bits is created.
+            * If a string, uses the prefix (none, 0b, 0o, or 0x) to call\
                     (`from01`, `frombin`, `fromoct`, `fromhex`).\
-                If an int, a BitArray with that many bits (set to 0) is created.\
+            * If an int, a BitArray with that many bits (set to 0) is created.\
             encoding (Optional[str]): The encoding to use (NOT IMPLEMENTED)
             errors (Optional[str]): The error handling to use for encoding \
                 (not implemented)
-            endianness (Literal["little", "big"]): The endianness of the BitArray
             buffer (Buffer): The buffer to use
 
         """
-
-        if endianness == "source_else_big":
-            if isinstance(source, BitsCastable):
-                endianness = source.__Bits__(endianness="big").endianness
-            elif isinstance(source, bitarray):
-                the_endianness = source.endian()
-                assert the_endianness == "little" or the_endianness == "big"
-                endianness = the_endianness
-            else:
-                endianness = "big"
 
         # Buffer constructor
         # If buffer is not none, then this BitArray
@@ -176,9 +144,7 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
             self: Self = super().__new__(
                 cls,
                 buffer=memoryview(buffer),  # type: ignore[reportCallIssue]
-                endian="big",  # type: ignore[reportCallIssue]
             )
-            self._endianness = endianness
             return self
         # Default constructor
         # If source is None, then this BitArray is empty
@@ -186,59 +152,46 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
             self: Self = super().__new__(
                 cls,
                 [],  # type: ignore[reportCallIssue]
-                endian="big",  # type: ignore[reportCallIssue]
             )
-            self._endianness = endianness
             return self
         # Copy constructor
         elif isinstance(source, bitarray):
-            self: Self = super().__new__(
-                cls, source, endian="big"  # type: ignore[reportCallIssue]
-            )
-            self._endianness = endianness
+            self: Self = super().__new__(cls, source)  # type: ignore[reportCallIssue]
             return self
         # BitsCastable constructor
         elif isinstance(source, BitsCastable):
-            curinstance = source.__Bits__(endianness=endianness)
+            curinstance = source.__Bits__()
             self: Self = super().__new__(
-                cls,
-                buffer=curinstance,  # type: ignore[reportCallIssue]
-                endian="big",  # type: ignore[reportCallIssue]
+                cls, buffer=curinstance  # type: ignore[reportCallIssue]
             )
-            self._endianness = endianness
             return self
 
         # String constructor
         if isinstance(source, str):
             if source.startswith("0b"):
-                self: Self = cls.frombin(source, endianness=endianness)
+                self: Self = cls.frombin(source)
             elif source.startswith("0o"):
-                self: Self = cls.fromoct(source, endianness=endianness)
+                self: Self = cls.fromoct(source)
             elif source.startswith("0x"):
-                self: Self = cls.fromhex(source, endianness=endianness)
+                self: Self = cls.fromhex(source)
             else:
-                self: Self = cls.from01(source, endianness=endianness)
-            assert hasattr(self, "_endianness")
+                self: Self = cls.from01(source)
             return self
 
         # Int constructor
         if isinstance(source, int):
-            self: Self = cls.fromsize(source, endianness=endianness)
-            assert hasattr(self, "_endianness")
+            self: Self = cls.fromsize(source)
             return self
 
         if isinstance(source, (bytes, bytearray)):
-            self: Self = cls(buffer=source, endianness=endianness)
-            assert hasattr(self, "_endianness")
+            self: Self = cls(buffer=source)
             return self
 
         if isinstance(source, Iterable):
             self: Self = super().__new__(
                 cls,
                 source,  # type: ignore[reportCallIssue]
-                endian="big",  # type: ignore[reportCallIssue]
             )
-            self._endianness = endianness
             assert isinstance(self, cls)
             return self
 
@@ -249,15 +202,9 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
         source: Optional[Union[BitsConstructible, int]] = None,
         encoding: Optional[str] = None,
         errors: Optional[str] = None,  # TODO
-        endianness: Literal["little", "big", "source_else_big"] = "source_else_big",
         buffer: Buffer = None,  # type: ignore
     ) -> None:
         """
-        If `source` is a `BitArray` or `BitsCastable` and `endianness` is the default,
-            the new BitArray's endianness is the endianness of the source.
-            In all other cases, `endianness` identifies the endianness of the new
-            BitArray.
-
         If `buffer` is not None, the BitArray bit memory is shared with provided
             buffer object. The buffer object must support the buffer protocol
             (https://docs.python.org/3/c-api/buffer.html).
@@ -279,7 +226,6 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
                 If an int, a BitArray with that many bits (set to 0) is created.\
             encoding (Optional[str]): The encoding to use
             errors (Optional[str]): The error handling to use. TODO
-            endianness (Literal["little", "big"]): The endianness of the BitArray
             buffer (Buffer): The buffer to use
 
         """
@@ -288,7 +234,8 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
     # Transformations
     @classmethod
     def fromhex(
-        cls: type[Self], string: str, endianness: Literal["little", "big"] = "big"
+        cls: type[Self],
+        string: str,
     ) -> Self:
         """
         Create a BitArray from a hexadecimal string.
@@ -297,7 +244,6 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
 
         Args:
             string (str): The hexadecimal string to convert
-            endianness (Literal["little", "big"]): The endianness of the BitArray
 
         Returns:
             BitArray: The BitArray created from the hexadecimal string
@@ -306,11 +252,12 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
         if string.startswith("0x"):
             string = string[2:]
         bit_array = base2ba(16, string)[: 4 * len(string)]
-        return cls(bit_array, endianness=endianness)
+        return cls(bit_array)
 
     @classmethod
     def fromoct(
-        cls: type[Self], string: str, endianness: Literal["little", "big"] = "big"
+        cls: type[Self],
+        string: str,
     ) -> Self:
         """
         Create a BitArray from an octal string.
@@ -319,7 +266,6 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
 
         Args:
             string (str): The octal string to convert
-            endianness (Literal["little", "big"]): The endianness of the BitArray
 
         Returns:
             BitArray: The BitArray created from the octal string
@@ -328,11 +274,12 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
         if string.startswith("0o"):
             string = string[2:]
         bit_array = base2ba(8, string)[: 3 * len(string)]
-        return cls(bit_array, endianness=endianness)
+        return cls(bit_array)
 
     @classmethod
     def frombin(
-        cls: type[Self], string: str, endianness: Literal["little", "big"] = "big"
+        cls: type[Self],
+        string: str,
     ) -> Self:
         """
         Create a BitArray from a binary string.
@@ -341,18 +288,18 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
 
         Args:
             string (str): The binary string to convert
-            endianness (Literal["little", "big"]): The endianness of the BitArray
 
         Returns:
             BitArray: The BitArray created from the binary string
         """
         if string.startswith("0b"):
             string = string[2:]
-        return cls.from01(string, endianness)
+        return cls.from01(string)
 
     @classmethod
     def from01(
-        cls: type[Self], string: str, endianness: Literal["little", "big"] = "big"
+        cls: type[Self],
+        string: str,
     ) -> Self:
         """
         Create a BitArray from a binary string.
@@ -361,41 +308,37 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
 
         Args:
             string (str): The binary string to convert
-            endianness (Literal["little", "big"]): The endianness of the BitArray
 
         Returns:
             BitArray: The BitArray created from the binary string
         """
         string = string.translate(str.maketrans("", "", "_- :"))
         bit_array = bitarray(string)
-        return cls(bit_array, endianness=endianness)
+        return cls(bit_array)
 
     @classmethod
     def fromsize(
         cls: type[Self],
         size: int,
         /,  # We do not know what the name in PEP 467 will be
-        endianness: Literal["little", "big"] = "big",
     ) -> Self:
         """
         Create a BitArray with `size` bits, all set to 0.
 
         Args:
             size (int): The size of the BitArray to create
-            endianness (Literal["little", "big"]): The endianness of the BitArray
 
         Returns:
             BitArray: The BitArray created with the given size
         """
         source: list[Literal[0, 1]] = [0] * size
-        return cls(source, endianness=endianness)
+        return cls(source)
 
     @classmethod
     def frombase(
         cls: type[Self],
         string: str,
         base: int,
-        endianness: Literal["little", "big"] = "big",
     ) -> Self:
         """
         Create a BitArray from a string in a given base.
@@ -406,20 +349,22 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
         Args:
             string (str): The string to convert
             base (int): The base of the string
-            endianness (Literal["little", "big"]): The endianness of the BitArray
 
         Returns:
             BitArray: The BitArray created from the string
         """
         if base == 2:
-            return cls.frombin(string, endianness)
+            return cls.frombin(string)
+
         elif base == 8:
-            return cls.fromoct(string, endianness)
+            return cls.fromoct(string)
+
         elif base == 16:
-            return cls.fromhex(string, endianness)
+            return cls.fromhex(string)
+
         string = string.translate(str.maketrans("", "", "_- :"))
-        bit_array = base2ba(base, string, endianness)
-        return cls(bit_array, endianness=endianness)
+        bit_array = base2ba(base, string)
+        return cls(bit_array)
 
     # @classmethod
     # def from_bytes(
@@ -447,7 +392,6 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
         cls: type[Self],
         char_array: str,
         encoding: Union[str, dict[str, BitsConstructible]] = "utf-8",
-        endianness: Literal["little", "big"] = "big",
     ) -> Self:
         """
         Create a BitArray from a `char_array` string where each character is a byte.
@@ -462,23 +406,19 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
         Args:
             char_array (str): The string to convert
             encoding (Union[str, dict[str, BitsConstructible]]): The encoding to use
-            endianness (Literal["little", "big"]): The endianness of the BitArray
 
         Returns:
             BitArray: The BitArray created from the string
         """
         if isinstance(encoding, str):
             char_array_as_bytes: bytes = char_array.encode(encoding)
-            if endianness == "little":
-                char_array_as_bytes = bytes(reversed(char_array_as_bytes))
 
-            retval = cls(buffer=char_array_as_bytes, endianness=endianness)
-            # retval = cls(endianness=endianness)
+            retval = cls(buffer=char_array_as_bytes)
+
             # retval.frombytes()
             print("using standard encoding...")
             # print(char_array.encode(encoding))
             print("retval", retval)
-            print("endianness", retval.endianness)
             return retval
         else:
             bitarray_list: list[cls] = []
@@ -542,7 +482,7 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
 
     def oct(self, sep: Optional[str] = None, bytes_per_sep: int = 1) -> str:
         """
-        Convert the BitArray to an octal string prefixed by 0o.
+        Convert the BitArray to an octal string prefixed by 0x.
         If `sep` is not None, the string is split into chunks of `bytes_per_sep` bytes
            punctuated by `sep`.
 
@@ -558,7 +498,7 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
 
     def bin(self, sep: Optional[str] = None, bytes_per_sep: int = 1) -> str:
         """
-        Convert the BitArray to a binary string prefixed by 0b.
+        Convert the BitArray to a binary string prefixed by 0x.
         If `sep` is not None, the string is split into chunks of `bytes_per_sep` bytes
            punctuated by `sep`.
 
@@ -862,6 +802,8 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
             return self.oct()
         elif format_spec == "x":
             return self.hex()
+        elif format_spec == "":
+            return str(self)
         else:
             raise ValueError(f"Invalid format specifier: {format_spec}")
 
@@ -964,7 +906,7 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
             zerosandones[i : i + 8] for i in range(0, len(zerosandones), 8)
         ]
         # join the chunks with spaces
-        return f"{type(self).__name__}" f"('{' '.join(zeroesandoneslist)}')"
+        return f"{type(self).__name__}" f"('{' '.join(zeroesandoneslist)}'" f")"
 
     def __bytes__(self) -> bytes:
         """
@@ -974,7 +916,9 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
         """
         return self.tobytes()
 
-    def __Bits__(self, endianness: str = "big") -> BitArray:
+    def __Bits__(
+        self: Self,
+    ) -> Self:
         """
         Implementation of the BitsCastable protocol.
 
@@ -982,27 +926,23 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
 
         Returns a BitArray version of the object.
         """
-        self = super().__new__(
-            BitArray, self, endian="big"  # type: ignore[reportCallIssue]
-        )
-        self._endianness = endianness
+        self = super().__new__(type(self), self)
         return self
 
     def __copy__(self: Self) -> Self:
         """
         Returns a shallow copy of the object
-            with the same bits and endianness.
+            with the same bits.
         """
-        return super().__new__(
-            type(self), self, endian=self.endianness  # type: ignore[reportCallIssue]
-        )
+        self = super().__new__(type(self), self)
+        return self
 
     # def __reverse__(self) -> Self:
 
     def __deepcopy__(self: Self, memo: dict[int, object]) -> Self:
         """
         Returns a deep copy of the object
-            with the same bits and endianness.
+            with the same bits.
         """
         # Todo: Verify memoization procedure
         retval = type(self)()
@@ -1088,7 +1028,7 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
         substrings: Union[
             BitsConstructible,
             BitArray,
-            int,
+            Literal[0, 1],
             Iterable[Union[BitsConstructible, BitArray]],
         ],
         start: int = 0,
@@ -1167,7 +1107,7 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
         substrings: Union[
             BitsConstructible,
             BitArray,
-            int,
+            Literal[0, 1],
             Iterable[Union[BitsConstructible, BitArray]],
         ],
         start: int = 0,
@@ -1303,7 +1243,7 @@ class BitArray(bitarray, MutableSequence[Literal[0, 1]]):
         index = 0
         accumulated_bits: Optional[Self] = None
         if len(old) != len(new):
-            accumulated_bits: Optional[Self] = type(self)(endian=self.endianness)
+            accumulated_bits: Optional[Self] = type(self)()
 
         while float(num_replacements) < max_replacements:
             found_index = self.find(old, index)
@@ -1470,9 +1410,12 @@ if __name__ == "__main__":
     print(bitArray2)
     print(bitArray3)
 
-    print(bytes(bitarray("00000000 11110000", endian="little")))
-    print(bytes(BitArray("00000000 11110000", endianness="little")))
-    print(BitArray("00000000 11110000 11100111", endianness="little").oct(sep="_"))
+    # print(bytes(bitarray("00000000 11110000", endian="little")))
+    # print(bytes(BitArray("00000000 11110000", endianness="little")))
+    # print(BitArray("00000000 11110000 11100111", endianness="little").oct(sep="_"))
+    print(bytes(bitarray("00000000 11110000")))
+    print(bytes(BitArray("00000000 11110000")))
+    print(BitArray("00000000 11110000 11100111").oct(sep="_"))
     print("---------------")
     print("-------------")
     print(bitArray2.__repr__())
@@ -1492,8 +1435,8 @@ if __name__ == "__main__":
     # print(test_bitarray.split("11"))
     # print(test_bitarray.split())
 
-    print(base2ba(16, "0f", endian="little"))
-    print(BitArray(base2ba(16, "0ff", endian="little")).oct())
+    print(base2ba(16, "0f"))
+    print(BitArray(base2ba(16, "0ff")).oct())
     print(a_bitarray.oct())
     # print(hex(int(a_bitaarray)))
     # print(ba2int(base2ba(16, "0f", endian="little")))
