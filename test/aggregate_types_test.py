@@ -10,7 +10,7 @@ from bytemaker.aggregate_types import (
     to_bits_individual,
 )
 from bytemaker.bittypes import (
-    Bit4,
+    Buffer4,
     Float16,
     Float32,
     SInt8,
@@ -119,7 +119,7 @@ class CTypeAggregate1:
 class BitTypeAggregate1:
     a: SInt32
     b: Float32
-    c: Bit4
+    c: Buffer4
 
 
 @dataclass
@@ -175,7 +175,7 @@ def aggregate_data_1_c_rep():
 @pytest.fixture
 def aggregate_data_1_bittype_val():
     return BitTypeAggregate1(
-        SInt32(382), Float32(3.1415927410125732421875), Bit4([0, 1, 0, 0])
+        SInt32(382), Float32(3.1415927410125732421875), Buffer4([0, 1, 0, 0])
     )
 
 
@@ -231,7 +231,7 @@ def test_bittype_dataclass(aggregate_data_1_bittype_rep):
     assert (
         to_bits_aggregate(
             BitTypeAggregate1(
-                SInt32(382), Float32(3.1415927410125732421875), Bit4([0, 1, 0, 0])
+                SInt32(382), Float32(3.1415927410125732421875), Buffer4([0, 1, 0, 0])
             )
         ).hex()
         == aggregate_data_1_bittype_rep.hex()

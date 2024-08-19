@@ -1,25 +1,28 @@
 import pytest
 
 from bytemaker.bittypes import (
-    Bit4,
-    Bit8,
-    Bit16,
-    Bit32,
-    Bit64,
+    Buffer4,
+    Buffer8,
+    Buffer16,
+    Buffer32,
+    Buffer64,
+    Float,
     Float32,
     Float64,
-    FloatBitType,
     SInt8,
     SInt16,
     SInt32,
     SInt64,
     Str8,
+    Str16,
     UInt8,
     UInt16,
     UInt32,
     UInt64,
 )
 from bytemaker.bitvector import BitVector
+
+# from bytemaker.bittypes_old import Str8
 
 
 @pytest.mark.parametrize(
@@ -30,7 +33,7 @@ from bytemaker.bitvector import BitVector
         (Float32, 3.1415926535, 2.7182818284),
         (Str8, "a", "b"),
         (
-            Bit8,
+            Buffer8,
             BitVector([0, 1, 1, 1, 0, 1, 0, 1]),
             BitVector([1, 0, 1, 0, 1, 1, 1, 0]),
         ),
@@ -39,7 +42,7 @@ from bytemaker.bitvector import BitVector
 def test_cru_bittype(bittype_class, constructor_arg, update_arg):
     bittype_instance = bittype_class(constructor_arg)
     bittype_instance.value = update_arg
-    if isinstance(bittype_instance, FloatBitType):
+    if isinstance(bittype_instance, Float):
         assert abs(bittype_instance.value - update_arg) < 1e-6
     else:
         assert bittype_instance.value == update_arg
@@ -112,6 +115,7 @@ def test_float_serialization_and_deserialization(bittype_class, input_value):
     "bittype_class, input_value, expected_bits_length",
     [
         (Str8, "a", 8),
+        (Str16, "ef", 16),
     ],
 )
 def test_str_serialization_and_deserialization(
@@ -124,21 +128,39 @@ def test_str_serialization_and_deserialization(
 
 
 @pytest.mark.parametrize(
+    "bittype_class, input_value, expected_bits",
+    [
+        (Str8, "a", BitVector([0, 1, 1, 0, 0, 0, 0, 1])),
+        (Str16, "ef", BitVector([0, 1, 1, 0, 0, 1, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0])),
+    ],
+)
+def test_str_endianess(bittype_class, input_value, expected_bits):
+    bittype_instance = bittype_class(input_value)
+    assert bittype_instance.to_bits() == expected_bits
+
+    # little endian
+    bittype_instance = bittype_class(input_value, endianness="little")
+    reversed_chunks = bytes(reversed(bytes(expected_bits)))
+
+    assert bytes(bittype_instance) == reversed_chunks
+
+
+@pytest.mark.parametrize(
     "bittype_class, input_value, expected_bits_length",
     [
-        (Bit4, BitVector([0, 1, 1, 1]), BitVector([0, 1, 1, 1])),
+        (Buffer4, BitVector([0, 1, 1, 1]), BitVector([0, 1, 1, 1])),
         (
-            Bit8,
+            Buffer8,
             BitVector([0, 1, 1, 1, 0, 1, 0, 1]),
             BitVector([0, 1, 1, 1, 0, 1, 0, 1]),
         ),
         (
-            Bit16,
+            Buffer16,
             BitVector([0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1]),
             BitVector([0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1]),
         ),
         (
-            Bit32,
+            Buffer32,
             # fmt: off
             BitVector(
                 [0, 1, 1, 1, 0, 1, 0, 1,
@@ -156,11 +178,12 @@ def test_str_serialization_and_deserialization(
             ),
         ),
         (
-            Bit64,
+            Buffer64,
             # fmt: on
             # fmt: off
             BitVector(
                 [0, 1, 1, 1, 0, 1, 0, 1,
+                 0, 1, 1, 1, 0, 1, 0, 1,
                  0, 1, 1, 1, 0, 1, 0, 1,
                  0, 1, 1, 1, 0, 1, 0, 1,
                  0, 1, 1, 1, 0, 1, 0, 1,
@@ -172,6 +195,7 @@ def test_str_serialization_and_deserialization(
             # fmt: off
             BitVector(
                 [0, 1, 1, 1, 0, 1, 0, 1,
+                 0, 1, 1, 1, 0, 1, 0, 1,
                  0, 1, 1, 1, 0, 1, 0, 1,
                  0, 1, 1, 1, 0, 1, 0, 1,
                  0, 1, 1, 1, 0, 1, 0, 1,
