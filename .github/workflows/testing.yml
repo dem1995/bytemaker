@@ -29,8 +29,8 @@ jobs:
         python -m pip install --upgrade pip
         # Install the dependencies specified in pyproject.toml (core dependencies)
         python -m pip install .
-        # Install additional dependencies for testing (e.g., pytest)
-        python -m pip install .[testing]
+        # Install additional dependencies under dev (e.g., pytest)
+        python -m pip install .[dev]
     - name: Test with pytest
       run: |
         pytest
