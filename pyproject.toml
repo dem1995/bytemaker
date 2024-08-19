@@ -3,7 +3,7 @@ requires = ["setuptools", "wheel"]
 
 [project]
 name = "bytemaker"
-version = "0.8.3"
+version = "0.9.0"
 authors = [{name= "D. Estes McKnight", email= "contact-2@demcknight.com"}]
 description = "A sub-byte-struct-supporting Python serialization/deserialization library for Python 3.8."
 readme = "README.md"
@@ -29,7 +29,9 @@ dev = [
 docs = [
     "Sphinx>=8.0",
     "piccolo-theme>=0.2.3",
-    "pydata-sphinx-theme>0.15"
+    "pydata-sphinx-theme>0.15",
+    "sphinx-copybutton",
+    "sphinx-design"
 ]
 
 
