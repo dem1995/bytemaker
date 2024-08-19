@@ -203,6 +203,7 @@ class BitType(ABC):
         """
 
     @classproperty
+    @classmethod
     def num_bits(cls) -> int:
         __doc__ = cls.get_num_bits.__doc__  # noqa: F841
         return cls.get_num_bits()
@@ -215,6 +216,7 @@ class BitType(ABC):
         return cls.get_num_bits() / 8
 
     @classproperty
+    @classmethod
     def num_bytes(cls):
         __doc__ = cls.get_num_bytes.__doc__  # noqa: F841
         return cls.get_num_bytes()
@@ -228,6 +230,7 @@ class BitType(ABC):
         """
 
     @classproperty
+    @classmethod
     def value_type(cls):
         __doc__ = cls.get_value_type.__doc__  # noqa: F841
         return cls.get_value_type()
@@ -406,6 +409,7 @@ class StructPackedBitType(BitType):
         packing_format = cls.get_packing_format(endianness)
         return cls(struct.unpack(packing_format, bytes(the_bits), *args, **kwargs)[0])
 
+    @classmethod
     @abstractmethod
     def get_packing_format_letter(cls):
         """
@@ -413,6 +417,7 @@ class StructPackedBitType(BitType):
         """
 
     @classproperty
+    @classmethod
     def packing_format_letter(cls):
         __doc__ = cls.get_packing_format_letter.__doc__  # noqa: F841
         return cls.get_packing_format_letter()
@@ -617,8 +622,9 @@ class IntBitType(BitType):
         """
 
     @classproperty
-    def is_signed(self):
-        __doc__ = self.get_is_signed.__doc__  # noqa: F841
+    @classmethod
+    def is_signed(cls):
+        __doc__ = cls.get_is_signed.__doc__  # noqa: F841
 
     @classmethod
     def get_value_type(cls):
@@ -771,10 +777,12 @@ class StrBitType(BitType):
         return str
 
     @classproperty
+    @classmethod
     def encoding_method(cls):
         return cls.get_encoding_method()
 
     @classproperty
+    @classmethod
     def decoding_method(cls):
         return cls.get_decoding_method()
 
