@@ -10,11 +10,19 @@ from importlib.util import find_spec
 from typing import Any
 
 if sys.version_info < (3, 9):
-    from typing import Callable, Iterable, MutableMapping, MutableSequence, Sequence
+    from typing import (
+        Callable,
+        Iterable,
+        Mapping,
+        MutableMapping,
+        MutableSequence,
+        Sequence,
+    )
 else:
     from collections.abc import (
         Callable,
         Iterable,
+        Mapping,
         MutableMapping,
         MutableSequence,
         Sequence,
@@ -32,7 +40,7 @@ else:
     from typing import ParamSpec
     from typing import Concatenate
 
-from collections.abc import Hashable, Mapping
+from collections.abc import Hashable
 from typing import (
     ClassVar,
     Dict,
