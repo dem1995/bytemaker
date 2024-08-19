@@ -114,4 +114,4 @@ type_sizes = [
 
 @pytest.mark.parametrize("a_type, size", type_sizes)
 def test_type_sizes(a_type, size):
-    assert ConversionConfig.get_conversion_info(a_type).num_bits == size
+    assert ConversionConfig.get_conversion_info(a_type).num_bits("") == size
