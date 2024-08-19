@@ -208,16 +208,28 @@ class Float64(StructPackedBitType, Float):
 
 
 class BFloat16(Float):
+    """
+    Google Brain's BFloat16 format with 8 exponent bits and 7 mantissa bits.
+    """
+
     num_exponent_bits = 8
     num_mantissa_bits = 7
 
 
 class TF19(Float):
+    """
+    NVidia's TensorFloat-19 format with 8 exponent bits and 10 mantissa bits.
+    """
+
     num_exponent_bits = 8
     num_mantissa_bits = 10
 
 
 class FP24(Float):
+    """
+    AMD's FP24 format with 7 exponent bits and 16 mantissa bits.
+    """
+
     num_exponent_bits = 7
     num_mantissa_bits = 16
 
