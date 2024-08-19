@@ -3,15 +3,8 @@ from dataclasses import dataclass
 
 import pytest
 
-from bytemaker.aggregate_types import (
-    from_bits_aggregate,
-    from_bits_individual,
-    to_bits_aggregate,
-    to_bits_individual,
-)
-from bytemaker.bits import Bits
 from bytemaker.bittypes import (
-    Bit4,
+    Buffer4,
     Float16,
     Float32,
     SInt8,
@@ -22,6 +15,13 @@ from bytemaker.bittypes import (
     UInt16,
     UInt32,
     UInt64,
+)
+from bytemaker.bitvector import BitVector
+from bytemaker.conversions.aggregate_types import (
+    from_bits_aggregate,
+    from_bits_individual,
+    to_bits_aggregate,
+    to_bits_individual,
 )
 
 test_unit_data = [
@@ -93,7 +93,7 @@ def test_unit_types(unitdata, expected_bitstring):
     to_bits_obj_agg = to_bits_aggregate(unitdata)
     to_bits_obj_un = to_bits_individual(unitdata)
     assert to_bits_obj_agg == to_bits_obj_un
-    assert str(to_bits_obj_agg) == expected_bitstring
+    assert to_bits_obj_agg.bin() == expected_bitstring.replace("_", "")
     print(len(to_bits_obj_agg))
     from_bits_obj_agg = from_bits_aggregate(to_bits_obj_agg, type(unitdata))
     from_bits_obj_un = from_bits_individual(to_bits_obj_un, type(unitdata))
@@ -119,7 +119,7 @@ class CTypeAggregate1:
 class BitTypeAggregate1:
     a: SInt32
     b: Float32
-    c: Bit4
+    c: Buffer4
 
 
 @dataclass
@@ -135,7 +135,7 @@ class TestClass:
 
 
 # def test_basic():
-#     print(Bits("0xFFFF").to_hex())
+#     print(BitVector("0xFFFF").to_hex())
 #     print(to_bits_aggregate(TestClass(3.1415927410125732421875)).to_hex())
 #     assert False == True
 
@@ -147,7 +147,7 @@ def aggregate_data_1_val():
 
 @pytest.fixture
 def aggregate_data_1_rep():
-    return Bits(
+    return BitVector(
         "0x0000017E"  # 382
         "40490fdb"  # 3.1415927410125732421875
         "41"  # A
@@ -165,7 +165,7 @@ def aggregate_data_1_c_val():
 
 @pytest.fixture
 def aggregate_data_1_c_rep():
-    return Bits(
+    return BitVector(
         "0x0000017E"  # 382
         # "40490fdb"  # 3.1415927410125732421875
         "41"  # A
@@ -175,13 +175,13 @@ def aggregate_data_1_c_rep():
 @pytest.fixture
 def aggregate_data_1_bittype_val():
     return BitTypeAggregate1(
-        SInt32(382), Float32(3.1415927410125732421875), Bit4([0, 1, 0, 0])
+        SInt32(382), Float32(3.1415927410125732421875), Buffer4([0, 1, 0, 0])
     )
 
 
 @pytest.fixture
 def aggregate_data_1_bittype_rep():
-    return Bits(
+    return BitVector(
         "0x0000017E"  # 382
         "40490fdb"  # 3.1415927410125732421875
         "4"
@@ -190,8 +190,8 @@ def aggregate_data_1_bittype_rep():
 
 def test_pytype_dataclass(aggregate_data_1_rep):
     assert (
-        to_bits_aggregate(PyTypeAggregate1(382, 3.1415927410125732421875, "A")).to_hex()
-        == aggregate_data_1_rep.to_hex()
+        to_bits_aggregate(PyTypeAggregate1(382, 3.1415927410125732421875, "A")).hex()
+        == aggregate_data_1_rep.hex()
     )
     left = from_bits_aggregate(aggregate_data_1_rep, PyTypeAggregate1)
     right = PyTypeAggregate1(382, 3.141592653589793, "A")
@@ -212,8 +212,8 @@ def test_ctype_dataclass(aggregate_data_1_c_rep):
                 # 3.1415927410125732421875,
                 ctypes.c_char(b"A"),
             )
-        ).to_hex()
-        == aggregate_data_1_c_rep.to_hex()
+        ).hex()
+        == aggregate_data_1_c_rep.hex()
     )
 
     from_bits_agg_gotten = from_bits_aggregate(aggregate_data_1_c_rep, CTypeAggregate1)
@@ -231,10 +231,10 @@ def test_bittype_dataclass(aggregate_data_1_bittype_rep):
     assert (
         to_bits_aggregate(
             BitTypeAggregate1(
-                SInt32(382), Float32(3.1415927410125732421875), Bit4([0, 1, 0, 0])
+                SInt32(382), Float32(3.1415927410125732421875), Buffer4([0, 1, 0, 0])
             )
-        ).to_hex()
-        == aggregate_data_1_bittype_rep.to_hex()
+        ).hex()
+        == aggregate_data_1_bittype_rep.hex()
     )
 
     from_bits_agg_gotten = from_bits_aggregate(
@@ -242,7 +242,7 @@ def test_bittype_dataclass(aggregate_data_1_bittype_rep):
     )
     assert from_bits_agg_gotten.a.value == 382
     assert from_bits_agg_gotten.b.value == 3.1415927410125732421875
-    assert from_bits_agg_gotten.c == Bits([0, 1, 0, 0])
+    assert from_bits_agg_gotten.c == BitVector([0, 1, 0, 0])
 
 
 def test_mixed_dataclass(
@@ -263,7 +263,7 @@ def test_mixed_dataclass(
     )
 
     def mixed_aggregate_data_1_rep():
-        return Bits([]).join(
+        return BitVector([]).join(
             [aggregate_data_1_rep, aggregate_data_1_c_rep, aggregate_data_1_bittype_rep]
         )
 

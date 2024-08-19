@@ -1,4 +1,4 @@
-name: Continuous Integration
+name: Linting checks
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   build:
-    name: Testing
+    name: Linting
     runs-on: ubuntu-latest
 
     strategy:
@@ -30,15 +30,13 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install flake8 pytest
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-        pip install -e .
+        # Install the dependencies specified in pyproject.toml (core dependencies)
+        python -m pip install .
+        # Install additional dependencies under testing (e.g., flake8)
+        python -m pip install .[testing]
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics --ignore=F841,W504,E731,C901,E701 --per-file-ignores="__init__.py:F401"
         # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-    - name: Test with pytest
-      run: |
-        pytest

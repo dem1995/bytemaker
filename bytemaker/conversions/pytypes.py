@@ -3,7 +3,7 @@ from __future__ import annotations
 import struct
 from dataclasses import dataclass
 
-from bytemaker.bits import Bits
+from bytemaker.bitvector import BitVector
 from bytemaker.typing_redirect import Any, Callable
 from bytemaker.utils import is_subclass_of_union
 
@@ -29,23 +29,56 @@ class PyType(metaclass=PyTypeMeta):
 # PyType Handling
 @dataclass
 class ConversionInfo:
+    """
+    Class to store information about conversions between Python primitives and\
+        BitVectors.
+
+    Attributes:
+    -----------
+    pytype : type
+        The Python type to convert to/from BitVectors
+    to_bits : Callable[[Any], BitVector]
+        Function to convert a Python instance of the type to a BitVector
+    from_bits : Callable[[BitVector], Any]
+        Function to convert a BitVector to a Python instance of the type
+    num_bits : Callable[[Any], int]
+        The number of bits in the BitVector representation of the Python instance
+    """
+
     pytype: type
-    to_bits: Callable[[Any], Bits]
-    from_bits: Callable[[Bits], Any]
+    to_bits: Callable[[Any], BitVector]
+    from_bits: Callable[[BitVector], Any]
     num_bits: Callable[[Any], int]
 
     @classmethod
     def num_bytes(cls, typeinstance) -> int:
+        """
+        Function to get the number of bytes in the BitVector representation of\
+            the Python instance.
+        """
         default = (cls.num_bits(typeinstance) + 7) // 8
         return default if default > 0 else 1
 
     @classmethod
     def to_bytes(cls, pytype) -> bytes:
+        """
+        Function to convert a Python instance to the bytes representation
+            of that instance.
+
+        Args:
+            pytype (type): The Python instance to convert to bytes
+
+        Returns:
+            bytes: The bytes representation of the Python instance
+        """
         return bytes(cls.to_bits(pytype))
 
     @classmethod
     def from_bytes(cls, bytes_obj) -> Any:
-        return cls.from_bits(Bits(bytes_obj))
+        """
+        Function to convert a bytes object to a Python instance.
+        """
+        return cls.from_bits(BitVector(bytes_obj))
 
 
 class ConversionConfig:
@@ -115,6 +148,7 @@ class ConversionConfig:
                 if is_subclass_of_union(pytype, implemented_pytype):
                     cls._has_a_suitable_conversion[pytype] = True
                     return True
+        return False
 
     @classmethod
     def get_conversion_info(cls, pytype: type) -> ConversionInfo:
@@ -158,12 +192,13 @@ class ConversionConfig:
             return cls._implemented_conversions[
                 cls._known_furthest_descendant_mappings[pytype]
             ]
-        return None
+        else:
+            raise TypeError(f"No conversion found for {pytype}")
 
 
 # _string_conversion_info = ConversionInfo(
 #     pytype=str,
-#     to_bits=lambda string: Bits(string.encode('utf-8')),
+#     to_bits=lambda string: BitVector(string.encode('utf-8')),
 #     from_bits=lambda bits: bits.to_bytes().decode('utf-8'),
 #     num_bits=lambda string: len(string.encode('utf-8')) * 8
 # )
@@ -171,16 +206,16 @@ class ConversionConfig:
 
 _char_conversion_info = ConversionInfo(
     pytype=str,
-    to_bits=lambda string: Bits(string.encode("utf-8")),
+    to_bits=lambda string: BitVector(string.encode("utf-8")),
     from_bits=lambda bits: bits.to_bytes().decode("utf-8"),
-    num_bits=8,
+    num_bits=lambda _: 8,
 )
 ConversionConfig.set_conversion_info(_char_conversion_info)
 
 for bytesish in [bytes, bytearray, memoryview]:
     conversion_info = ConversionInfo(
         pytype=bytesish,
-        to_bits=lambda bys: Bits(bys),
+        to_bits=lambda bys: BitVector(bys),
         from_bits=lambda bits: bits.to_bytes(),
         num_bits=lambda bys: len(bys) * 8,
     )
@@ -188,17 +223,17 @@ for bytesish in [bytes, bytearray, memoryview]:
 
 bool_conversion_info = ConversionInfo(
     pytype=bool,
-    to_bits=lambda boo: Bits([int(boo)]),
+    to_bits=lambda boo: BitVector([int(boo)]),
     from_bits=lambda bits: bool(bits.to_int()),
-    num_bits=1,
+    num_bits=lambda _: 1,
 )
 ConversionConfig.set_conversion_info(bool_conversion_info)
 
 
-# def _int_to_bits(num: int) -> Bits:
+# def _int_to_bits(num: int) -> BitVector:
 #     if issubclass(type(num), bool):
 #         to_convert = int(num)
-#     return Bits(to_convert,
+#     return BitVector(to_convert,
 #       to_convert.to_bytes(
 #           twos_complement_bit_length(num),
 #           byteorder='little', signed=num >= 0))
@@ -206,32 +241,32 @@ ConversionConfig.set_conversion_info(bool_conversion_info)
 
 int_conversion_info = ConversionInfo(
     pytype=int,
-    to_bits=lambda num: Bits.from_int(num, size=32),
+    to_bits=lambda num: BitVector.from_int(num, size=32),
     from_bits=lambda bits: bits.to_int(),
-    num_bits=32,
+    num_bits=lambda _: 32,
 )
 ConversionConfig.set_conversion_info(int_conversion_info)
 
 
 float_conversion_info = ConversionInfo(
     pytype=float,
-    to_bits=lambda fl: Bits(struct.pack(">f", fl)),
+    to_bits=lambda fl: BitVector(struct.pack(">f", fl)),
     from_bits=lambda bits: struct.unpack(">f", bits.to_bytes())[0],
-    num_bits=32,
+    num_bits=lambda _: 32,
 )
 ConversionConfig.set_conversion_info(float_conversion_info)
 
 
-def pytype_to_bits(py_prim: type) -> Bits:
+def pytype_to_bits(py_prim: type) -> BitVector:
     """
-    Function to convert Python instances into a default number of Bits.
+    Function to convert Python instances into a default number of BitVector.
         Uses the conversions in ConversionConfig.
 
     Args:
-        py_prim: The python instance to convert to Bits
+        py_prim: The python instance to convert to BitVector
 
     Returns:
-        Bits: The Bits representation of the python instance
+        BitVector: The BitVector representation of the python instance
     """
     py_prim_type = type(py_prim)
 
@@ -260,7 +295,7 @@ def pytype_to_bytes(py_prim: type, reverse_endianness: bool = False) -> bytes:
     return retval
 
 
-def bits_to_pytype(bits_obj: Bits, pytype: type):
+def bits_to_pytype(bits_obj: BitVector, pytype: type):
     """
     Function to convert bits into instances of Python types.
 
@@ -282,7 +317,7 @@ def bits_to_pytype(bits_obj: Bits, pytype: type):
     return conversion.from_bits(bits_obj)
 
 
-def bytes_to_pytype(bytes_obj: Bits, pytype: type):
+def bytes_to_pytype(bytes_obj: BitVector, pytype: type):
     """
     Function to convert bytes into instances of Python types.
 
@@ -296,4 +331,4 @@ def bytes_to_pytype(bytes_obj: Bits, pytype: type):
             bytes
     """
 
-    return bits_to_pytype(Bits(bytes_obj), pytype)
+    return bits_to_pytype(BitVector(bytes_obj), pytype)

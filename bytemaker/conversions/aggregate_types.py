@@ -1,18 +1,16 @@
 import ctypes
 import dataclasses
 
-from typing_redirect import Iterable, Union
-
-from bytemaker.bits import Bits
 from bytemaker.bittypes import BitType, bytes_to_bittype
-from bytemaker.native_types.ctypes_ import (
+from bytemaker.bitvector import BitVector
+from bytemaker.conversions.ctypes_ import (
     CType,
     bits_to_ctype,
     bytes_to_ctype,
     ctype_to_bits,
     ctype_to_bytes,
 )
-from bytemaker.native_types.pytypes import (
+from bytemaker.conversions.pytypes import (
     ConversionConfig,
     PyType,
     bits_to_pytype,
@@ -20,6 +18,7 @@ from bytemaker.native_types.pytypes import (
     pytype_to_bits,
     pytype_to_bytes,
 )
+from bytemaker.typing_redirect import Iterable, Union
 from bytemaker.utils import DataClassType, is_instance_of_union, is_subclass_of_union
 
 UnitType = Union[CType, BitType, PyType]
@@ -42,7 +41,7 @@ def count_bits_in_unit_type(unit_type: UnitType) -> int:
         return unit_type.num_bits
     elif is_subclass_of_union(unit_type, PyType):
         # print(ConversionConfig.get_conversion_info(unit_type).num_bits)
-        return ConversionConfig.get_conversion_info(unit_type).num_bits
+        return ConversionConfig.get_conversion_info(unit_type).num_bits("")
     elif is_subclass_of_union(unit_type, DataClassType):
         size_in_bits = 0
         for field in dataclasses.fields(unit_type):
@@ -56,7 +55,8 @@ def count_bits_in_unit_type(unit_type: UnitType) -> int:
 def count_bits_in_aggregate_type(aggregate_type: type) -> int:
     """
     Function to count the number of bits in an aggregate type-\
-     a Python, type, ctype, or BitType (bytemaker type).
+        a Python, type, ctype, BitType (bytemaker type), or
+        a dataclass annotated with those.
     """
     if is_subclass_of_union(aggregate_type, UnitType):
         return count_bits_in_unit_type(aggregate_type)
@@ -78,9 +78,9 @@ def count_bytes_in_unit_type(unit_type: UnitType) -> int:
     return (count_bits_in_unit_type(unit_type) + 1) // 8
 
 
-def to_bits_individual(unit: UnitType) -> Bits:
+def to_bits_individual(unit: UnitType) -> BitVector:
     """
-    Function to convert a single Python primitive or ctypes object into Bits.
+    Function to convert a single Python primitive or ctypes object into BitVector.
     """
     if is_instance_of_union(unit, CType):
         return ctype_to_bits(unit)
@@ -113,13 +113,13 @@ def to_bytes_individual(unit: UnitType, reverse_endianness: bool = False) -> byt
         )
 
 
-def from_bits_individual(unitbits: Bits, unittype: type) -> PyType:
+def from_bits_individual(unitbits: BitVector, unittype: type) -> PyType:
     """
-    Function to convert Bits into a single UnitType-
+    Function to convert BitVector into a single UnitType-
         a Python numeric/binary/string type, ctype, or YType (bytemaker type).
 
     Args:
-        unitbits (Bits): The Bits object to convert to a UnitType
+        unitbits (BitVector): The BitVector object to convert to a UnitType
         unittype (type): The type of the UnitType to convert to.
             Must be a member of UnitType
     """
@@ -195,24 +195,22 @@ def trycast(obj, type_):
     return obj
 
 
-def to_bits_aggregate(convertible_object: AggregateTypeByteConvertible) -> Bits:
+def to_bits_aggregate(convertible_object: AggregateTypeByteConvertible) -> BitVector:
     """
-    Function to convert fixed-byte Python types (int, float, char),\
-            ctypes, and YTypes into Bits.\
-        Also converts dataclasses annotated with these types into bits\
-            (this support is recursive).\
-        Technically supports Iterables as well, but note that from_bits_aggregate\
-            will not work on Iterables.
+    Function to convert a BitType, Python primitive, ctypes object, or dataclass\
+        of those types into a BitVector.
+
+    Essentially a bitfield serializer.
 
     Args:
         units (DataClassType | YType | CType | PyType | Iterable):\
-            The object to convert to Bits
+            The object to convert to BitVector
 
     Returns:
-        Bits: The Bits representation of the object
+        BitVector: The BitVector representation of the object
     """
 
-    ret_bits = Bits()
+    ret_bits = BitVector()
 
     # print("to_bits_aggregate", convertible_object)
     # print("type(units)", type(convertible_object))
@@ -244,7 +242,7 @@ def to_bits_aggregate(convertible_object: AggregateTypeByteConvertible) -> Bits:
             field_value_bits.append(bitsified)
         # field_value_bits = [to_bits_aggregate(field_value)
         # for field_value in field_values]
-        ret_bits = Bits().join(field_value_bits)
+        ret_bits = BitVector().join(field_value_bits)
     elif isinstance(convertible_object, Iterable):
         for unit in convertible_object:
             ret_bits.extend(to_bits_aggregate(unit))
@@ -261,8 +259,24 @@ def to_bits_aggregate(convertible_object: AggregateTypeByteConvertible) -> Bits:
 
 
 def from_bits_aggregate(
-    unitbits: Bits, aggregate_type: type
+    unitbits: BitVector, aggregate_type: type
 ) -> Union[UnitType, AggregateTypeByteConvertible]:
+    """
+    Function to convert a collection of BitVector objects into Python primitives,\
+        ctypes objects, BitTypes, or a dataclass of those types.
+
+    Essentially a bitfield deserializer.
+
+    Args:
+        unitbits (BitVector): The BitVector object to convert to a Python primitive,\
+            ctypes object, BitType, or dataclass.
+        aggregate_type (type): The type(s) of the object to convert to.
+            Must be a member of UnitType or a dataclass annotated with UnitType members.
+
+    Returns:
+        Union[UnitType, AggregateTypeByteConvertible]: The object(s)
+            represented by the bits.
+    """
     if is_subclass_of_union(aggregate_type, UnitType):
         return from_bits_individual(unitbits, aggregate_type)
     else:
@@ -297,6 +311,8 @@ def to_bytes_aggregate(
 ) -> bytes:
     """
     Function to convert a collection of Python primitives or ctypes objects into bytes.
+
+    Essentially a bitfield serializer.
 
     Args:
         units [Iterable | DataClassType]): The objects to convert to bytes
@@ -356,6 +372,26 @@ def from_bytes_aggregate(
     is_array=False,
     reverse_endianness: bool = False,
 ) -> Union[UnitType, AggregateTypeByteConvertible]:
+    """
+    Function to convert a collection of bytes into Python primitives, ctypes objects,\
+        BitTypes, or a dataclass of those types.
+
+    Essentially a bitfield deserializer.
+
+    Args:
+        bytes_obj (bytes): The bytes object to convert to a Python primitive,
+            ctypes object, BitType, or dataclass.
+        aggregate_type (type): The type(s) of the object to convert to.
+            Must be a member of UnitType or a dataclass annotated with UnitType members.
+        is_array (bool, optional): Whether the object is an array of the aggregate type.
+            Defaults to False.
+        reverse_endianness (bool, optional): Whether to reverse the endianness of the
+            bytes before converting. Defaults to False.
+
+    Returns:
+        Union[UnitType, AggregateTypeByteConvertible]: The object(s) represented by
+            the bytes.
+    """
     if reverse_endianness:
         bytes_obj = bytes_obj[::-1]
 
