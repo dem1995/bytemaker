@@ -30,7 +30,7 @@ jobs:
         # Install the dependencies specified in pyproject.toml (core dependencies)
         python -m pip install .
         # Install additional dependencies under dev (e.g., pytest)
-        python -m pip install .[dev]
+        python -m pip install .[testing]
     - name: Test with pytest
       run: |
         pytest
