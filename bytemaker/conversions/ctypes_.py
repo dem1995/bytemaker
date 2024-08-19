@@ -10,15 +10,34 @@ CType = typing_redirect.Union[_SimpleCData, Structure, Union, Array]
 
 
 def reverse_bytes_unit(unit: _SimpleCData):
-    """Reverse the byte order of the given value."""
+    """
+    Reverses the byte order of a ctypes object.
+
+    Args:
+        unit (_SimpleCData): The ctypes object to reverse the byte order of.
+
+    Returns:
+        _SimpleCData: The ctypes object with the byte order reversed.
+    """
     unit_type = type(unit)
     bytes_value = bytearray(unit)
     bytes_value.reverse()
     return unit_type.from_buffer_copy(bytes_value)
 
 
-def reverse_ctype_endianness(ctype_instance: CType) -> None:
-    """Process each field of the structure."""
+def reverse_ctype_endianness(ctype_instance: CType) -> CType:
+    """
+    Reverses the endianness of a ctypes object.
+
+    Args:
+        ctype_instance (ctypes._SimpleCData | ctypes.Structure |
+                ctypes.Union | ctypes.Array):
+            The ctypes object to reverse the endianness of.
+
+    Returns:
+        ctypes._SimpleCData | ctypes.Structure | ctypes.Union | ctypes.Array:
+            The ctypes object with the endianness reversed.
+    """
 
     if isinstance(ctype_instance, _SimpleCData):
         # Reverse the byte order for single, multi-byte objects
@@ -31,10 +50,20 @@ def reverse_ctype_endianness(ctype_instance: CType) -> None:
             ctype_instance[i] = reverse_ctype_endianness(ctype_instance[i])
 
     if isinstance(ctype_instance, Structure):
-        for field_name, field_type in ctype_instance._fields_:
+        ctype_instance_fields = list(ctype_instance._fields_)
+        if len(ctype_instance_fields) > 0 and len(ctype_instance_fields[0]) > 2:
+            raise NotImplementedError(
+                "ctype structures with _fields_ with more than 2 elements are"
+                "not supported."
+                f"Ctype instance: {ctype_instance}"
+                f"Ctype instance fields: {ctype_instance_fields}"
+            )
+        for field_name, field_type in ctype_instance_fields:  # type: ignore
             field_value = getattr(ctype_instance, field_name)
             # print(field_name, field_value, type(field_value))
-            reversed_unit = reverse_ctype_endianness(field_type(field_value))
+            simple_c_data = field_type(field_value)  # type: ignore[reportCallIssue]
+            assert isinstance(simple_c_data, _SimpleCData)
+            reversed_unit = reverse_ctype_endianness(simple_c_data)
             setattr(ctype_instance, field_name, reversed_unit)
 
     return ctype_instance
@@ -55,7 +84,7 @@ def ctype_to_bytes(ctype_obj: CType, reverse_endianness=True) -> bytes:
     Returns:
         bytes: The bytes representation of the ctypes object
     """
-    if not is_instance_of_union(ctype_obj, CType):
+    if not is_instance_of_union(ctype_obj, CType):  # type: ignore
         raise TypeError(
             f"ctype_to_bytes only accepts _SimpleCData, Structure,"
             f"Union, and Array objects, not {type(ctype_obj)}."
