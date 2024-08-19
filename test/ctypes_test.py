@@ -2,7 +2,7 @@ from ctypes import Array, Structure, Union, c_char, c_int, c_uint
 
 import pytest
 
-from bytemaker.native_types.ctypes_ import bytes_to_ctype, ctype_to_bytes
+from bytemaker.conversions.ctypes_ import bytes_to_ctype, ctype_to_bytes
 
 
 class TestStructure(Structure):

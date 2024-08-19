@@ -3,12 +3,6 @@ from dataclasses import dataclass
 
 import pytest
 
-from bytemaker.aggregate_types import (
-    from_bits_aggregate,
-    from_bits_individual,
-    to_bits_aggregate,
-    to_bits_individual,
-)
 from bytemaker.bittypes import (
     Buffer4,
     Float16,
@@ -23,6 +17,12 @@ from bytemaker.bittypes import (
     UInt64,
 )
 from bytemaker.bitvector import BitVector
+from bytemaker.conversions.aggregate_types import (
+    from_bits_aggregate,
+    from_bits_individual,
+    to_bits_aggregate,
+    to_bits_individual,
+)
 
 test_unit_data = [
     # Integers

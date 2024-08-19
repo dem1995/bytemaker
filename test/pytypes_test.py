@@ -1,7 +1,7 @@
 import pytest
 
 from bytemaker.bitvector import BitVector
-from bytemaker.native_types.pytypes import (
+from bytemaker.conversions.pytypes import (
     ConversionConfig,
     PyType,
     bits_to_pytype,
