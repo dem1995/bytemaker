@@ -10,34 +10,42 @@ from importlib.util import find_spec
 from typing import Any
 
 if sys.version_info < (3, 9):
-    from typing import (
-        Callable,
-        Iterable,
-        Mapping,
-        MutableMapping,
-        MutableSequence,
-        Sequence,
-    )
+    from typing import Callable, Iterable, MutableMapping, MutableSequence, Sequence
 else:
     from collections.abc import (
         Callable,
         Iterable,
-        Mapping,
         MutableMapping,
         MutableSequence,
         Sequence,
     )
 
+if sys.version_info < (3, 10):
+    UnionType = Any
+    if find_spec("typing_extensions"):
+        from typing_extensions import Concatenate, ParamSpec
+    else:
+        ParamSpec = Any
+        Concatenate = Any
+else:
+    from types import UnionType
+    from typing import ParamSpec
+    from typing import Concatenate
+
+from collections.abc import Hashable, Mapping
 from typing import (
     ClassVar,
     Dict,
     Final,
     ForwardRef,
+    Generic,
+    ItemsView,
     Iterator,
     List,
     Literal,
     Optional,
     Protocol,
+    Set,
     Tuple,
     Type,
     TypeVar,
@@ -59,15 +67,13 @@ else:
 
 if sys.version_info < (3, 13):
     if find_spec("typing_extensions"):
-        if find_spec("typing_extensions"):
-            from typing_extensions import TypeIs
-        else:
-            T = TypeVar("T")
-            from typing import Generic
+        from typing_extensions import TypeIs  # type: ignore[reportAssignmentType]
+    else:
+        T = TypeVar("T")
 
-            class TypeIs(Generic[T]):
-                def __class_getitem__(cls, item):
-                    return cls
+        class TypeIs(Generic[T]):
+            def __class_getitem__(cls, item):
+                return cls
 
 else:
     from typing import TypeIs
@@ -78,9 +84,12 @@ __all__ = [
     "Buffer",
     "Callable",
     "ClassVar",
+    "Concatenate",
     "Dict",
     "Final",
     "ForwardRef",
+    "Hashable",
+    "ItemsView",
     "Iterable",
     "Iterator",
     "List",
@@ -89,13 +98,16 @@ __all__ = [
     "MutableMapping",
     "MutableSequence",
     "Optional",
+    "ParamSpec",
     "Protocol",
+    "Set",
     "Sequence",
     "Tuple",
     "Type",
     "TypeIs",
     "TypeVar",
     "Union",
+    "UnionType",
     "get_args",
     "get_origin",
     "get_type_hints",

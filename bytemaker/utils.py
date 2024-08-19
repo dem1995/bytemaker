@@ -5,8 +5,15 @@ from math import ceil, log2
 
 from bytemaker.typing_redirect import (
     Any,
+    Dict,
+    Hashable,
+    ItemsView,
     Iterable,
+    Iterator,
+    Mapping,
+    Optional,
     Sequence,
+    TypeVar,
     Union,
     get_args,
     get_origin,
@@ -15,13 +22,44 @@ from bytemaker.typing_redirect import (
 #  General Python functionality
 
 
-class classproperty(property):
-    """
-    Class property decorator.
-    """
+class classproperty:
+    "Emulate class-level property similar to instance-level property"
 
-    def __get__(self, cls, owner):
-        return classmethod(self.fget).__get__(None, owner)()
+    def __init__(self, fget=None, fset=None, fdel=None, doc=None):
+        self.fget = fget
+        self.fset = fset
+        self.fdel = fdel
+        if doc is None and fget is not None:
+            doc = fget.__doc__
+        self.__doc__ = doc
+
+    def __get__(self, obj, objtype=None):
+        if objtype is None:
+            objtype = type(obj)
+        if self.fget is None:
+            raise AttributeError("unreadable attribute")
+        return self.fget.__get__(None, objtype)()
+
+    def __set__(self, obj, value):
+        if self.fset is None:
+            raise AttributeError("can't set attribute")
+        objtype = type(obj)
+        return self.fset.__get__(None, objtype)(value)
+
+    def __delete__(self, obj):
+        if self.fdel is None:
+            raise AttributeError("can't delete attribute")
+        objtype = type(obj)
+        return self.fdel.__get__(None, objtype)()
+
+    def getter(self, fget):
+        return type(self)(fget, self.fset, self.fdel, self.__doc__)
+
+    def setter(self, fset):
+        return type(self)(self.fget, fset, self.fdel, self.__doc__)
+
+    def deleter(self, fdel):
+        return type(self)(self.fget, self.fset, fdel, self.__doc__)
 
 
 class Trie:
@@ -153,6 +191,45 @@ def is_subclass_of_union(subtype: type, supertype):
             f" and type args {supertype_args}."
             "Non-union supertypes with multiple subscripts are not supported."
         )
+
+
+K = TypeVar("K")
+V = TypeVar("V")
+
+
+class HashableMapping(Mapping[K, V], Hashable):
+    pass
+
+
+class FrozenDict(HashableMapping[K, V]):
+    def __init__(self, input_dict: Dict[K, V]):
+        self._data = dict(input_dict)
+        self._hash: Optional[int] = None
+
+    def __getitem__(self, key: K) -> V:
+        return self._data[key]
+
+    def __iter__(self) -> Iterator[K]:
+        return iter(self._data)
+
+    def __len__(self) -> int:
+        return len(self._data)
+
+    def items(self) -> ItemsView[K, V]:
+        return self._data.items()
+
+    def __hash__(self) -> int:
+        if self._hash is None:
+            self._hash = hash(tuple(sorted(self.items())))
+        return self._hash
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self._data})"
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, Mapping):
+            return dict(self.items()) == dict(other.items())
+        return False
 
 
 # Byte-related operations
