@@ -18,6 +18,30 @@ else:
 
 
 class Int(BitType[int]):
+    """
+    A BitType that represents an integer.
+
+    Class Attributes:
+    ---------------
+    num_bits : int
+       The number of bits in the BitType.
+    base_bit_type : Type[BitType]
+       The base BitType this class derives from. It is Int.
+    py_type : Type[T]
+       The Pythonic type that this Int can be converted to/from. It is int.
+    is_signed : bool
+       Whether the integer type is signed.
+
+    Instance Attributes
+    -------------------
+    bits : BitVector
+       The underlying sequence of bits of this Int object.
+    value : int
+       The (Pythonic) value of this Int object.
+    endianness : Literal["big", "little"]
+       The endianness of this Int object.
+    """
+
     py_type = int
     is_signed: Final[bool]
 
@@ -105,6 +129,18 @@ class Int(BitType[int]):
             Literal["twos_complement", "signed_magnitude", "ones_complement"]
         ] = None,
     ) -> int:
+        """
+        Calculate the minimum number of bits required to represent an integer.
+        Note that this is not the same as len(bin(value)), which assumes an unsigned
+        representation (possibly with - in front).
+
+        Parameters:
+           value (int): The integer to represent.
+           signed (bool): Whether the representation format should be signed.
+           bin_format (Optional[str]): The format for signed integers.
+                Can be "twos_complement", "signed_magnitude", or "ones_complement".
+                Default is "twos_complement".
+        """
         n = value
 
         if not signed:
@@ -154,7 +190,7 @@ class Int(BitType[int]):
         - integer (int): The integer to convert.
         - signed (bool): Whether the integer should be treated as signed.
         - bit_length (int): The length of the bitstring.
-        - rep_format (str): The format for signed integers.
+        - rep_format (Optional[str]): The format for signed integers.
             Can be "twos_complement", "signed_magnitude", or "ones_complement".
             Default is "twos_complement".
 
@@ -247,6 +283,13 @@ class Int(BitType[int]):
 
 
 class SignedConfig:
+    """
+    A class to change the default representation and conversion
+        for all non-user-implemented or non-user-specified signed integers
+            simultaneously.
+        If this is unadjusted, the default signed integer format is two's complement.
+    """
+
     signed_int_format: Literal[
         "signed_magnitude", "ones_complement", "twos_complement"
     ] = "twos_complement"
@@ -264,12 +307,12 @@ class SInt(Int):
         The default signed integer format is two's complement.
 
     Class Attributes:
-        base_bit_type (Type[SInt]): The base class for the SInt class.
+        base_bit_type (Type[SInt]): The base class (this is SInt for SInt children).
         num_bits (int): The number of bits in the integer.
-        is_signed (bool): Whether the integer is signed.
+        is_signed (bool): Whether the integer is signed (this is True for SInt).
 
     Instance Attributes:
-        int_format (Optional[str]): The format for signed integers.
+        int_format (Optional[str]): The format for this signed integer.
             Can be "twos_complement", "signed_magnitude", or "ones_complement".
             If this is left as "None", the format will be taken from the Config class.
             Default is "twos_complement.
@@ -323,6 +366,26 @@ class SInt(Int):
         packing_format_letter_: Optional[str] = None,
         name_: Optional[str] = None,
     ):
+        """
+        Produce a subclass of SInt with the specified number of bits.
+
+        If a packing format letter is provided, the subclass will also be a
+            StructPackedBitType
+            and use struct's packing/unpacking functions with the provided letter.
+
+        If name_ is provided, the subclass will have that name internally after class
+            creation. Otherwise, the subclass will be named _SInt.
+
+        Args:
+            num_bits_ (int): The number of bits in integers of this type.
+            packing_format_letter_ (Optional[str], optional): The struct packing format
+                letter to use, if any. Defaults to None, meaning no struct (un)packing.
+            name_ (Optional[str], optional): What to rename the subclass, if anything.
+                Defaults to None, meaning the subclass's name will be _SInt.
+
+        Returns:
+            type[SInt]: The subclass of SInt with the specified number of bits.
+        """
         if packing_format_letter_ is not None:
 
             class _SInt(StructPackedBitType[int], cls):
@@ -448,6 +511,22 @@ class SInt256(SInt):
 
 
 class UInt(Int):
+    """
+    A BitType that represents an unsigned integer.
+
+    Use the `specialize` method to create a subclass with the desired number of bits
+        or use one of the pre-defined subclasses.
+
+    Class Attributes:
+        base_bit_type (Type[SInt]): The base class (this is UInt).
+        num_bits (int): The number of bits in the integer.
+        is_signed (bool): Whether the integer is signed. (This is False)
+
+    Properties:
+        value (int): The integer value of the bits.
+        bits (BitVector): The bits representing the integer value.
+    """
+
     is_signed = False
 
     @property
@@ -465,6 +544,26 @@ class UInt(Int):
         packing_format_letter_: Optional[str] = None,
         name_: Optional[str] = None,
     ):
+        """
+        Produce a subclass of UInt with the specified number of bits.
+
+        If a packing format letter is provided, the subclass will also be a
+            StructPackedBitType
+            and use struct's packing/unpacking functions with the provided letter.
+
+        If name_ is provided, the subclass will have that name internally after class
+            creation. Otherwise, the subclass will be named _UInt.
+
+        Args:
+            num_bits_ (int): The number of bits in integers of this type.
+            packing_format_letter_ (Optional[str], optional): The struct packing format
+                letter to use, if any. Defaults to None, meaning no struct (un)packing.
+            name_ (Optional[str], optional): What to rename the subclass, if anything.
+                Defaults to None, meaning the subclass's name will be _UInt.
+
+        Returns:
+            type[UInt]: The subclass of UInt with the specified number of bits.
+        """
         if packing_format_letter_ is not None:
 
             class _UInt(StructPackedBitType[int], cls):
