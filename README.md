@@ -23,8 +23,10 @@ The main goal of the project is to ease development of projects working with com
 ## Changelog
 ### Version 0.9.0
 `Bits` is now `BitVector`. Its API has been changed to be much more similar to `bytearray`. To that end, inline methods and alternative syntaxes have been winnowed where possible.
+
 `ytypes` are now `BitTypes`, and, rather than extending from `Bits`, now contain `BitVectors`. This change was made so that, in the long run, uint:UInt8 + sint:SInt8 wouldn't be the same as concatenation, and so that str24[1] would grab the second element.
-`BitTypes` now have full support for endianness when casting to `bytes`. Note that while the types have endianness, their underlying bit representations do not (because that wouldn't make much sense!). Usage of `ctypes` still assumes development is done on a little-endian machine. This is the vast, vast, vast majority of consumer hardware today, unless you run a bi-endian machine and have set it to big-endian mode. This may not change; the remaining primary use of `ctypes` is for non-chararray array types (to be resolved in a future version).
+
+`BitTypes` now have full support for endianness when casting to `bytes`. Note that while the types have endianness, their underlying bit representations do not (because that wouldn't make much sense!). Usage of `ctypes` still assumes development is done on a little-endian machine. This is the vast, vast, vast majority of consumer hardware today, unless you run a bi-endian machine and have set it to big-endian mode. This may not change; the remaining primary use of `ctypes` is for non-chararray array types (to be resolved in a near-future version).
 
 Upcoming deprecations:
 (any BitType)`.to_bits()` and (any BitType)`.from_bits()`. This behavior should instead be replicated by (any BitType)`.bits` and (any BitType)`(bits)`
