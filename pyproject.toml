@@ -16,6 +16,19 @@ classifiers = [
 dependencies = [
     "bitarray >= 2.9.0"]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=6",
+    "flake8>=3.8",
+    "pre-commit >= 3.8.0"
+]
+docs = [
+    "Sphinx>=8.0",
+    "piccolo-theme>=0.2.3",
+    "pydata-sphinx-theme>0.15"
+]
+
+
 # dependencies = [
 #     "typing-extensions >= 4.11; python_version < '3.11'"]
 
