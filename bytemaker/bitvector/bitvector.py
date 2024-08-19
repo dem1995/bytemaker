@@ -1,7 +1,7 @@
 from importlib.util import find_spec
 
 if find_spec("bitarray"):
-    from bytemaker.bitvector_with_bitarray_speedup import (
+    from bytemaker.bitvector.bitvector_with_bitarray_speedup import (
         BitsCastable,
         BitsConstructible,
         BitVector,
