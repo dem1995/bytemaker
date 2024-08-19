@@ -29,6 +29,22 @@ class PyType(metaclass=PyTypeMeta):
 # PyType Handling
 @dataclass
 class ConversionInfo:
+    """
+    Class to store information about conversions between Python primitives and\
+        BitVectors.
+
+    Attributes:
+    -----------
+    pytype : type
+        The Python type to convert to/from BitVectors
+    to_bits : Callable[[Any], BitVector]
+        Function to convert a Python instance of the type to a BitVector
+    from_bits : Callable[[BitVector], Any]
+        Function to convert a BitVector to a Python instance of the type
+    num_bits : Callable[[Any], int]
+        The number of bits in the BitVector representation of the Python instance
+    """
+
     pytype: type
     to_bits: Callable[[Any], BitVector]
     from_bits: Callable[[BitVector], Any]
@@ -36,15 +52,32 @@ class ConversionInfo:
 
     @classmethod
     def num_bytes(cls, typeinstance) -> int:
+        """
+        Function to get the number of bytes in the BitVector representation of\
+            the Python instance.
+        """
         default = (cls.num_bits(typeinstance) + 7) // 8
         return default if default > 0 else 1
 
     @classmethod
     def to_bytes(cls, pytype) -> bytes:
+        """
+        Function to convert a Python instance to the bytes representation
+            of that instance.
+
+        Args:
+            pytype (type): The Python instance to convert to bytes
+
+        Returns:
+            bytes: The bytes representation of the Python instance
+        """
         return bytes(cls.to_bits(pytype))
 
     @classmethod
     def from_bytes(cls, bytes_obj) -> Any:
+        """
+        Function to convert a bytes object to a Python instance.
+        """
         return cls.from_bits(BitVector(bytes_obj))
 
 
@@ -115,6 +148,7 @@ class ConversionConfig:
                 if is_subclass_of_union(pytype, implemented_pytype):
                     cls._has_a_suitable_conversion[pytype] = True
                     return True
+        return False
 
     @classmethod
     def get_conversion_info(cls, pytype: type) -> ConversionInfo:
@@ -158,7 +192,8 @@ class ConversionConfig:
             return cls._implemented_conversions[
                 cls._known_furthest_descendant_mappings[pytype]
             ]
-        return None
+        else:
+            raise TypeError(f"No conversion found for {pytype}")
 
 
 # _string_conversion_info = ConversionInfo(
@@ -173,7 +208,7 @@ _char_conversion_info = ConversionInfo(
     pytype=str,
     to_bits=lambda string: BitVector(string.encode("utf-8")),
     from_bits=lambda bits: bits.to_bytes().decode("utf-8"),
-    num_bits=8,
+    num_bits=lambda _: 8,
 )
 ConversionConfig.set_conversion_info(_char_conversion_info)
 
@@ -190,7 +225,7 @@ bool_conversion_info = ConversionInfo(
     pytype=bool,
     to_bits=lambda boo: BitVector([int(boo)]),
     from_bits=lambda bits: bool(bits.to_int()),
-    num_bits=1,
+    num_bits=lambda _: 1,
 )
 ConversionConfig.set_conversion_info(bool_conversion_info)
 
@@ -208,7 +243,7 @@ int_conversion_info = ConversionInfo(
     pytype=int,
     to_bits=lambda num: BitVector.from_int(num, size=32),
     from_bits=lambda bits: bits.to_int(),
-    num_bits=32,
+    num_bits=lambda _: 32,
 )
 ConversionConfig.set_conversion_info(int_conversion_info)
 
@@ -217,7 +252,7 @@ float_conversion_info = ConversionInfo(
     pytype=float,
     to_bits=lambda fl: BitVector(struct.pack(">f", fl)),
     from_bits=lambda bits: struct.unpack(">f", bits.to_bytes())[0],
-    num_bits=32,
+    num_bits=lambda _: 32,
 )
 ConversionConfig.set_conversion_info(float_conversion_info)
 
