@@ -877,7 +877,8 @@ class BitVector(bitarray, MutableSequence[Literal[0, 1]]):
            or the bits across the indices given in slice or Iterable form.
 
         Args:
-            key (Union[int, slice, Iterable[int]]): _description_
+            key (Union[int, slice, Iterable[int]]): The index/indices of
+                the bit(s) to delete.
         """
         # if isinstance(key, Iterable):
         #     key = list(key)
@@ -971,11 +972,22 @@ class BitVector(bitarray, MutableSequence[Literal[0, 1]]):
 
     # Basic Operations
     def append(self, value: int) -> None:
+        """Appends the provided bit to end (right) of the BitVector.
+
+        Args:
+            value (int): The bit to append
+        """
         super().append(value)
 
     def extend(  # type: ignore[reportIncompatibleMethodOverride]
         self, values: BitsConstructible
     ) -> None:
+        """Extends the BitVector with the provided bits (appends them
+            on the right).
+
+        Args:
+            values (BitsConstructible): The bits to append
+        """
         if not isinstance(values, (Iterable)) or isinstance(values, str):
             values = BitVector(values)
         super().extend(values)
@@ -983,33 +995,71 @@ class BitVector(bitarray, MutableSequence[Literal[0, 1]]):
     def insert(  # type: ignore[reportIncompatibleMethodOverride]
         self, index: int, value: int
     ) -> None:
+        """Inserts the provided bit at the given index (zero-indexed).
+        All bits at or to the right of the index are shifted right.
+
+        Args:
+            index (int): The index at which to insert the bit
+            value (int): The bit to insert
+        """
         super().insert(index, value)
 
     def pop(  # type: ignore[reportINcompatibleMethodOverride]
         self, index: Optional[int] = None, default: Optional[T] = None
     ) -> Union[int, T]:
+        """Removes and returns the bit at the given index (zero-indexed).
+        All bits to the right of the index are shifted one left.
+        If the provided index is None, the rightmost bit is popped.
+        If a default is provided and the index is out of bounds,
+        the default is returned.
+
+        Args:
+            index (Optional[int], optional): The position of the bit to pop.
+                Defaults to None.
+            default (Optional[T], optional): The default value to return if the
+                index is out of bounds. Defaults to None.
+
+        Raises:
+            IndexError: If the index is out of bounds and no default is provided.
+
+        Returns:
+            Union[int, T]: The bit at the given index or the default value
+        """
         if index is None:
             index = len(self) - 1
-        if len(self) == 0:
+        if index >= len(self) or index < 0:
             if default is not None:
                 return default
             raise IndexError("pop from empty bitarray")
-        if (index < 0 or index >= len(self)) and default is not None:
-            return default
         return super().pop(index)
 
     def remove(self, value: int) -> None:
+        """Removes the first occurrence of the provided bit from the BitVector.
+
+        Args:
+            value (int): The bit to remove
+
+        Raises:
+            ValueError: If the bit is not found in the BitVector
+        """
         super().remove(value)
 
     def clear(self) -> None:
+        """Removes all bits from the BitVector."""
         super().clear()
 
     def copy(self: Self) -> Self:
+        """
+        Returns a shallow copy of the BitVector
+        """
         a_copy = super().copy()
         assert isinstance(a_copy, type(self))
         return a_copy
 
     def reverse(self) -> None:
+        """
+        Reverses the bits in the BitVector.
+        """
         super().reverse()
 
     # def swap_endianness(self) -> None:
@@ -1022,6 +1072,19 @@ class BitVector(bitarray, MutableSequence[Literal[0, 1]]):
         start: int = 0,
         end: Optional[int] = None,
     ) -> int:
+        """
+        Counts the occurrences of the given bit in the BitVector
+            between the given start (inclusive) and end (exclusive) indices.
+
+        Args:
+            value (Union[BitsConstructible, int]): The bit to count
+            start (int, optional): The start index. Defaults to 0.
+            end (Optional[int], optional): The end index. Defaults to None.
+
+        Returns:
+            int: The number of occurrences of the bit
+                (within the provided index range, if any)
+        """
         if not is_instance_of_union(value, Union[int, BitVector]):
             assert not isinstance(value, BitVector)
             assert not isinstance(value, int)
@@ -1044,7 +1107,16 @@ class BitVector(bitarray, MutableSequence[Literal[0, 1]]):
         stop: Optional[int] = None,
     ) -> bool:
         """
-        Check if the bitarray starts with the given substring.
+        Checks if the bitarray starts with the given substring.
+        If start and stop are provided, the check is performed only
+            on the bits between the start (inclusive) and stop exclusive) indices.
+
+        Args:
+            substrings (Union[BitsConstructible, BitVector, Literal[0, 1],\
+                Iterable[Union[BitsConstructible, BitVector]]]): The substring(s)
+                to check
+            start (int, optional): The start index. Defaults to 0.
+            stop (Optional[int], optional): The stop index. Defaults to None.
         """
         conv_substrings = list()
 
@@ -1123,7 +1195,16 @@ class BitVector(bitarray, MutableSequence[Literal[0, 1]]):
         stop: Optional[int] = None,
     ) -> bool:
         """
-        Check if the bitarray ends with the given substring.
+        Checks if the bitarray ends with the given substring.
+        If start and stop are provided, the check is performed only
+            on the bits between the start (inclusive) and stop exclusive) indices.
+
+        Args:
+            substrings (Union[BitsConstructible, BitVector, Literal[0, 1],\
+                Iterable[Union[BitsConstructible, BitVector]]]): The substring(s)
+                to check
+            start (int, optional): The start index. Defaults to 0.
+            stop (Optional[int], optional): The stop index. Defaults to None.
         """
 
         if isinstance(substrings, BitVector):
@@ -1180,6 +1261,17 @@ class BitVector(bitarray, MutableSequence[Literal[0, 1]]):
         start: int = 0,
         stop: Optional[int] = None,
     ) -> int:
+        """Finds the first occurrence of the given bit in the BitVector.
+        If the bit is not found, -1 is returned.
+
+        Args:
+            value (Union[BitsConstructible, int]): The bit to find
+            start (int, optional): The initial index to search. Defaults to 0.
+            stop (Optional[int], optional): The index to give up on. Defaults to None.
+
+        Returns:
+            int: The index of the first occurrence of the bit, or -1 if not found
+        """
         if stop is None:
             stop = len(self)
         if not isinstance(value, (bitarray, int)):
@@ -1193,6 +1285,19 @@ class BitVector(bitarray, MutableSequence[Literal[0, 1]]):
         start: int = 0,
         stop: Optional[int] = None,
     ) -> int:
+        """Finds the last occurrence of the given bit in the BitVector,
+        or of the subsequence of bits if provided.
+        If the bit is not found, -1 is returned.
+
+        Args:
+            value (Union[BitsConstructible, int]): The bit to find
+            start (int, optional): The last (leftmost) index to search. Defaults to 0.
+            stop (Optional[int], optional): One over the index to start.
+                Defaults to None.
+
+        Returns:
+            int: The index of the last occurrence of the bit, or -1 if not found
+        """
         if stop is None:
             stop = len(self)
         if not isinstance(value, (bitarray, int)):
@@ -1205,6 +1310,22 @@ class BitVector(bitarray, MutableSequence[Literal[0, 1]]):
         start: int = 0,
         stop: Optional[int] = None,
     ) -> int:
+        """Finds the first occurrence of the given bit in the BitVector, or
+        of the subsequence of bits if provided.
+        If the bit is not found, a ValueError is raised.
+
+        Args:
+            value (Union[BitsConstructible, int]): The bit to find
+            start (int, optional): The first (leftmost) index to check. Defaults to 0.
+            stop (Optional[int], optional): The index to give up on.
+                Defaults to None.
+
+        Raises:
+            ValueError: If the bit is not found
+
+        Returns:
+            int: The index of the first occurrence of the bit
+        """
         if stop is None:
             stop = len(self)
         if not isinstance(value, (bitarray, int)):
@@ -1221,6 +1342,22 @@ class BitVector(bitarray, MutableSequence[Literal[0, 1]]):
         start: int = 0,
         stop: Optional[int] = None,
     ) -> int:
+        """Finds the last occurrence of the given bit in the BitVector, or
+        of the subsequence of bits if provided.
+        If the bit is not found, a ValueError is raised.
+
+        Args:
+            value (Union[BitsConstructible, int]): The bit to find
+            start (int, optional): The last (leftmost) index to check. Defaults to 0.
+            stop (Optional[int], optional): One over the index to start on.
+                Defaults to None.
+
+        Raises:
+            ValueError: If the bit is not found
+
+        Returns:
+            int: The index of the last occurrence of the bit
+        """
         if stop is None:
             stop = len(self)
         if not isinstance(value, (bitarray, int)):
@@ -1239,6 +1376,20 @@ class BitVector(bitarray, MutableSequence[Literal[0, 1]]):
         new: BitsConstructible,
         count: Optional[int] = None,
     ) -> Self:
+        """
+        Generates a new BitVector with occurrences of the sequences of
+            old bits replaced by the new bits.
+        If count is provided, only the first `count` occurrences are replaced.
+
+        Args:
+            old (BitsConstructible): The bits to replace
+            new (BitsConstructible): The bits to replace with
+            count (Optional[int], optional): The maximum number of replacements.
+                Defaults to None (maximal replacement).
+
+        Returns:
+            Self: The new BitVector with the replacements made
+        """
         if not isinstance(old, type(self)):
             old = type(self)(old)
         if not isinstance(new, type(self)):
@@ -1284,6 +1435,18 @@ class BitVector(bitarray, MutableSequence[Literal[0, 1]]):
     #   ) -> list[BitVector]: ...  # todo
 
     def join(self: Self, iterable: Iterable[BitsConstructible]) -> Self:
+        """
+        Concatenates the BitVectors in the iterable
+            with self as the separator.
+
+        Args:
+            self (Self): The element-separating BitVector in the concatenation.
+            iterable (Iterable[BitsConstructible]): The BitVectors to concatenate.
+
+        Returns:
+            Self: A concatenation of the BitVectors in the iterable with
+                self between them.
+        """
         self_as_str_bitlist = self.to01()
         iterable = [
             item if isinstance(item, type(self)) else type(self)(item)
@@ -1293,6 +1456,19 @@ class BitVector(bitarray, MutableSequence[Literal[0, 1]]):
         return type(self)(joined_bits)
 
     def partition(self: Self, sep: BitVector) -> tuple[Self, Self, Self]:
+        """
+        Partitions the BitVector into three parts:
+            the part before the first occurrence of the separator,
+            the separator itself, and the part after the separator.
+        If the separator is not found, the first part is the entire BitVector,
+            and the other two parts are empty BitVectors.
+
+        Args:
+            sep (BitVector): The separator BitVector
+
+        Returns:
+            tuple[Self, Self, Self]: The three parts of the partition
+        """
         index = self.find(sep)
         if index == -1:
             return self, type(self)(), type(self)()
@@ -1306,6 +1482,19 @@ class BitVector(bitarray, MutableSequence[Literal[0, 1]]):
         return self_to_index, sep, self_after_offset
 
     def rpartition(self: Self, sep: BitVector) -> tuple[Self, Self, Self]:
+        """
+        Partitions the BitVector into three parts:
+            the part before the last occurrence of the separator,
+            the separator itself, and the part after the separator.
+        If the separator is not found, the last part is the entire BitVector,
+            and the other two parts are empty BitVectors.
+
+        Args:
+            sep (BitVector): The separator BitVector
+
+        Returns:
+            tuple[Self, Self, Self]: The three parts of the partition
+        """
         index = self.rfind(sep)
         if index == -1:
             return type(self)(), type(self)(), self
@@ -1321,6 +1510,19 @@ class BitVector(bitarray, MutableSequence[Literal[0, 1]]):
     def lstrip(
         self: Self, bits: Optional[Union[Literal[0], Literal[1]]] = None
     ) -> Self:
+        """
+        Returns a new BitVector with contiguous leading instances of the
+            provided bit from the BitVector removed.
+        Defaults to removing leading 0s.
+
+        Args:
+            self (Self): The bit to remove contiguous leading instances of.
+            bits (Optional[Union[Literal[0], Literal[1]]], optional):
+                The bit to remove. Defaults to None, removing leading 0s.
+
+        Returns:
+            Self: The BitVector with the leading bits removed.
+        """
         if not (bits is None or isinstance(bits, int)):
             if hasattr(bits, "__int__"):
                 bits = int(bits)  # type: ignore
@@ -1344,6 +1546,20 @@ class BitVector(bitarray, MutableSequence[Literal[0, 1]]):
     def rstrip(
         self: Self, bits: Optional[Union[Literal[0], Literal[1]]] = None
     ) -> Self:
+        """
+        Returns a new BitVector with contiguous trailing instances of the
+            provided bit from the BitVector removed.
+        Defaults to removing trailing 0s.
+
+        Args:
+            self (Self): The bit to remove contiguous trailing instances of.
+            bits (Optional[Union[Literal[0], Literal[1]]], optional): The
+                bit to remove. Defaults to None, removing trailing 0s.
+
+        Returns:
+            Self: The BitVector with the trailing bits removed.
+        """
+
         if not (bits is None or isinstance(bits, int)):
             if hasattr(bits, "__int__"):
                 bits = int(bits)  # type: ignore
@@ -1365,6 +1581,19 @@ class BitVector(bitarray, MutableSequence[Literal[0, 1]]):
         return retval
 
     def strip(self: Self, bits: Optional[Union[Literal[0], Literal[1]]] = None) -> Self:
+        """
+        Returns a new BitVector with contiguous leading and trailing instances of the
+            provided bit from the BitVector removed.
+        Defaults to removing leading and trailing 0s.
+
+        Args:
+            self (Self): The bit to remove contiguous leading and trailing instances of.
+            bits (Optional[Union[Literal[0], Literal[1]]], optional): The
+                bit to remove. Defaults to None, removing leading and trailing 0s.
+
+        Returns:
+            Self: A BitVector with the leading and trailing bits removed.
+        """
         return self.lstrip(bits).rstrip(bits)
 
     def lpad(self: Self, width: int, fillbit: Literal[0, 1] = 0) -> Self:
@@ -1381,6 +1610,16 @@ class BitVector(bitarray, MutableSequence[Literal[0, 1]]):
     def cast_if_not_bitarray(
         cls: type[Self], obj: BitsConstructible
     ) -> Union[Self, BitVector]:
+        """
+        Casts the object to a BitVector if it is not already a BitVector.
+
+        Args:
+            cls (type[Self]): The class of the object
+            obj (BitsConstructible): The object to cast
+
+        Returns:
+            Union[Self, BitVector]: The object as a BitVector
+        """
         return cls(obj) if not isinstance(obj, BitVector) else obj
 
     # Temporary methods. For transition from bits to bitarray only
@@ -1443,6 +1682,15 @@ class BitVector(bitarray, MutableSequence[Literal[0, 1]]):
 BitsConstructible = Union[
     BitVector, bytes, str, Iterable[Literal[0, 1]], BitsCastable, bitarray
 ]
+"""
+The types that can be used to construct a BitVector.
+These include the BitVector class itself, bytes, str, iterables of 0s and 1s,
+objects that can be cast to a BitVector, and bitarrays.
+
+Please note that you can also use an int to construct a BitVector of that many
+zeroes, but this is not included in the type hint because it is less implicitly
+a series of bits.
+"""
 
 if __name__ == "__main__":
     print("-------------------------------")
