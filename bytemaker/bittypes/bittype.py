@@ -37,7 +37,9 @@ class BitType(ABC, Generic[T]):
 
     _num_bits: Final[int]
     base_bit_type: Final[Type[BitType]]
+    """The base BitType this class derives from (e.g. UInt for UInt8)."""
     py_type: Final[Type[T]]  # type: ignore[reportGeneralTypeIssue]
+    """The Pythonic type that this BitType can be converted to/from."""
 
     _bits: BitVector
     _endianness: Literal["big", "little"]
@@ -90,7 +92,7 @@ class BitType(ABC, Generic[T]):
     @property
     def endianness(self) -> Literal["big", "little"]:
         """
-        A readonly classproperty holding the endianness of the BitType.
+        A readonly property holding the endianness of the BitType.
 
         Returns:
             Literal["big", "little"]: The endianness of the BitType.
@@ -136,10 +138,11 @@ class BitType(ABC, Generic[T]):
     @property
     def bits(self) -> BitVector:
         """
-        Getter/setter for the sequence of bits of the BitType.
+        Getter/setter for the sequence of bits
+        the BitType uses to represent its value.
 
         Returns:
-            BitVector: _description_
+            BitVector: The sequence of bits the BitType uses to represent its value.
         """
         return self._bits
 
@@ -292,6 +295,7 @@ class StructPackedBitType(BitType[T]):
     """
 
     packing_format_letter: Final[str]
+    """The packing format letter for struct to use for converting to/from bytes."""
 
     @property
     def skip_struct_packing(self) -> bool:
@@ -343,4 +347,14 @@ class StructPackedBitType(BitType[T]):
 
 
 def bytes_to_bittype(unitbytes: bytes, unittype: type[BitType]) -> BitType:
+    """
+    Converts a bytes object to an instance of the provided BitType object.
+
+    Args:
+        unitbytes (bytes): The bytes object to convert.
+        unittype (type[BitType]): The BitType object to convert to.
+
+    Returns:
+        BitType: The BitType object created from the bytes object.
+    """
     return unittype(bits=BitVector(unitbytes))
