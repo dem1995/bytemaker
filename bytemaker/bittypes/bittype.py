@@ -185,22 +185,64 @@ class BitType(ABC, Generic[T]):
         )
 
     def __eq__(self, other):
+        """
+        Compares the BitType to another object.
+
+        Two bittypes are equal if their values are equal. Note that this means that
+        they might have internal bit representations (-0 and +0 are still equal, though)
+
+        Args:
+            other (Any): The object to compare to.
+
+        Returns:
+            bool: True if the objects are equal, False otherwise
+        """
         if isinstance(other, self.__class__):
             return self.value == other.value
         return self.value == other
 
     def __ne__(self, other):
+        """
+        Compares the BitType to another object.
+
+        Two bittypes are equal if their values are equal. Note that this means that
+        they might have internal bit representations (-0 and +0 are still equal, though)
+
+        Args:
+            other (Any): The object to compare to.
+
+        Returns:
+            bool: True if the objects are not equal, False otherwise
+        """
+
         return not self.__eq__(other)
 
     def __bytes__(self):
+        """
+        Returns the bytes representation of the BitType.
+        This is the same as the bytes representation of the underlying BitVector
+        unless the endianness is little, in which case the bytes are reversed.
+
+        Note that bytearray will use the buffer protocol instead of this method.
+
+        Returns:
+            bytes: The bytes representation of the BitType.
+        """
         temp_bytes = bytes(self.bits)
         if self.endianness == "big":
             return temp_bytes
         else:
             return temp_bytes[::-1]
 
-    def __hash__(self):
-        return hash(frozenset([self.__class__, self.value]))
+    # def __hash__(self):
+    #     """
+    #     Returns the hash of the BitType.
+
+    #     Because the only thing that matters is that the value for __eq__,
+    #     the hash is based on just the BitType value.
+    #     """
+    #     # return hash(frozenset([self.__class__, self.value]))
+    #     return hash(frozenset([self.value]))
 
     # Temporary methods
     # TODO remove
