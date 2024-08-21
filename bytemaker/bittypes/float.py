@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import operator
 from typing import TYPE_CHECKING
 
 from bytemaker.bittypes.bittype import BitType, StructPackedBitType
 from bytemaker.bitvector import BitVector
-from bytemaker.typing_redirect import Final, Optional, Tuple, TypeVar
+from bytemaker.typing_redirect import Any, Final, Optional, Tuple, TypeVar
 from bytemaker.utils import classproperty
 
 if TYPE_CHECKING:
@@ -18,16 +19,43 @@ else:
 
 class Float(BitType[float]):
     """
-    A BitType that represents a floating-point number.
+    A BitType that represents an integer.
 
     Use the `specialize` method to create a subclass with the desired number of
         exponent and mantissa bits
         or use one of the pre-defined subclasses.
+
+    The floating-point format in use is as follows:
+    - The first bit is the sign bit
+    - The next `num_exponent_bits` bits are the exponent
+    - The next `num_mantissa_bits` bits are the mantissa
+
+    Class Attributes:
+    -----------------
+    num_bits : int
+        The number of bits in the Float.
+    base_bit_type : Type[Float]
+        The base `BitType` this class derives from. It is `Float`.
+    py_type : Type[float]
+        The Pythonic type that this `Int` can be converted to/from. It is `float`.
+    num_exponent_bits : int
+        The number of bits used to store the exponent.
+    num_mantissa_bits : int
+        The number of bits used to store the mantissa.
+
+    Instance Attributes
+    -------------------
+    bits : BitVector
+       The underlying sequence of bits of this `Float` object.
+    value : float
+       The `float` value of this `Float` object.
     """
 
     py_type = float
     num_exponent_bits: Final[int]
+    """The number of bits used to store the exponent."""
     num_mantissa_bits: Final[int]
+    """The number of bits used to store the mantissa."""
 
     @classproperty
     @classmethod
@@ -35,6 +63,17 @@ class Float(BitType[float]):
         return 1 + cls.num_exponent_bits + cls.num_mantissa_bits
 
     def __float__(self):
+        """
+        Magic method to convert the `Float` to a `float`.
+
+        Note that python floats are IEEE 754 double-precision floats.
+            With 52 bits of mantissa and 11 bits of exponent.
+            If you create a float with near to or larger than one,
+            of these quantities, there may be precision loss.
+
+        Returns:
+            float: The (double approximate) `float` value of this `Float` object.
+        """
         return self.value
 
     @property
@@ -82,6 +121,16 @@ class Float(BitType[float]):
     def to_binstring(
         self: Float | float, num_exponent_bits=8, num_mantissa_bits=23
     ) -> str:
+        """
+        Convert a `float` (or a `Float`) to a binary string.
+
+        Args:
+            num_exponent_bits (int): The number of bits to use for the exponent.
+            num_mantissa_bits (int): The number of bits to use for the mantissa.
+
+        Returns:
+            str: The unprefixed binary string representation of the `float`.
+        """
         if isinstance(self, Float):
             num = self.value
         else:
@@ -167,6 +216,28 @@ class Float(BitType[float]):
         packing_format_letter_: Optional[str] = None,
         name_: Optional[str] = None,
     ):
+        """
+        Produce a subclass of Float with the specified number of bits
+            in the exponent and mantissa.
+
+        If `packing_format_letter` is provided, the subclass will also be a
+            `StructPackedBitType` and use `struct`'s packing/unpacking functions
+            with the provided letter.
+
+        If `name_` is provided, the subclass will have that name internally after class
+            creation. Otherwise, the subclass will be named _Float.
+
+        Args:
+            num_exponent_bits_ (int): The number of bits to use for the exponent.
+            num_mantissa_bits_ (int): The number of bits to use for the mantissa.
+            packing_format_letter_ (Optional[str], optional): The struct packing format
+                letter to use, if any. Defaults to None, meaning no struct (un)packing.
+            name_ (Optional[str], optional): What to rename the subclass, if anything.
+                Defaults to None, meaning the subclass's name will be _Float.
+
+        Returns:
+            type[Float]: The subclass of `Float` with the specified number of bits.
+        """
         if packing_format_letter_ is not None:
 
             class _Float(cls, StructPackedBitType[float]):
@@ -184,6 +255,49 @@ class Float(BitType[float]):
             _Float.__name__ = name_
 
         return _Float
+
+    # Value operations
+    def __add__(self: FloatSelf, other: Any) -> FloatSelf:
+        return self._binary_value_op(other, operator.add)
+
+    def __radd__(self: FloatSelf, other: Any) -> FloatSelf:
+        return self._binary_value_op(other, lambda x, y: y + x)
+
+    def __sub__(self: FloatSelf, other: Any) -> FloatSelf:
+        return self._binary_value_op(other, operator.sub)
+
+    def __rsub__(self: FloatSelf, other: Any) -> FloatSelf:
+        return self._binary_value_op(other, lambda x, y: y - x)
+
+    def __mul__(self: FloatSelf, other: Any) -> FloatSelf:
+        return self._binary_value_op(other, operator.mul)
+
+    def __rmul__(self: FloatSelf, other: Any) -> FloatSelf:
+        return self._binary_value_op(other, lambda x, y: y * x)
+
+    def __truediv__(self: FloatSelf, other: Any) -> FloatSelf:
+        return self._binary_value_op(other, operator.truediv)
+
+    def __rtruediv__(self: FloatSelf, other: Any) -> FloatSelf:
+        return self._binary_value_op(other, lambda x, y: y / x)
+
+    def __floordiv__(self: FloatSelf, other: Any) -> FloatSelf:
+        return self._binary_value_op(other, operator.floordiv)
+
+    def __rfloordiv__(self: FloatSelf, other: Any) -> FloatSelf:
+        return self._binary_value_op(other, lambda x, y: y // x)
+
+    def __mod__(self: FloatSelf, other: Any) -> FloatSelf:
+        return self._binary_value_op(other, operator.mod)
+
+    def __rmod__(self: FloatSelf, other: Any) -> FloatSelf:
+        return self._binary_value_op(other, lambda x, y: y % x)
+
+    def __pow__(self: FloatSelf, other: Any) -> FloatSelf:
+        return self._binary_value_op(other, operator.pow)
+
+    def __rpow__(self: FloatSelf, other: Any) -> FloatSelf:
+        return self._binary_value_op(other, lambda x, y: y**x)
 
 
 Float.base_bit_type = Float

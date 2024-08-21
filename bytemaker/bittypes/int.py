@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import operator
 from math import ceil, log2
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from bytemaker.bittypes.bittype import BitType, StructPackedBitType
 from bytemaker.bitvector import BitsConstructible, BitVector
@@ -19,14 +20,16 @@ else:
 
 class Int(BitType[int]):
     """
-    A BitType that represents an integer.
+    A `BitType` that represents an integer.
+
+    Is further subclassed into `SInt` and `UInt` for signed and unsigned integers,
 
     Class Attributes:
     ---------------
     num_bits : int
        The number of bits in the BitType.
     base_bit_type : Type[BitType]
-       The base BitType this class derives from. It is Int.
+       The base `BitType` this class derives from.
     py_type : Type[T]
        The Pythonic type that this Int can be converted to/from. It is int.
     is_signed : bool
@@ -35,15 +38,16 @@ class Int(BitType[int]):
     Instance Attributes
     -------------------
     bits : BitVector
-       The underlying sequence of bits of this Int object.
+       The underlying sequence of bits of this `Int` object.
     value : int
-       The (Pythonic) value of this Int object.
+       The `int` value of this `Int` object.
     endianness : Literal["big", "little"]
-       The endianness of this Int object.
+       The endianness of this `Int` object.
     """
 
     py_type = int
     is_signed: Final[bool]
+    """Whether the integer type is signed."""
 
     def __int__(self):
         return self.value
@@ -60,9 +64,9 @@ class Int(BitType[int]):
 
         Parameters:
         - bitstring (str): The bitstring to convert.
-        - signed (bool?): Whether the bitstring represents a signed integer.
-            Default is cls.signed or True
-        - bin_format (str?): The format for signed integers.
+        - signed (Optional[bool], optional) Whether the bitstring represents
+            a signed integer (vs unsigned). Default is `cls.is_signed` or `True`.
+        - bin_format (Optional[str], optional): The format for signed integers.
             Can be "twos_complement", "signed_magnitude", or "ones_complement".
             Default is "twos_complement".
 
@@ -124,7 +128,7 @@ class Int(BitType[int]):
     @staticmethod
     def min_bit_length(
         value: int,
-        signed: bool = False,
+        signed: bool = True,
         bin_format: Optional[
             Literal["twos_complement", "signed_magnitude", "ones_complement"]
         ] = None,
@@ -136,8 +140,9 @@ class Int(BitType[int]):
 
         Parameters:
            value (int): The integer to represent.
-           signed (bool): Whether the representation format should be signed.
-           bin_format (Optional[str]): The format for signed integers.
+           signed (bool, optional): Whether the representation format should be signed.
+                Default is True.
+           bin_format (Optional[str], optional): The format for signed integers.
                 Can be "twos_complement", "signed_magnitude", or "ones_complement".
                 Default is "twos_complement".
         """
@@ -177,7 +182,7 @@ class Int(BitType[int]):
 
     def to_bitstring(
         self: Int | int,
-        signed: bool = False,
+        signed: bool = True,
         bit_length: Optional[int] = None,
         rep_format: Optional[
             Literal["twos_complement", "signed_magnitude", "ones_complement"]
@@ -188,9 +193,10 @@ class Int(BitType[int]):
 
         Parameters:
         - integer (int): The integer to convert.
-        - signed (bool): Whether the integer should be treated as signed.
-        - bit_length (int): The length of the bitstring.
-        - rep_format (Optional[str]): The format for signed integers.
+        - signed (bool, optional): Whether the integer should be treated as signed.
+            Default is True.
+        - bit_length (int, optional): The length of the bitstring.
+        - rep_format (Optional[str], optional): The format for signed integers.
             Can be "twos_complement", "signed_magnitude", or "ones_complement".
             Default is "twos_complement".
 
@@ -281,6 +287,98 @@ class Int(BitType[int]):
             else:
                 raise ValueError(f"Unsupported format: {rep_format}")
 
+    # Integer value magic methods
+    def __add__(self: IntSelf, other: Any) -> IntSelf:
+        return self._binary_value_op(other, operator.add)
+
+    def __radd__(self: IntSelf, other: Any) -> IntSelf:
+        return self._binary_value_op(other, lambda x, y: operator.add(y, x))
+
+    def __sub__(self: IntSelf, other: Any) -> IntSelf:
+        return self._binary_value_op(other, operator.sub)
+
+    def __rsub__(self: IntSelf, other: Any) -> IntSelf:
+        return self._binary_value_op(other, lambda x, y: operator.sub(y, x))
+
+    def __mul__(self: IntSelf, other: Any) -> IntSelf:
+        return self._binary_value_op(other, operator.mul)
+
+    def __rmul__(self: IntSelf, other: Any) -> IntSelf:
+        return self._binary_value_op(other, lambda x, y: operator.mul(y, x))
+
+    def __truediv__(self: IntSelf, other: Any) -> IntSelf:
+        return self._binary_value_op(other, operator.truediv)
+
+    def __rtruediv__(self: IntSelf, other: Any) -> IntSelf:
+        return self._binary_value_op(other, lambda x, y: operator.truediv(y, x))
+
+    def __floordiv__(self: IntSelf, other: Any) -> IntSelf:
+        return self._binary_value_op(other, operator.floordiv)
+
+    def __rfloordiv__(self: IntSelf, other: Any) -> IntSelf:
+        return self._binary_value_op(other, lambda x, y: operator.floordiv(y, x))
+
+    def __mod__(self: IntSelf, other: Any) -> IntSelf:
+        return self._binary_value_op(other, operator.mod)
+
+    def __rmod__(self: IntSelf, other: Any) -> IntSelf:
+        return self._binary_value_op(other, lambda x, y: operator.mod(y, x))
+
+    def __pow__(self: IntSelf, other: Any) -> IntSelf:
+        return self._binary_value_op(other, operator.pow)
+
+    def __rpow__(self: IntSelf, other: Any) -> IntSelf:
+        return self._binary_value_op(other, lambda x, y: operator.pow(y, x))
+
+    # Integer bits magic methods
+    def __lshift__(self: IntSelf, other: Any) -> IntSelf:
+        return self._binary_bits_op(other, operator.lshift)
+
+    def __rlshift__(self: IntSelf, other: Any) -> IntSelf:
+        return self._binary_bits_op(other, lambda x, y: operator.lshift(y, x))
+
+    def __rshift__(self: IntSelf, other: Any) -> IntSelf:
+        return self._binary_bits_op(other, operator.rshift)
+
+    def __and__(self: IntSelf, other: Any) -> IntSelf:
+        return self._binary_bits_op(other, operator.and_)
+
+    # def __add__(self: IntSelf, other: Any) -> IntSelf:
+    #     return self._binary_value_op(other, operator.add)
+
+    # def __mul__(self: IntSelf, other: Any) -> IntSelf:
+    #     return self._binary_value_op(other, operator.mul)
+
+    # def __sub__(self: IntSelf, other: Any) -> IntSelf:
+    #     return self._binary_value_op(other, operator.sub)
+
+    # def __truediv__(self: IntSelf, other: Any) -> IntSelf:
+    #     return self._binary_value_op(other, operator.truediv)
+
+    # def __floordiv__(self: IntSelf, other: Any) -> IntSelf:
+    #     return self._binary_value_op(other, operator.floordiv)
+
+    # def __mod__(self: IntSelf, other: Any) -> IntSelf:
+    #     return self._binary_value_op(other, operator.mod)
+
+    # def __pow__(self: IntSelf, other: Any) -> IntSelf:
+    #     return self._binary_value_op(other, operator.pow)
+
+    # def __lshift__(self: IntSelf, other: Any) -> IntSelf:
+    #     return self._binary_bits_op(other, operator.lshift)
+
+    # def __rshift__(self: IntSelf, other: Any) -> IntSelf:
+    #     return self._binary_bits_op(other, operator.rshift)
+
+    # def __and__(self: IntSelf, other: Any) -> IntSelf:
+    #     return self._binary_bits_op(other, operator.and_)
+
+    # def __or__(self: IntSelf, other: Any) -> IntSelf:
+    #     return self._binary_bits_op(other, operator.or_)
+
+    # def __xor__(self: IntSelf, other: Any) -> IntSelf:
+    #     return self._binary_bits_op(other, operator.xor)
+
 
 class SignedConfig:
     """
@@ -302,24 +400,28 @@ class SInt(Int):
     Use the `specialize` method to create a subclass with the desired number of bits
         or use one of the pre-defined subclasses.
 
-    To change the default signed integer format, use the Config class
-        (or set the int_format parameter in the constructor).
+    To change the signed integer format, use the `Config` class
+        (or set the `int_format` parameter in the constructor).
         The default signed integer format is two's complement.
 
     Class Attributes:
-        base_bit_type (Type[SInt]): The base class (this is SInt for SInt children).
-        num_bits (int): The number of bits in the integer.
-        is_signed (bool): Whether the integer is signed (this is True for SInt).
+        base_bit_type : Type[BitType]
+            The base class (this is `SInt` for `SInt` children).
+        num_bits : int
+            The number of bits in the integer.
+        is_signed : bool
+            Whether the integer is signed (this is True for SInts).
 
     Instance Attributes:
-        int_format (Optional[str]): The format for this signed integer.
+        int_format : Optional[str]
+            The format for this signed integer.
             Can be "twos_complement", "signed_magnitude", or "ones_complement".
-            If this is left as "None", the format will be taken from the Config class.
+            If this is left as `None`, the format will be taken from the `Config` class.
             Default is "twos_complement.
-
-    Properties:
-        value (int): The integer value of the bits.
-        bits (BitVector): The bits representing the integer value.
+        value : int
+            The `int` value of the `SInt`.
+        bits : BitVector
+            The bits representing the value.
     """
 
     is_signed = True
@@ -518,7 +620,7 @@ class UInt(Int):
         or use one of the pre-defined subclasses.
 
     Class Attributes:
-        base_bit_type (Type[SInt]): The base class (this is UInt).
+        base_bit_type (Type[BitType]): The base class (this is UInt).
         num_bits (int): The number of bits in the integer.
         is_signed (bool): Whether the integer is signed. (This is False)
 

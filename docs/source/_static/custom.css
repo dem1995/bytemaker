@@ -1,0 +1,35 @@
+.fixed-height-img {
+    height: 100px;
+    object-fit: contain;
+}
+
+dt {
+  font-weight: bold;
+}
+
+dt .classifier {
+  font-weight: normal; /* Removes bolding from the classifier */
+  font-style: italic;
+}
+
+dt .classifier::before {
+  content: ": ";
+}
+
+/* Main index page overview images */
+
+.sd-card .sd-card-img-top {
+  height: 95px;
+  width: auto;
+  margin-left: auto;
+  margin-right: auto;
+  margin-top: 10px;
+}
+
+html[data-mode=dark] .sd-card img[src*='.svg'] {
+  filter: invert(0.82) brightness(0.8) contrast(1.2);
+}
+
+html[data-mode=darkest] .sd-card img[src*='.svg'] {
+  filter: invert(1.0) brightness(0.8) contrast(1.2);
+}
