@@ -10,9 +10,9 @@ build:
   os: ubuntu-22.04
   tools:
     python: "3.8"
-  jobs:
-    pre_build:
-      - sphinx-apidoc -o docs/source ./bytemaker --implicit-namespaces -e --force
+  # jobs:
+    # pre_build:
+    #   - sphinx-apidoc -o docs/source ./bytemaker --implicit-namespaces -e --force
   apt_packages:
     - pandoc
 
