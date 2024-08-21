@@ -2,11 +2,20 @@ from __future__ import annotations
 
 import re
 from abc import abstractmethod
+from typing import TYPE_CHECKING
 
 from bytemaker.bittypes.bittype import BitType
 from bytemaker.bitvector import BitVector
-from bytemaker.typing_redirect import Optional, Tuple
+from bytemaker.typing_redirect import Optional, Tuple, TypeVar
 from bytemaker.utils import FrozenDict, HashableMapping, classproperty
+
+if TYPE_CHECKING:
+    StrSelf = TypeVar("StrSelf", bound="String")
+else:
+    try:
+        from typing_redirect import Self as StrSelf
+    except ImportError:
+        StrSelf = TypeVar("StrSelf", bound="String")
 
 
 class String(BitType[str]):
@@ -24,16 +33,43 @@ class String(BitType[str]):
     @classmethod
     @abstractmethod
     def encoding(cls, value: str) -> BitVector:
-        pass
+        """
+        The method used to encode a string into a BitVector.
+
+        Args:
+            value (str): The string to encode into a BitVector
+
+        Returns:
+            BitVector: The encoded BitVector representation of the input string
+        """
 
     @classmethod
     @abstractmethod
     def decoding(cls, bits: BitVector) -> str:
-        pass
+        """
+        The method used to decode a BitVector into a string.
+
+        Args:
+            bits (BitVector): The BitVector to decode into a string
+
+        Returns:
+            str: The decoded string representation of the input BitVector
+        """
 
     @classproperty
     @classmethod
     def codepoint_changes(cls) -> Optional[HashableMapping[str, str]]:
+        """
+        A classproperty that gives this class's optional codepoint changes.
+        Set this with a str->str mapping or a BitVector -> BitVector mapping
+        to have substitutions applied when converting between the
+        underlying BitVector bits and str value representations of this class.
+
+        TODO: Add support for sub-byte codepoint changes
+
+        Returns:
+            Optional[HashableMapping[str, str]]: The codepoint changes mapping
+        """
         if cls._codepoint_changes is None:
             return None
         if cls._codepoint_changes_cache and cls._codepoint_changes_cache[0] == hash(
@@ -60,7 +96,7 @@ class String(BitType[str]):
 
     @classproperty
     @classmethod
-    def reverse_codepoint_changes(cls) -> Optional[HashableMapping[str, str]]:
+    def _reverse_codepoint_changes(cls) -> Optional[HashableMapping[str, str]]:
         if cls._codepoint_changes is None:
             return None
         if cls._reverse_codepoint_changes_cache and (
@@ -79,7 +115,7 @@ class String(BitType[str]):
 
     @classproperty
     @classmethod
-    def codepoint_change_regex(cls) -> Optional[re.Pattern]:
+    def _codepoint_change_regex(cls) -> Optional[re.Pattern]:
         if cls.codepoint_changes:
             if cls._codepoint_change_regex_cache and cls._codepoint_change_regex_cache[
                 0
@@ -97,7 +133,7 @@ class String(BitType[str]):
 
     @classproperty
     @classmethod
-    def reverse_codepoint_change_regex(cls) -> Optional[re.Pattern]:
+    def _reverse_codepoint_change_regex(cls) -> Optional[re.Pattern]:
         if cls.codepoint_changes:
             if cls._reverse_codepoint_changes_regex_cache and (
                 cls._reverse_codepoint_changes_regex_cache[0]
@@ -136,6 +172,18 @@ class String(BitType[str]):
         codepoint_changes: HashableMapping[str, str],
         changes_regex: re.Pattern[str],
     ):
+        """
+        Performs codepoint substitutions on the input string.
+
+        Args:
+            input_string (str): The input string to perform substitutions on
+            codepoint_changes (HashableMapping[str, str]): The codepoint changes mapping
+            changes_regex (re.Pattern[str]): The compiled
+                regex pattern for the codepoint changes
+
+        Returns:
+            str: The input string with codepoint substitutions applied
+        """
         return changes_regex.sub(
             lambda match: codepoint_changes[match.group(0)], input_string
         )
@@ -145,7 +193,7 @@ class String(BitType[str]):
         temp_value = self.decoding(self.bits)
         codepoint_changes = self.codepoint_changes
         if codepoint_changes is not None:
-            codepoint_changes_regex: re.Pattern[str] = self.codepoint_change_regex
+            codepoint_changes_regex: re.Pattern[str] = self._codepoint_change_regex
             temp_value = self.perform_codepoint_substitution(
                 temp_value, codepoint_changes, codepoint_changes_regex
             )
@@ -154,11 +202,11 @@ class String(BitType[str]):
     @value.setter
     def value(self, value):
         temp_value = value
-        reverse_codepoint_changes = self.reverse_codepoint_changes
+        reverse_codepoint_changes = self._reverse_codepoint_changes
         if reverse_codepoint_changes is not None:
             reverse_codepoint_changes_regex: re.Pattern[
                 str
-            ] = self.reverse_codepoint_change_regex
+            ] = self._reverse_codepoint_change_regex
             temp_value = self.perform_codepoint_substitution(
                 temp_value, reverse_codepoint_changes, reverse_codepoint_changes_regex
             )
@@ -179,8 +227,13 @@ String.base_bit_type = String
 
 
 class StandardEncodingString(String):
+    """
+    A class for strings that use a standard Python encoding (str.encode/decode)
+    """
+
     py_type = str
     encoding_name: str
+    """The name of the Python-supported encoding to use for encoding/decoding."""
 
     @classmethod
     def encoding(cls, value: str) -> BitVector:
