@@ -21,6 +21,11 @@ Run `python -m pip install bytemaker`.
 The main goal of the project is to ease development of projects working with compiled code (e.g. ROM hacking). As such, streaming features are currently deemphasized, although I may implement them at some later date.
 
 ## Changelog
+### Version 0.9.1
+Added magic methods to BitTypes classes.
+Removed BitTypes' `__hash__` functionality
+Modified BitTypes' `__repr__` to include endianness
+
 ### Version 0.9.0
 `Bits` is now `BitVector`. Its API has been changed to be much more similar to `bytearray`. To that end, inline methods and alternative syntaxes have been winnowed where possible.
 
