@@ -13,6 +13,8 @@ build:
   jobs:
     pre_build:
       - sphinx-apidoc -o docs/source ./bytemaker --implicit-namespaces -e --force
+  apt_packages:
+    - pandoc
 
 
 python:
