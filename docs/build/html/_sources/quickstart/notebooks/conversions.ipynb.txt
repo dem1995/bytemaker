@@ -1,0 +1,138 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Conversions\n",
+    "=================\n",
+    "Bytemaker leverages its BitTypes classes to C Bitfield functionality in Python.\n",
+    "`bytemaker.conversions.aggregate_types.to_bits_aggregate` and\n",
+    "`bytemaker.aggregate_types.from_bits_aggregate` are the primary methods for\n",
+    "accomplishing this.\n",
+    "\n",
+    "`pytypes.py` contains methods and configuration options for automatically converting native Python types\n",
+    "    to bits. This is accomplished through `bytemaker.conversions.pytypes.ConversionConfig`, which controls the\n",
+    "    `bytemaker.conversions.pytypes.bits_to_pytype` and `bytemaker.conversions.pytypes.pytype_to_bits` methods\n",
+    "    for converting single instances of Python types to/from BitVectors.\n",
+    "\n",
+    "`ctypes_.py` contains methods for converting Python's `ctypes` data structures to/from BitVector objects, generalized by\n",
+    "    `bytemaker.conversions.ctypes_.bits_to_ctype` and `bytemaker.conversions.ctypes_.ctype_to_bits`\n",
+    "\n",
+    "\n",
+    "Finally, `aggregate_types.py` contains methods for combining the above conversions into single methods that handle instances of `ctypes`, Python native types, and `BitTypes`. These methods are `count_bits_in_unit_type`.\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "0x0000_0200_4048_f5c3_4142_0000_0200_4048_f5c3_4142_0000_017e_4048_f5c3_4142_5000_000f_f\n",
+      "0x0000_0200_4048_f5c3_4142_0000_0200_4048_f5c3_4142_0000_0200_4048_f5c3_4142_5000_000f_f\n",
+      "MixedAggregate(pytype_aggregate=PyTypeAggregate(a=512, b=3.140000104904175, c='A', d='B'), ctype_aggregate=CTypeAggregate(a=c_long(512), b=c_float(3.140000104904175), c=c_char(b'A'), d=c_char(b'B')), ytype_aggregate=YTypeAggregate(a=SInt32(bits=BitVector('00000000 00000000 00000010 00000000'), endianness=big), b=Float32(bits=BitVector('01000000 01001000 11110101 11000011'), endianness=big), c=Str8(bits=BitVector('01000001'), endianness=big), d=Str8(bits=BitVector('01000010'), endianness=big), e=Buffer4(bits=BitVector('0101'), endianness=big)), hp=255)\n"
+     ]
+    }
+   ],
+   "source": [
+    "import ctypes\n",
+    "from bytemaker.bittypes import SInt32, Float32, Buffer4,  Str8\n",
+    "from bytemaker.conversions.aggregate_types import to_bits_aggregate, from_bits_aggregate\n",
+    "from dataclasses import dataclass\n",
+    "\n",
+    "@dataclass\n",
+    "class PyTypeAggregate:\n",
+    "    a: int\n",
+    "    b: float\n",
+    "    c: str  # Char\n",
+    "    d: str  # Char\n",
+    "\n",
+    "\n",
+    "@dataclass\n",
+    "class CTypeAggregate:\n",
+    "    a: ctypes.c_int32\n",
+    "    b: ctypes.c_float\n",
+    "    c: ctypes.c_char\n",
+    "    d: ctypes.c_char\n",
+    "\n",
+    "\n",
+    "@dataclass\n",
+    "class YTypeAggregate:\n",
+    "    a: SInt32\n",
+    "    b: Float32\n",
+    "    c: Str8\n",
+    "    d: Str8\n",
+    "    e: Buffer4\n",
+    "\n",
+    "\n",
+    "@dataclass\n",
+    "class MixedAggregate:\n",
+    "    pytype_aggregate: PyTypeAggregate\n",
+    "    ctype_aggregate: CTypeAggregate\n",
+    "    ytype_aggregate: YTypeAggregate\n",
+    "    hp: int\n",
+    "\n",
+    "\n",
+    "mixedagg = MixedAggregate(\n",
+    "    PyTypeAggregate(\n",
+    "        512,\n",
+    "        3.14,\n",
+    "        'A',\n",
+    "        'B'\n",
+    "    ),\n",
+    "    CTypeAggregate(\n",
+    "        ctypes.c_int32(512),\n",
+    "        ctypes.c_float(3.14),\n",
+    "        ctypes.c_char('A'.encode('utf-8')),\n",
+    "        ctypes.c_char('B'.encode('utf-8'))\n",
+    "    ),\n",
+    "    YTypeAggregate(\n",
+    "        SInt32(382),\n",
+    "        Float32(3.14),\n",
+    "        Str8('A'),\n",
+    "        Str8('B'),\n",
+    "        Buffer4('0b0101')\n",
+    "    ),\n",
+    "    255\n",
+    ")\n",
+    "\n",
+    "mixed_agg_as_bits = to_bits_aggregate(mixedagg)\n",
+    "\n",
+    "print(mixed_agg_as_bits.hex(bytes_per_sep=2, sep='_'))\n",
+    "\n",
+    "mixedagg.ytype_aggregate.a = SInt32(512)\n",
+    "\n",
+    "mixed_agg_as_bits = to_bits_aggregate(mixedagg)\n",
+    "print(mixed_agg_as_bits.hex(bytes_per_sep=2, sep='_'))\n",
+    "\n",
+    "mixed_agg_from_bits = from_bits_aggregate(mixed_agg_as_bits, MixedAggregate)\n",
+    "print(mixed_agg_from_bits)\n"
+   ]
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "py312",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.12.4"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 2
+}
