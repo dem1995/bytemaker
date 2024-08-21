@@ -359,9 +359,10 @@ class BitType(ABC, Generic[T]):
             try:
                 product = operation(self.bits, other_bits)
 
-                if not isinstance(product, type(self).py_type):
+                try:
+                    return type(self)(product)
+                except Exception:
                     return NotImplemented
-                return type(self)(product)
             except TypeError:
                 return NotImplemented
 
