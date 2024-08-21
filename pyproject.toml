@@ -3,7 +3,7 @@ requires = ["setuptools", "wheel"]
 
 [project]
 name = "bytemaker"
-version = "0.9.0"
+version = "0.9.1"
 authors = [{name= "D. Estes McKnight", email= "contact-2@demcknight.com"}]
 description = "A sub-byte-struct-supporting Python serialization/deserialization library for Python 3.8."
 readme = "README.md"
