@@ -1,13 +1,34 @@
 from __future__ import annotations
 
+import operator
 import struct
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
 
 from bytemaker.bitvector import BitVector
-from bytemaker.typing_redirect import Final, Generic, Literal, Optional, Type, TypeVar
+from bytemaker.typing_redirect import (
+    Any,
+    Callable,
+    Final,
+    Generic,
+    Literal,
+    Optional,
+    Type,
+    TypeVar,
+)
 from bytemaker.utils import classproperty
 
 T = TypeVar("T")
+S = TypeVar("S")
+
+
+if TYPE_CHECKING:
+    BitSelf = TypeVar("BitSelf", bound="BitType")
+else:
+    try:
+        from typing_redirect import Self as BitSelf
+    except ImportError:
+        BitSelf = TypeVar("BitSelf", bound="BitType")
 
 
 class BitType(ABC, Generic[T]):
@@ -272,6 +293,117 @@ class BitType(ABC, Generic[T]):
             bits (BitVector): The sequence of bits to create the BitType from.
         """
         return cls(bits=bits)
+
+    def _binary_value_op(
+        self: BitSelf, other: Any, operation: Callable[[BitSelf, Any], BitSelf]
+    ):
+        """
+        Performs a binary operation on the BitType object's value and another object.
+        If the other object is a BitType object, it attempts to use the other object's
+            value as the multiplicand.
+        Otherwise, it first attempts to use other directly as the multiplicand,
+            then falls back to trying to use other.value.
+
+        Args:
+            other (Any): The other object to perform the operation with.
+            operation (Callable[[BitSelf, Any], BitSelf]): The operation to perform.
+
+        Returns:
+            BitSelf: The BitType result of the operation., or
+                NotImplemented if the operation could not be performed.
+        """
+
+        def attempt_operation(other_value: Any):
+            try:
+                product = operation(self.value, other_value)
+
+                if not isinstance(product, type(self).py_type):
+                    return NotImplemented
+                return type(self)(product)
+            except TypeError:
+                return NotImplemented
+
+        if isinstance(other, BitType):
+            return attempt_operation(other.value)
+
+        try:
+            return attempt_operation(other)
+        except TypeError:
+            try:
+                return attempt_operation(other.value)
+            except TypeError:
+                return NotImplemented
+
+    def _binary_bits_op(
+        self: BitSelf, other: Any, operation: Callable[[BitSelf, Any], BitSelf]
+    ):
+        """
+        Performs a binary operation on the BitType object's bits and another object.
+        If the other object is a BitType object, it attempts to use the other object's
+            bits as the multiplicand.
+        Otherwise, it first attempts to use other directly as the multiplicand,
+            then falls back to trying to use other.bits.
+
+        Args:
+            other (Any): The other object to perform the operation with.
+            operation (Callable[[BitSelf, Any], BitSelf]): The operation to perform.
+
+        Returns:
+            BitSelf: The BitType result of the operation.
+
+        Raises:
+            TypeError: If the operation could not be performed.
+        """
+
+        def attempt_operation(other_bits: Any):
+            try:
+                product = operation(self.bits, other_bits)
+
+                if not isinstance(product, type(self).py_type):
+                    return NotImplemented
+                return type(self)(product)
+            except TypeError:
+                return NotImplemented
+
+        if isinstance(other, BitType):
+            return attempt_operation(other.bits)
+
+        try:
+            return attempt_operation(other)
+        except TypeError:
+            try:
+                return attempt_operation(other.bits)
+            except TypeError:
+                return NotImplemented
+
+    # Magic bits operations
+
+    def __lshift__(self: BitSelf, other: Any) -> BitSelf:
+        return self._binary_bits_op(other, operator.lshift)
+
+    def __rshift__(self: BitSelf, other: Any) -> BitSelf:
+        return self._binary_bits_op(other, operator.rshift)
+
+    def __and__(self: BitSelf, other: Any) -> BitSelf:
+        return self._binary_bits_op(other, operator.and_)
+
+    def __rand__(self: BitSelf, other: Any) -> BitSelf:
+        return self._binary_bits_op(other, lambda x, y: y & x)
+
+    def __or__(self: BitSelf, other: Any) -> BitSelf:
+        return self._binary_bits_op(other, operator.or_)
+
+    def __ror__(self: BitSelf, other: Any) -> BitSelf:
+        return self._binary_bits_op(other, lambda x, y: y | x)
+
+    def __xor__(self: BitSelf, other: Any) -> BitSelf:
+        return self._binary_bits_op(other, operator.xor)
+
+    def __rxor__(self: BitSelf, other: Any) -> BitSelf:
+        return self._binary_bits_op(other, lambda x, y: y ^ x)
+
+    def __invert__(self: BitSelf) -> BitSelf:
+        return type(self)(bits=~self.bits)
 
 
 class StructPackedBitType(BitType[T]):
