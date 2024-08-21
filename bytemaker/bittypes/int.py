@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import operator
 from math import ceil, log2
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from bytemaker.bittypes.bittype import BitType, StructPackedBitType
 from bytemaker.bitvector import BitsConstructible, BitVector
@@ -285,6 +286,98 @@ class Int(BitType[int]):
                 return int_to_ones_complement(value, bit_length)
             else:
                 raise ValueError(f"Unsupported format: {rep_format}")
+
+    # Integer value magic methods
+    def __add__(self: IntSelf, other: Any) -> IntSelf:
+        return self._binary_value_op(other, operator.add)
+
+    def __radd__(self: IntSelf, other: Any) -> IntSelf:
+        return self._binary_value_op(other, lambda x, y: operator.add(y, x))
+
+    def __sub__(self: IntSelf, other: Any) -> IntSelf:
+        return self._binary_value_op(other, operator.sub)
+
+    def __rsub__(self: IntSelf, other: Any) -> IntSelf:
+        return self._binary_value_op(other, lambda x, y: operator.sub(y, x))
+
+    def __mul__(self: IntSelf, other: Any) -> IntSelf:
+        return self._binary_value_op(other, operator.mul)
+
+    def __rmul__(self: IntSelf, other: Any) -> IntSelf:
+        return self._binary_value_op(other, lambda x, y: operator.mul(y, x))
+
+    def __truediv__(self: IntSelf, other: Any) -> IntSelf:
+        return self._binary_value_op(other, operator.truediv)
+
+    def __rtruediv__(self: IntSelf, other: Any) -> IntSelf:
+        return self._binary_value_op(other, lambda x, y: operator.truediv(y, x))
+
+    def __floordiv__(self: IntSelf, other: Any) -> IntSelf:
+        return self._binary_value_op(other, operator.floordiv)
+
+    def __rfloordiv__(self: IntSelf, other: Any) -> IntSelf:
+        return self._binary_value_op(other, lambda x, y: operator.floordiv(y, x))
+
+    def __mod__(self: IntSelf, other: Any) -> IntSelf:
+        return self._binary_value_op(other, operator.mod)
+
+    def __rmod__(self: IntSelf, other: Any) -> IntSelf:
+        return self._binary_value_op(other, lambda x, y: operator.mod(y, x))
+
+    def __pow__(self: IntSelf, other: Any) -> IntSelf:
+        return self._binary_value_op(other, operator.pow)
+
+    def __rpow__(self: IntSelf, other: Any) -> IntSelf:
+        return self._binary_value_op(other, lambda x, y: operator.pow(y, x))
+
+    # Integer bits magic methods
+    def __lshift__(self: IntSelf, other: Any) -> IntSelf:
+        return self._binary_bits_op(other, operator.lshift)
+
+    def __rlshift__(self: IntSelf, other: Any) -> IntSelf:
+        return self._binary_bits_op(other, lambda x, y: operator.lshift(y, x))
+
+    def __rshift__(self: IntSelf, other: Any) -> IntSelf:
+        return self._binary_bits_op(other, operator.rshift)
+
+    def __and__(self: IntSelf, other: Any) -> IntSelf:
+        return self._binary_bits_op(other, operator.and_)
+
+    # def __add__(self: IntSelf, other: Any) -> IntSelf:
+    #     return self._binary_value_op(other, operator.add)
+
+    # def __mul__(self: IntSelf, other: Any) -> IntSelf:
+    #     return self._binary_value_op(other, operator.mul)
+
+    # def __sub__(self: IntSelf, other: Any) -> IntSelf:
+    #     return self._binary_value_op(other, operator.sub)
+
+    # def __truediv__(self: IntSelf, other: Any) -> IntSelf:
+    #     return self._binary_value_op(other, operator.truediv)
+
+    # def __floordiv__(self: IntSelf, other: Any) -> IntSelf:
+    #     return self._binary_value_op(other, operator.floordiv)
+
+    # def __mod__(self: IntSelf, other: Any) -> IntSelf:
+    #     return self._binary_value_op(other, operator.mod)
+
+    # def __pow__(self: IntSelf, other: Any) -> IntSelf:
+    #     return self._binary_value_op(other, operator.pow)
+
+    # def __lshift__(self: IntSelf, other: Any) -> IntSelf:
+    #     return self._binary_bits_op(other, operator.lshift)
+
+    # def __rshift__(self: IntSelf, other: Any) -> IntSelf:
+    #     return self._binary_bits_op(other, operator.rshift)
+
+    # def __and__(self: IntSelf, other: Any) -> IntSelf:
+    #     return self._binary_bits_op(other, operator.and_)
+
+    # def __or__(self: IntSelf, other: Any) -> IntSelf:
+    #     return self._binary_bits_op(other, operator.or_)
+
+    # def __xor__(self: IntSelf, other: Any) -> IntSelf:
+    #     return self._binary_bits_op(other, operator.xor)
 
 
 class SignedConfig:

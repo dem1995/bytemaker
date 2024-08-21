@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import operator
 from typing import TYPE_CHECKING
 
 from bytemaker.bittypes.bittype import BitType, StructPackedBitType
 from bytemaker.bitvector import BitVector
-from bytemaker.typing_redirect import Final, Optional, Tuple, TypeVar
+from bytemaker.typing_redirect import Any, Final, Optional, Tuple, TypeVar
 from bytemaker.utils import classproperty
 
 if TYPE_CHECKING:
@@ -254,6 +255,49 @@ class Float(BitType[float]):
             _Float.__name__ = name_
 
         return _Float
+
+    # Value operations
+    def __add__(self: FloatSelf, other: Any) -> FloatSelf:
+        return self._binary_value_op(other, operator.add)
+
+    def __radd__(self: FloatSelf, other: Any) -> FloatSelf:
+        return self._binary_value_op(other, lambda x, y: y + x)
+
+    def __sub__(self: FloatSelf, other: Any) -> FloatSelf:
+        return self._binary_value_op(other, operator.sub)
+
+    def __rsub__(self: FloatSelf, other: Any) -> FloatSelf:
+        return self._binary_value_op(other, lambda x, y: y - x)
+
+    def __mul__(self: FloatSelf, other: Any) -> FloatSelf:
+        return self._binary_value_op(other, operator.mul)
+
+    def __rmul__(self: FloatSelf, other: Any) -> FloatSelf:
+        return self._binary_value_op(other, lambda x, y: y * x)
+
+    def __truediv__(self: FloatSelf, other: Any) -> FloatSelf:
+        return self._binary_value_op(other, operator.truediv)
+
+    def __rtruediv__(self: FloatSelf, other: Any) -> FloatSelf:
+        return self._binary_value_op(other, lambda x, y: y / x)
+
+    def __floordiv__(self: FloatSelf, other: Any) -> FloatSelf:
+        return self._binary_value_op(other, operator.floordiv)
+
+    def __rfloordiv__(self: FloatSelf, other: Any) -> FloatSelf:
+        return self._binary_value_op(other, lambda x, y: y // x)
+
+    def __mod__(self: FloatSelf, other: Any) -> FloatSelf:
+        return self._binary_value_op(other, operator.mod)
+
+    def __rmod__(self: FloatSelf, other: Any) -> FloatSelf:
+        return self._binary_value_op(other, lambda x, y: y % x)
+
+    def __pow__(self: FloatSelf, other: Any) -> FloatSelf:
+        return self._binary_value_op(other, operator.pow)
+
+    def __rpow__(self: FloatSelf, other: Any) -> FloatSelf:
+        return self._binary_value_op(other, lambda x, y: y**x)
 
 
 Float.base_bit_type = Float
