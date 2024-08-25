@@ -1,9 +1,9 @@
 # noqa: E301, E704, E701
 """
-BitArray.pyi
+BitVector.pyi
 
-This file contains specification documentation for the BitArray class.
-That is, the BitArray class is guaranteed to meet the below behavior,
+This file contains specification documentation for the BitVector class.
+That is, the BitVector class is guaranteed to meet the below behavior,
    with the exception of "extra" behavior (e.g., implementations of this
    class may extend another class or have additional methods).
 """
@@ -41,21 +41,23 @@ except ImportError:
     )
 
 if TYPE_CHECKING:
-    Self = TypeVar("Self", bound="BitArray")
+    Self = TypeVar("Self", bound="BitVector")
 else:
     try:
         from typing_redirect import Self
     except ImportError:
-        Self = TypeVar("Self", bound="BitArray")
+        Self = TypeVar("Self", bound="BitVector")
 T = TypeVar("T")
 
 @runtime_checkable
 class BitsCastable(Protocol):
-    def __Bits__(self, endianness: Literal["little", "big"] = "big") -> BitArray: ...
+    def __Bits__(self, endianness: Literal["little", "big"] = "big") -> BitVector: ...
 
-BitsConstructible = Union["BitArray", bytes, str, Iterable[Literal[0, 1]], BitsCastable]
+BitsConstructible = Union[
+    "BitVector", bytes, str, Iterable[Literal[0, 1]], BitsCastable
+]
 
-class BitArray(MutableSequence[Literal[0, 1]]):
+class BitVector(MutableSequence[Literal[0, 1]]):
     def __new__(
         cls,
         source: Optional[Union[BitsConstructible, int]] = None,
@@ -260,17 +262,17 @@ class BitArray(MutableSequence[Literal[0, 1]]):
         count: Optional[int] = None,
     ) -> Self: ...
     # def translate(self,
-    #   table: List[BitArray] | bytes, delete: Optional[List[BitArray]] = None
+    #   table: List[BitVector] | bytes, delete: Optional[List[BitVector]] = None
     #   ) -> Self: ... # TODO
-    # def maketrans(self, x, y=None, z=None) -> list[BitArray]: ...  # TODO
+    # def maketrans(self, x, y=None, z=None) -> list[BitVector]: ...  # TODO
     def join(self: Self, iterable: Iterable[BitsConstructible]) -> Self: ...
     # def split(self, sep: Optional[bytes] = None, maxsplit: int = -1
     #   ) -> List[bytes]: ... # TODO
     # def rsplit(
     #     self, sep: Optional[bytes] = None, maxsplit: int = -1
     # ) -> List[bytes]: ... #TODO
-    def partition(self, sep: BitArray) -> Tuple[Self, Self, Self]: ...
-    def rpartition(self, sep: BitArray) -> Tuple[Self, Self, Self]: ...
+    def partition(self, sep: BitVector) -> Tuple[Self, Self, Self]: ...
+    def rpartition(self, sep: BitVector) -> Tuple[Self, Self, Self]: ...
     def lstrip(self: Self, bits: Optional[Literal[0, 1]] = None) -> Self: ...
     def rstrip(self: Self, bits: Optional[Literal[0, 1]] = None) -> Self: ...
     def strip(self: Self, bits: Optional[Literal[0, 1]] = None) -> Self: ...
@@ -296,9 +298,9 @@ class BitArray(MutableSequence[Literal[0, 1]]):
     # def isupper(self) -> bool: ...
 
     @classmethod
-    def cast_if_not_bitarray(  # this should be shallow
+    def cast_if_not_bitvector(  # this should be shallow
         cls: type[Self], obj: BitsConstructible
-    ) -> Union[Self, BitArray]: ...
+    ) -> Union[Self, BitVector]: ...
 
-# class FrozenBitArray(frozenbitarray): # TODO
+# class FrozenBitVector(frozenbitarray): # TODO
 #     def __hash__(self) -> int: ...
