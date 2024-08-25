@@ -40,6 +40,9 @@ except ImportError:
     )
     from utils import Trie, is_instance_of_union
 
+LaxLiteral01 = Union[Literal[0, 1], int]
+LaxLiteral01Str = Union[Sequence[Literal["0", "1"]], str]
+
 if TYPE_CHECKING:
     Self = TypeVar("Self", bound="BitVector")
 else:
@@ -635,7 +638,7 @@ class BitVector(bitarray, MutableSequence[Literal[0, 1]]):
            Non-commutative.
         """
         if not isinstance(other, bitarray):
-            other: Union[BitVector, Self] = self.cast_if_not_bitarray(other)
+            other: Union[BitVector, Self] = self.cast_if_not_bitvector(other)
         summation = super().__add__(other)
         assert isinstance(summation, type(self))
         return summation
@@ -795,7 +798,7 @@ class BitVector(bitarray, MutableSequence[Literal[0, 1]]):
         Iterate over the bits of the BitVector.
         """
         retiter = super().__iter__()
-        return retiter  # type: ignore
+        yield retiter  # type: ignore
 
     def __format__(self, format_spec: str) -> str:
         """
@@ -1607,7 +1610,7 @@ class BitVector(bitarray, MutableSequence[Literal[0, 1]]):
         return self + type(self)([fillbit] * (width - len(self)))
 
     @classmethod
-    def cast_if_not_bitarray(
+    def cast_if_not_bitvector(
         cls: type[Self], obj: BitsConstructible
     ) -> Union[Self, BitVector]:
         """
@@ -1624,7 +1627,7 @@ class BitVector(bitarray, MutableSequence[Literal[0, 1]]):
 
     # Temporary methods. For transition from bits to bitarray only
     @classmethod
-    def from_int(cls, integer: int, size=None):
+    def from_int(cls, integer: int, size: Optional[int] = None):
         """
         Converts an integer to a Bits object.
          The size parameter determines the number of bits to use.\
@@ -1648,7 +1651,7 @@ class BitVector(bitarray, MutableSequence[Literal[0, 1]]):
     @classmethod
     def from_bytes(cls, byte_arr: bytes, reverse_endianness=False):
         if reverse_endianness:
-            byte_arr = reversed(byte_arr)
+            byte_arr = bytes(reversed(byte_arr))
 
         return cls(byte_arr)
 
