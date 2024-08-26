@@ -9,7 +9,7 @@ That is, the BitVector class is guaranteed to meet the below behavior,
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, overload  # typechecking dislikes reexporting overload
+from typing import TYPE_CHECKING, overload
 
 try:
     from bytemaker.typing_redirect import (
