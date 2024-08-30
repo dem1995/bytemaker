@@ -1,26 +1,28 @@
 <!DOCTYPE html>
 
-<html lang="en">
+<html lang="en" data-content_root="./">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
     <title>Bytemaker documentation &#8212; bytemaker  documentation</title>
     <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
-    <link rel="stylesheet" type="text/css" href="_static/basic_mod.css?v=94a554c0" />
-    <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=eafc0fe6" />
+    <link rel="stylesheet" type="text/css" href="_static/basic_mod.css?v=59943e95" />
+    <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=fd3f3429" />
     <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="_static/custom.css?v=ca323d7a" />
     <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css" />
-    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=b3ba4146"></script>
-    <script src="_static/doctools.js?v=888ff710"></script>
-    <script src="_static/sphinx_highlight.js?v=4825356b"></script>
+    <script src="_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="_static/doctools.js?v=9a2dae69"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/clipboard.min.js?v=a7894cd8"></script>
     <script src="_static/copybutton.js?v=f281be69"></script>
     <script src="_static/custom.js?v=149c267d"></script>
     <script src="_static/design-tabs.js?v=f930bc37"></script>
     <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script>window.MathJax = {"tex": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="_static/js/theme.js"></script>
     <script src="_static/js/petite-vue.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
@@ -119,7 +121,7 @@
 
         <div class="searchbox_wrapper">
 
-<div id="searchbox" style="display: none" role="search">
+<search id="searchbox" style="display: none" role="search">
   <h3 id="searchlabel">Quick search</h3>
     <div class="searchformwrapper">
     <form class="search" action="search.html" method="get">
@@ -127,14 +129,14 @@
       <input type="submit" value="Go" />
     </form>
     </div>
-</div>
+</search>
 <script>document.getElementById('searchbox').style.display = "block"</script>
         </div>
     </nav>
 </div>
 
 
-      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
         <div class="sphinxsidebarwrapper"><ul>
 <li class="toctree-l1"><a class="reference internal" href="quickstart/index.html">Quickstart Guide</a></li>
 <li class="toctree-l1"><a class="reference internal" href="reference/index.html">API Reference</a></li>
@@ -150,31 +152,32 @@
           <div class="body" role="main">
 
   <section id="bytemaker-documentation">
-<span id="bytemaker-docs-mainpage"></span><h1>Bytemaker documentation<a class="headerlink" href="#bytemaker-documentation" title="Permalink to this heading">¶</a></h1>
+<span id="bytemaker-docs-mainpage"></span><h1>Bytemaker documentation<a class="headerlink" href="#bytemaker-documentation" title="Link to this heading">¶</a></h1>
 <div class="toctree-wrapper compound">
 </div>
-<p><strong>Version</strong>: 0.9.1</p>
+<p><strong>Version</strong>: 0.9.2</p>
 <p><strong>Useful links</strong>:
 <a class="reference external" href="https://github.com/dem1995/bytemaker">Source Repository</a> |
 <a class="reference external" href="https://github.com/dem1995/bytemaker/issues">Issue Tracker</a></p>
 <section id="what-is-it">
-<h2>What is it?<a class="headerlink" href="#what-is-it" title="Permalink to this heading">¶</a></h2>
+<h2>What is it?<a class="headerlink" href="#what-is-it" title="Link to this heading">¶</a></h2>
 <p><code class="docutils literal notranslate"><span class="pre">bytemaker</span></code> is a Python 3.8-compatible library for byte serialization/deserialization. It brings C bitfield functionality over to Python version 3.8+. To that end, it provides methods and types for converting <code class="docutils literal notranslate"><span class="pre">&#64;dataclass</span></code>-decorated classes.</p>
 </section>
 <section id="what-can-you-do-with-it">
-<h2>What can you do with it?<a class="headerlink" href="#what-can-you-do-with-it" title="Permalink to this heading">¶</a></h2>
+<h2>What can you do with it?<a class="headerlink" href="#what-can-you-do-with-it" title="Link to this heading">¶</a></h2>
 <p><code class="docutils literal notranslate"><span class="pre">bytemaker</span></code> gives you the following:</p>
 <ul class="simple">
 <li><p>A <code class="xref py py-class docutils literal notranslate"><span class="pre">BitVector</span></code> class analogous to Python’s <code class="docutils literal notranslate"><span class="pre">bytes</span></code> and <code class="docutils literal notranslate"><span class="pre">bytearray</span></code> classes, but for sub-byte bit quantities. <code class="xref py py-class docutils literal notranslate"><span class="pre">BitVector</span></code> readily supports conversion between bit representations and various C customizable data types.</p></li>
-<li><p>A set of <code class="xref py py-mod docutils literal notranslate"><span class="pre">bittypes</span></code> classes, including various-sized buffers, unsigned/signed ints, floats, and strings, that have underlying <code class="xref py py-class docutils literal notranslate"><span class="pre">BitVector</span></code> representations.</p></li>
-<li><p>Support for serializing/deserializing <code class="docutils literal notranslate"><span class="pre">&#64;dataclass</span></code>-decorated classes, where the annotations can be <code class="xref py py-mod docutils literal notranslate"><span class="pre">bittypes</span></code>s, standard-library <code class="xref py py-data docutils literal notranslate"><span class="pre">CType</span></code>s (<code class="docutils literal notranslate"><span class="pre">c_uint8</span></code>, <code class="docutils literal notranslate"><span class="pre">ctypes.STRUCTURE</span></code>, etc.), or Python-default <a class="reference internal" href="reference/conversions/conversions.html#bytemaker.conversions.pytypes.PyType" title="bytemaker.conversions.pytypes.PyType"><code class="xref py py-class docutils literal notranslate"><span class="pre">PyType</span></code></a>s (<code class="docutils literal notranslate"><span class="pre">int</span></code>, <code class="docutils literal notranslate"><span class="pre">bool</span></code>, <code class="docutils literal notranslate"><span class="pre">str</span></code> (char), <code class="docutils literal notranslate"><span class="pre">float</span></code>). Nested types? No problem!</p></li>
-<li><p>Automagic support for handling any of the aforementioned objects via <code class="xref py py-meth docutils literal notranslate"><span class="pre">bytemaker.conversions.aggregate_types.to_bits_aggregate()</span></code> and <code class="xref py py-meth docutils literal notranslate"><span class="pre">bytemaker.aggregate_types.from_bits_aggregate()</span></code>.</p></li>
+<li><p>A set of <a class="reference internal" href="reference/bittypes/bittypes.html#module-bytemaker.bittypes" title="bytemaker.bittypes"><code class="xref py py-mod docutils literal notranslate"><span class="pre">bittypes</span></code></a> classes, including various-sized buffers, unsigned/signed ints, floats, and strings, that have underlying <code class="xref py py-class docutils literal notranslate"><span class="pre">BitVector</span></code> representations.</p></li>
+<li><p>Support for serializing/deserializing <code class="docutils literal notranslate"><span class="pre">&#64;dataclass</span></code>-decorated classes, where the annotations can be <a class="reference internal" href="reference/bittypes/bittypes.html#module-bytemaker.bittypes" title="bytemaker.bittypes"><code class="xref py py-mod docutils literal notranslate"><span class="pre">bittypes</span></code></a>s, standard-library <code class="xref py py-data docutils literal notranslate"><span class="pre">CType</span></code>s (<code class="docutils literal notranslate"><span class="pre">c_uint8</span></code>, <code class="docutils literal notranslate"><span class="pre">ctypes.STRUCTURE</span></code>, etc.), or Python-default <a class="reference internal" href="reference/conversions/conversions.html#bytemaker.conversions.pytypes.PyType" title="bytemaker.conversions.pytypes.PyType"><code class="xref py py-class docutils literal notranslate"><span class="pre">PyType</span></code></a>s (<code class="docutils literal notranslate"><span class="pre">int</span></code>, <code class="docutils literal notranslate"><span class="pre">bool</span></code>, <code class="docutils literal notranslate"><span class="pre">str</span></code> (char), <code class="docutils literal notranslate"><span class="pre">float</span></code>). Nested types? No problem!</p></li>
+<li><p>Automagic support for handling any of the aforementioned objects via <a class="reference internal" href="reference/conversions/conversions.html#bytemaker.conversions.aggregate_types.to_bits_aggregate" title="bytemaker.conversions.aggregate_types.to_bits_aggregate"><code class="xref py py-meth docutils literal notranslate"><span class="pre">bytemaker.conversions.aggregate_types.to_bits_aggregate()</span></code></a> and <code class="xref py py-meth docutils literal notranslate"><span class="pre">bytemaker.aggregate_types.from_bits_aggregate()</span></code>.</p></li>
 </ul>
 <div style="height: 20px;"></div><div class="sd-container-fluid sd-sphinx-override sd-mb-4 docutils">
 <div class="sd-row sd-row-cols-1 sd-row-cols-xs-1 sd-row-cols-sm-2 sd-row-cols-md-2 sd-row-cols-lg-2 sd-g-2 sd-g-xs-2 sd-g-sm-2 sd-g-md-2 sd-g-lg-2 docutils">
 <div class="sd-col sd-d-flex-row docutils">
 <div class="sd-card sd-sphinx-override sd-w-100 sd-shadow-sm sd-text-center docutils">
-<img alt="" class="sd-card-img-top" src="_images/compass-solid.svg" /><div class="sd-card-header docutils">
+<img alt="" class="sd-card-img-top" src="_images/compass-solid.svg" />
+<div class="sd-card-header docutils">
 <p class="sd-card-text"><strong>Quickstart guide</strong></p>
 </div>
 <div class="sd-card-body docutils">
@@ -186,7 +189,8 @@
 <div class="sd-col sd-d-flex-row docutils">
 <div class="sd-card sd-sphinx-override sd-w-100 sd-shadow-sm sd-text-center docutils">
 <div class="sd-card-header docutils">
-<a class="reference internal image-reference" href="_images/book-open-solid.svg"><img alt="_images/book-open-solid.svg" class="align-center" height="100px" src="_images/book-open-solid.svg" /></a>
+<a class="reference internal image-reference" href="_images/book-open-solid.svg"><img alt="_images/book-open-solid.svg" class="align-center" src="_images/book-open-solid.svg" style="height: 100px;" />
+</a>
 <p class="sd-card-text"><strong>API reference</strong></p>
 </div>
 <div class="sd-card-body docutils">
@@ -244,7 +248,7 @@
 
     <div class="footer" role="contentinfo">
     &#169; Copyright 2023, DEMcKnight.
-      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 7.1.2.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 8.0.2.
     </div>
 
 <p id="theme_credit">Styled using the <a href="https://github.com/piccolo-orm/piccolo_theme">Piccolo Theme</a></p>
