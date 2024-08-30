@@ -21,6 +21,17 @@ Run `python -m pip install bytemaker`.
 The main goal of the project is to ease development of projects working with compiled code (e.g. ROM hacking). As such, streaming features are currently deemphasized, although I may implement them at some later date.
 
 ## Changelog
+### Version 0.9.2
+(29 August 2024)
+#### Bugfixes
+pyproject.toml did not include subpackages for PyPi, so importing from PyPi was failing to include bitvector or bittypes
+
+#### Other
+Relaxed typechecking of inputs in bitvector.py from Literal[0, 1] to int when in sequences.
+This change allows users to use e.g. [0] * 5 without typecheckers having problems.
+
+Removed some outdated references to BitArray in BitVector.pyi.
+
 ### Version 0.9.1
 Added magic methods to BitTypes classes.
 Removed BitTypes' `__hash__` functionality

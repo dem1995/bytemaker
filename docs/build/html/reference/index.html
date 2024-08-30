@@ -1,21 +1,21 @@
 <!DOCTYPE html>
 
-<html lang="en">
+<html lang="en" data-content_root="../">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
     <title>API Reference &#8212; bytemaker  documentation</title>
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=80d5e7a1" />
-    <link rel="stylesheet" type="text/css" href="../_static/basic_mod.css?v=94a554c0" />
-    <link rel="stylesheet" type="text/css" href="../_static/graphviz.css?v=eafc0fe6" />
+    <link rel="stylesheet" type="text/css" href="../_static/basic_mod.css?v=59943e95" />
+    <link rel="stylesheet" type="text/css" href="../_static/graphviz.css?v=fd3f3429" />
     <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=ca323d7a" />
     <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css" />
-    <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js?v=b3ba4146"></script>
-    <script src="../_static/doctools.js?v=888ff710"></script>
-    <script src="../_static/sphinx_highlight.js?v=4825356b"></script>
+    <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
     <script src="../_static/copybutton.js?v=f281be69"></script>
     <script src="../_static/custom.js?v=149c267d"></script>
@@ -120,7 +120,7 @@
 
         <div class="searchbox_wrapper">
 
-<div id="searchbox" style="display: none" role="search">
+<search id="searchbox" style="display: none" role="search">
   <h3 id="searchlabel">Quick search</h3>
     <div class="searchformwrapper">
     <form class="search" action="../search.html" method="get">
@@ -128,14 +128,14 @@
       <input type="submit" value="Go" />
     </form>
     </div>
-</div>
+</search>
 <script>document.getElementById('searchbox').style.display = "block"</script>
         </div>
     </nav>
 </div>
 
 
-      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
         <div class="sphinxsidebarwrapper"><ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../quickstart/index.html">Quickstart Guide</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">API Reference</a><ul>
@@ -157,14 +157,14 @@
           <div class="body" role="main">
 
   <section id="api-reference">
-<h1>API Reference<a class="headerlink" href="#api-reference" title="Permalink to this heading">¶</a></h1>
+<h1>API Reference<a class="headerlink" href="#api-reference" title="Link to this heading">¶</a></h1>
 <p>The <cite>bytemaker</cite> package provides a set of tools for working with various bit types, bit vectors, and data conversions.</p>
 <div class="toctree-wrapper compound">
 </div>
 <section id="subpackages">
-<h2>Subpackages<a class="headerlink" href="#subpackages" title="Permalink to this heading">¶</a></h2>
+<h2>Subpackages<a class="headerlink" href="#subpackages" title="Link to this heading">¶</a></h2>
 <section id="bitvector">
-<h3>bitvector<a class="headerlink" href="#bitvector" title="Permalink to this heading">¶</a></h3>
+<h3>bitvector<a class="headerlink" href="#bitvector" title="Link to this heading">¶</a></h3>
 <p>The <cite>bitvector</cite> subpackage provides classes and functions for handling bit vectors and their optimizations.</p>
 <div class="toctree-wrapper compound">
 <ul>
@@ -179,17 +179,267 @@
 </div>
 </section>
 <section id="bittypes">
-<h3>bittypes<a class="headerlink" href="#bittypes" title="Permalink to this heading">¶</a></h3>
+<h3>bittypes<a class="headerlink" href="#bittypes" title="Link to this heading">¶</a></h3>
 <p>The <cite>bittypes</cite> subpackage provides classes and functions for handling various bit types, buffers, floats, integers, and strings.</p>
 <div class="toctree-wrapper compound">
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="bittypes/bittypes.html">bittypes package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.BFloat16"><code class="docutils literal notranslate"><span class="pre">BFloat16</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.BFloat16.num_exponent_bits"><code class="docutils literal notranslate"><span class="pre">BFloat16.num_exponent_bits</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.BFloat16.num_mantissa_bits"><code class="docutils literal notranslate"><span class="pre">BFloat16.num_mantissa_bits</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.BitType"><code class="docutils literal notranslate"><span class="pre">BitType</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.BitType.base_bit_type"><code class="docutils literal notranslate"><span class="pre">BitType.base_bit_type</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.BitType.bits"><code class="docutils literal notranslate"><span class="pre">BitType.bits</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.BitType.endianness"><code class="docutils literal notranslate"><span class="pre">BitType.endianness</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.BitType.from_bits"><code class="docutils literal notranslate"><span class="pre">BitType.from_bits()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.BitType.num_bits"><code class="docutils literal notranslate"><span class="pre">BitType.num_bits</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.BitType.py_type"><code class="docutils literal notranslate"><span class="pre">BitType.py_type</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.BitType.to_bits"><code class="docutils literal notranslate"><span class="pre">BitType.to_bits()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.BitType.value"><code class="docutils literal notranslate"><span class="pre">BitType.value</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer"><code class="docutils literal notranslate"><span class="pre">Buffer</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer.base_bit_type"><code class="docutils literal notranslate"><span class="pre">Buffer.base_bit_type</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer.py_type"><code class="docutils literal notranslate"><span class="pre">Buffer.py_type</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer.specialize"><code class="docutils literal notranslate"><span class="pre">Buffer.specialize()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer.value"><code class="docutils literal notranslate"><span class="pre">Buffer.value</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer1"><code class="docutils literal notranslate"><span class="pre">Buffer1</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer10"><code class="docutils literal notranslate"><span class="pre">Buffer10</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer100"><code class="docutils literal notranslate"><span class="pre">Buffer100</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer1000"><code class="docutils literal notranslate"><span class="pre">Buffer1000</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer1024"><code class="docutils literal notranslate"><span class="pre">Buffer1024</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer11"><code class="docutils literal notranslate"><span class="pre">Buffer11</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer12"><code class="docutils literal notranslate"><span class="pre">Buffer12</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer128"><code class="docutils literal notranslate"><span class="pre">Buffer128</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer13"><code class="docutils literal notranslate"><span class="pre">Buffer13</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer14"><code class="docutils literal notranslate"><span class="pre">Buffer14</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer15"><code class="docutils literal notranslate"><span class="pre">Buffer15</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer16"><code class="docutils literal notranslate"><span class="pre">Buffer16</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer17"><code class="docutils literal notranslate"><span class="pre">Buffer17</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer18"><code class="docutils literal notranslate"><span class="pre">Buffer18</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer19"><code class="docutils literal notranslate"><span class="pre">Buffer19</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer2"><code class="docutils literal notranslate"><span class="pre">Buffer2</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer20"><code class="docutils literal notranslate"><span class="pre">Buffer20</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer200"><code class="docutils literal notranslate"><span class="pre">Buffer200</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer21"><code class="docutils literal notranslate"><span class="pre">Buffer21</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer22"><code class="docutils literal notranslate"><span class="pre">Buffer22</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer23"><code class="docutils literal notranslate"><span class="pre">Buffer23</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer24"><code class="docutils literal notranslate"><span class="pre">Buffer24</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer25"><code class="docutils literal notranslate"><span class="pre">Buffer25</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer250"><code class="docutils literal notranslate"><span class="pre">Buffer250</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer256"><code class="docutils literal notranslate"><span class="pre">Buffer256</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer26"><code class="docutils literal notranslate"><span class="pre">Buffer26</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer27"><code class="docutils literal notranslate"><span class="pre">Buffer27</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer28"><code class="docutils literal notranslate"><span class="pre">Buffer28</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer29"><code class="docutils literal notranslate"><span class="pre">Buffer29</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer3"><code class="docutils literal notranslate"><span class="pre">Buffer3</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer30"><code class="docutils literal notranslate"><span class="pre">Buffer30</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer31"><code class="docutils literal notranslate"><span class="pre">Buffer31</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer32"><code class="docutils literal notranslate"><span class="pre">Buffer32</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer4"><code class="docutils literal notranslate"><span class="pre">Buffer4</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer5"><code class="docutils literal notranslate"><span class="pre">Buffer5</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer50"><code class="docutils literal notranslate"><span class="pre">Buffer50</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer500"><code class="docutils literal notranslate"><span class="pre">Buffer500</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer512"><code class="docutils literal notranslate"><span class="pre">Buffer512</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer6"><code class="docutils literal notranslate"><span class="pre">Buffer6</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer64"><code class="docutils literal notranslate"><span class="pre">Buffer64</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer7"><code class="docutils literal notranslate"><span class="pre">Buffer7</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer8"><code class="docutils literal notranslate"><span class="pre">Buffer8</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Buffer9"><code class="docutils literal notranslate"><span class="pre">Buffer9</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.FP24"><code class="docutils literal notranslate"><span class="pre">FP24</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.FP24.num_exponent_bits"><code class="docutils literal notranslate"><span class="pre">FP24.num_exponent_bits</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.FP24.num_mantissa_bits"><code class="docutils literal notranslate"><span class="pre">FP24.num_mantissa_bits</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Float"><code class="docutils literal notranslate"><span class="pre">Float</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Float.base_bit_type"><code class="docutils literal notranslate"><span class="pre">Float.base_bit_type</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Float.num_bits"><code class="docutils literal notranslate"><span class="pre">Float.num_bits</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Float.num_exponent_bits"><code class="docutils literal notranslate"><span class="pre">Float.num_exponent_bits</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Float.num_mantissa_bits"><code class="docutils literal notranslate"><span class="pre">Float.num_mantissa_bits</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Float.py_type"><code class="docutils literal notranslate"><span class="pre">Float.py_type</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Float.specialize"><code class="docutils literal notranslate"><span class="pre">Float.specialize()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Float.to_binstring"><code class="docutils literal notranslate"><span class="pre">Float.to_binstring()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Float.value"><code class="docutils literal notranslate"><span class="pre">Float.value</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Float16"><code class="docutils literal notranslate"><span class="pre">Float16</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Float16.num_exponent_bits"><code class="docutils literal notranslate"><span class="pre">Float16.num_exponent_bits</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Float16.num_mantissa_bits"><code class="docutils literal notranslate"><span class="pre">Float16.num_mantissa_bits</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Float16.packing_format_letter"><code class="docutils literal notranslate"><span class="pre">Float16.packing_format_letter</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Float32"><code class="docutils literal notranslate"><span class="pre">Float32</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Float32.num_exponent_bits"><code class="docutils literal notranslate"><span class="pre">Float32.num_exponent_bits</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Float32.num_mantissa_bits"><code class="docutils literal notranslate"><span class="pre">Float32.num_mantissa_bits</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Float32.packing_format_letter"><code class="docutils literal notranslate"><span class="pre">Float32.packing_format_letter</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Float64"><code class="docutils literal notranslate"><span class="pre">Float64</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Float64.num_exponent_bits"><code class="docutils literal notranslate"><span class="pre">Float64.num_exponent_bits</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Float64.num_mantissa_bits"><code class="docutils literal notranslate"><span class="pre">Float64.num_mantissa_bits</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Float64.packing_format_letter"><code class="docutils literal notranslate"><span class="pre">Float64.packing_format_letter</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Int"><code class="docutils literal notranslate"><span class="pre">Int</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Int.is_signed"><code class="docutils literal notranslate"><span class="pre">Int.is_signed</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Int.min_bit_length"><code class="docutils literal notranslate"><span class="pre">Int.min_bit_length()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Int.py_type"><code class="docutils literal notranslate"><span class="pre">Int.py_type</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Int.to_bitstring"><code class="docutils literal notranslate"><span class="pre">Int.to_bitstring()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Int.to_pyint"><code class="docutils literal notranslate"><span class="pre">Int.to_pyint()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.SInt"><code class="docutils literal notranslate"><span class="pre">SInt</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.SInt.base_bit_type"><code class="docutils literal notranslate"><span class="pre">SInt.base_bit_type</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.SInt.is_signed"><code class="docutils literal notranslate"><span class="pre">SInt.is_signed</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.SInt.specialize"><code class="docutils literal notranslate"><span class="pre">SInt.specialize()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.SInt.value"><code class="docutils literal notranslate"><span class="pre">SInt.value</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.SInt1"><code class="docutils literal notranslate"><span class="pre">SInt1</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.SInt10"><code class="docutils literal notranslate"><span class="pre">SInt10</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.SInt11"><code class="docutils literal notranslate"><span class="pre">SInt11</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.SInt12"><code class="docutils literal notranslate"><span class="pre">SInt12</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.SInt128"><code class="docutils literal notranslate"><span class="pre">SInt128</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.SInt13"><code class="docutils literal notranslate"><span class="pre">SInt13</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.SInt14"><code class="docutils literal notranslate"><span class="pre">SInt14</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.SInt15"><code class="docutils literal notranslate"><span class="pre">SInt15</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.SInt16"><code class="docutils literal notranslate"><span class="pre">SInt16</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.SInt16.packing_format_letter"><code class="docutils literal notranslate"><span class="pre">SInt16.packing_format_letter</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.SInt16.skip_struct_packing"><code class="docutils literal notranslate"><span class="pre">SInt16.skip_struct_packing</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.SInt2"><code class="docutils literal notranslate"><span class="pre">SInt2</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.SInt256"><code class="docutils literal notranslate"><span class="pre">SInt256</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.SInt3"><code class="docutils literal notranslate"><span class="pre">SInt3</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.SInt32"><code class="docutils literal notranslate"><span class="pre">SInt32</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.SInt32.packing_format_letter"><code class="docutils literal notranslate"><span class="pre">SInt32.packing_format_letter</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.SInt32.skip_struct_packing"><code class="docutils literal notranslate"><span class="pre">SInt32.skip_struct_packing</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.SInt4"><code class="docutils literal notranslate"><span class="pre">SInt4</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.SInt5"><code class="docutils literal notranslate"><span class="pre">SInt5</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.SInt6"><code class="docutils literal notranslate"><span class="pre">SInt6</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.SInt64"><code class="docutils literal notranslate"><span class="pre">SInt64</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.SInt64.packing_format_letter"><code class="docutils literal notranslate"><span class="pre">SInt64.packing_format_letter</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.SInt64.skip_struct_packing"><code class="docutils literal notranslate"><span class="pre">SInt64.skip_struct_packing</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.SInt7"><code class="docutils literal notranslate"><span class="pre">SInt7</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.SInt8"><code class="docutils literal notranslate"><span class="pre">SInt8</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.SInt8.packing_format_letter"><code class="docutils literal notranslate"><span class="pre">SInt8.packing_format_letter</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.SInt8.skip_struct_packing"><code class="docutils literal notranslate"><span class="pre">SInt8.skip_struct_packing</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.SInt9"><code class="docutils literal notranslate"><span class="pre">SInt9</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.SignedConfig"><code class="docutils literal notranslate"><span class="pre">SignedConfig</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.SignedConfig.signed_int_format"><code class="docutils literal notranslate"><span class="pre">SignedConfig.signed_int_format</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.StandardEncodingString"><code class="docutils literal notranslate"><span class="pre">StandardEncodingString</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.StandardEncodingString.decoding"><code class="docutils literal notranslate"><span class="pre">StandardEncodingString.decoding()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.StandardEncodingString.encoding"><code class="docutils literal notranslate"><span class="pre">StandardEncodingString.encoding()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.StandardEncodingString.encoding_name"><code class="docutils literal notranslate"><span class="pre">StandardEncodingString.encoding_name</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.StandardEncodingString.py_type"><code class="docutils literal notranslate"><span class="pre">StandardEncodingString.py_type</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Str1"><code class="docutils literal notranslate"><span class="pre">Str1</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Str10"><code class="docutils literal notranslate"><span class="pre">Str10</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Str11"><code class="docutils literal notranslate"><span class="pre">Str11</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Str12"><code class="docutils literal notranslate"><span class="pre">Str12</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Str128"><code class="docutils literal notranslate"><span class="pre">Str128</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Str13"><code class="docutils literal notranslate"><span class="pre">Str13</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Str14"><code class="docutils literal notranslate"><span class="pre">Str14</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Str15"><code class="docutils literal notranslate"><span class="pre">Str15</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Str16"><code class="docutils literal notranslate"><span class="pre">Str16</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Str2"><code class="docutils literal notranslate"><span class="pre">Str2</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Str256"><code class="docutils literal notranslate"><span class="pre">Str256</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Str3"><code class="docutils literal notranslate"><span class="pre">Str3</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Str32"><code class="docutils literal notranslate"><span class="pre">Str32</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Str4"><code class="docutils literal notranslate"><span class="pre">Str4</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Str5"><code class="docutils literal notranslate"><span class="pre">Str5</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Str512"><code class="docutils literal notranslate"><span class="pre">Str512</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Str6"><code class="docutils literal notranslate"><span class="pre">Str6</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Str64"><code class="docutils literal notranslate"><span class="pre">Str64</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Str7"><code class="docutils literal notranslate"><span class="pre">Str7</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Str8"><code class="docutils literal notranslate"><span class="pre">Str8</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.Str9"><code class="docutils literal notranslate"><span class="pre">Str9</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.String"><code class="docutils literal notranslate"><span class="pre">String</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.String.base_bit_type"><code class="docutils literal notranslate"><span class="pre">String.base_bit_type</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.String.codepoint_changes"><code class="docutils literal notranslate"><span class="pre">String.codepoint_changes</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.String.decoding"><code class="docutils literal notranslate"><span class="pre">String.decoding()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.String.encoding"><code class="docutils literal notranslate"><span class="pre">String.encoding()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.String.perform_codepoint_substitution"><code class="docutils literal notranslate"><span class="pre">String.perform_codepoint_substitution()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.String.py_type"><code class="docutils literal notranslate"><span class="pre">String.py_type</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.String.specialize"><code class="docutils literal notranslate"><span class="pre">String.specialize()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.String.value"><code class="docutils literal notranslate"><span class="pre">String.value</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.StructPackedBitType"><code class="docutils literal notranslate"><span class="pre">StructPackedBitType</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.StructPackedBitType.packing_format"><code class="docutils literal notranslate"><span class="pre">StructPackedBitType.packing_format</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.StructPackedBitType.packing_format_letter"><code class="docutils literal notranslate"><span class="pre">StructPackedBitType.packing_format_letter</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.StructPackedBitType.skip_struct_packing"><code class="docutils literal notranslate"><span class="pre">StructPackedBitType.skip_struct_packing</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.StructPackedBitType.value"><code class="docutils literal notranslate"><span class="pre">StructPackedBitType.value</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.TF19"><code class="docutils literal notranslate"><span class="pre">TF19</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.TF19.num_exponent_bits"><code class="docutils literal notranslate"><span class="pre">TF19.num_exponent_bits</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.TF19.num_mantissa_bits"><code class="docutils literal notranslate"><span class="pre">TF19.num_mantissa_bits</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.UInt"><code class="docutils literal notranslate"><span class="pre">UInt</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.UInt.base_bit_type"><code class="docutils literal notranslate"><span class="pre">UInt.base_bit_type</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.UInt.is_signed"><code class="docutils literal notranslate"><span class="pre">UInt.is_signed</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.UInt.specialize"><code class="docutils literal notranslate"><span class="pre">UInt.specialize()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.UInt.value"><code class="docutils literal notranslate"><span class="pre">UInt.value</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.UInt1"><code class="docutils literal notranslate"><span class="pre">UInt1</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.UInt10"><code class="docutils literal notranslate"><span class="pre">UInt10</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.UInt11"><code class="docutils literal notranslate"><span class="pre">UInt11</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.UInt12"><code class="docutils literal notranslate"><span class="pre">UInt12</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.UInt128"><code class="docutils literal notranslate"><span class="pre">UInt128</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.UInt13"><code class="docutils literal notranslate"><span class="pre">UInt13</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.UInt14"><code class="docutils literal notranslate"><span class="pre">UInt14</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.UInt15"><code class="docutils literal notranslate"><span class="pre">UInt15</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.UInt16"><code class="docutils literal notranslate"><span class="pre">UInt16</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.UInt16.packing_format_letter"><code class="docutils literal notranslate"><span class="pre">UInt16.packing_format_letter</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.UInt2"><code class="docutils literal notranslate"><span class="pre">UInt2</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.UInt256"><code class="docutils literal notranslate"><span class="pre">UInt256</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.UInt3"><code class="docutils literal notranslate"><span class="pre">UInt3</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.UInt32"><code class="docutils literal notranslate"><span class="pre">UInt32</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.UInt32.packing_format_letter"><code class="docutils literal notranslate"><span class="pre">UInt32.packing_format_letter</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.UInt4"><code class="docutils literal notranslate"><span class="pre">UInt4</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.UInt5"><code class="docutils literal notranslate"><span class="pre">UInt5</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.UInt6"><code class="docutils literal notranslate"><span class="pre">UInt6</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.UInt64"><code class="docutils literal notranslate"><span class="pre">UInt64</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.UInt64.packing_format_letter"><code class="docutils literal notranslate"><span class="pre">UInt64.packing_format_letter</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.UInt7"><code class="docutils literal notranslate"><span class="pre">UInt7</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.UInt8"><code class="docutils literal notranslate"><span class="pre">UInt8</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.UInt8.packing_format_letter"><code class="docutils literal notranslate"><span class="pre">UInt8.packing_format_letter</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.UInt9"><code class="docutils literal notranslate"><span class="pre">UInt9</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.UTF8String"><code class="docutils literal notranslate"><span class="pre">UTF8String</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.UTF8String.encoding_name"><code class="docutils literal notranslate"><span class="pre">UTF8String.encoding_name</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#bytemaker.bittypes.bytes_to_bittype"><code class="docutils literal notranslate"><span class="pre">bytes_to_bittype()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="bittypes/bittypes.html#modules">Modules</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#module-bytemaker.bittypes.bittype">BitType</a></li>
 <li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#module-bytemaker.bittypes.buffer">Buffer</a></li>
 <li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#module-bytemaker.bittypes.float">Float</a></li>
 <li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#module-bytemaker.bittypes.int">Int (SInt and UInt)</a></li>
-<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#string">String</a></li>
+<li class="toctree-l3"><a class="reference internal" href="bittypes/bittypes.html#module-bytemaker.bittypes.string">String</a></li>
 </ul>
 </li>
 </ul>
@@ -199,9 +449,9 @@
 </section>
 </section>
 <section id="direct-modules">
-<h2>Direct Modules<a class="headerlink" href="#direct-modules" title="Permalink to this heading">¶</a></h2>
+<h2>Direct Modules<a class="headerlink" href="#direct-modules" title="Link to this heading">¶</a></h2>
 <section id="conversions">
-<h3>Conversions<a class="headerlink" href="#conversions" title="Permalink to this heading">¶</a></h3>
+<h3>Conversions<a class="headerlink" href="#conversions" title="Link to this heading">¶</a></h3>
 <p>The <cite>conversions</cite> modules provide utilities for converting between various aggregate types, C types, and Python types.</p>
 <div class="toctree-wrapper compound">
 <ul>
@@ -209,7 +459,7 @@
 <li class="toctree-l2"><a class="reference internal" href="conversions/conversions.html#modules">Modules</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="conversions/conversions.html#module-bytemaker.conversions.pytypes">PyTypes</a></li>
 <li class="toctree-l3"><a class="reference internal" href="conversions/conversions.html#module-bytemaker.conversions.ctypes_">CTypes</a></li>
-<li class="toctree-l3"><a class="reference internal" href="conversions/conversions.html#aggregate-types">Aggregate Types</a></li>
+<li class="toctree-l3"><a class="reference internal" href="conversions/conversions.html#module-bytemaker.conversions.aggregate_types">Aggregate Types</a></li>
 </ul>
 </li>
 </ul>
@@ -219,7 +469,7 @@
 </section>
 </section>
 <section id="other-modules">
-<h2>Other Modules<a class="headerlink" href="#other-modules" title="Permalink to this heading">¶</a></h2>
+<h2>Other Modules<a class="headerlink" href="#other-modules" title="Link to this heading">¶</a></h2>
 <div class="toctree-wrapper compound">
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="other_modules/other_modules.html">Other Modules</a><ul>
@@ -291,7 +541,7 @@
 
     <div class="footer" role="contentinfo">
     &#169; Copyright 2023, DEMcKnight.
-      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 7.1.2.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 8.0.2.
     </div>
 
 <p id="theme_credit">Styled using the <a href="https://github.com/piccolo-orm/piccolo_theme">Piccolo Theme</a></p>

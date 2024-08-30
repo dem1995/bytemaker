@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import copy
 import math
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast, overload
 
 from bitarray import bitarray
 from bitarray.util import ba2base, base2ba
@@ -39,6 +39,9 @@ except ImportError:
         runtime_checkable,
     )
     from utils import Trie, is_instance_of_union
+
+LaxLiteral01 = Union[Literal[0, 1], int]
+LaxLiteral01Str = Union[Sequence[Literal["0", "1"]], str]
 
 if TYPE_CHECKING:
     Self = TypeVar("Self", bound="BitVector")
@@ -79,13 +82,13 @@ class BitsCastable(Protocol):
 
 
 __annotations__ = {
-    "BitsConstructible": 'Union["BitVector", bytes, str, Iterable[Literal[0, 1]]'
+    "BitsConstructible": 'Union["BitVector", bytes, str, Iterable[LaxLiteral01]]'
     ", BitsCastable, bitarray.bitarray]"
 }  # Warning! Long-term support for bitarray is not guaranteed
 """The Union of types that can be used to construct a BitVector."""
 
 
-class BitVector(bitarray, MutableSequence[Literal[0, 1]]):
+class BitVector(bitarray, MutableSequence[LaxLiteral01]):
     """
     A mutable sequence of bits.
 
@@ -635,7 +638,7 @@ class BitVector(bitarray, MutableSequence[Literal[0, 1]]):
            Non-commutative.
         """
         if not isinstance(other, bitarray):
-            other: Union[BitVector, Self] = self.cast_if_not_bitarray(other)
+            other: Union[BitVector, Self] = self.cast_if_not_bitvector(other)
         summation = super().__add__(other)
         assert isinstance(summation, type(self))
         return summation
@@ -838,18 +841,30 @@ class BitVector(bitarray, MutableSequence[Literal[0, 1]]):
             first_index = self.find(item)
             return first_index != -1
 
-    def __getitem__(  # type: ignore[reportIncompatibleMethodOverride]
-        self: Self, key: Union[int, slice, Iterable[int]]
-    ) -> Union[Literal[0, 1], Self]:
-        """
-        Get the bit at a given index or a BitVector of the bits
-           across the indices given in slice or Iterable form.
-        """
-        # if isinstance(key, Iterable):
-        #     key = list(key)
-        # elif isinstance(key, slice):
-        #     key = list(range(*key.indices(len(self))))
-        return super().__getitem__(key)  # type: ignore[reportReturnType]
+    @overload
+    def __getitem__(self, key: int) -> Literal[0, 1]:
+        ...
+
+    @overload
+    def __getitem__(self: Self, key: slice) -> Self:
+        ...
+
+    @overload
+    def __getitem__(self: Self, key: Iterable[int]) -> Self:
+        ...
+
+    def __getitem__(self, key):  # type: ignore[override]
+        if isinstance(key, int):
+            retval = super().__getitem__(key)  # type: ignore[ReportAbstractUsage]
+            return cast(Literal[0, 1], retval)
+        elif isinstance(key, slice):
+            retval = super().__getitem__(key)  # type: ignore[ReportAbstractUsage]
+            return type(self)(retval)
+        elif isinstance(key, Iterable):
+            retval = type(self)([self[i] for i in key])
+            return retval
+        else:
+            raise TypeError(f"Invalid key type: {type(key)}")
 
     def __setitem__(  # type: ignore[override]
         self,
@@ -936,15 +951,14 @@ class BitVector(bitarray, MutableSequence[Literal[0, 1]]):
 
         Returns a BitVector version of the object.
         """
-        self = super().__new__(type(self), self)
-        return self
+        return copy.copy(self)
 
     def __copy__(self: Self) -> Self:
         """
         Returns a shallow copy of the object
             with the same bits.
         """
-        self = super().__new__(type(self), self)
+        self = super().__new__(type(self), self)  # type: ignore[reportCallIssue]
         return self
 
     # def __reverse__(self) -> Self:
@@ -1607,7 +1621,7 @@ class BitVector(bitarray, MutableSequence[Literal[0, 1]]):
         return self + type(self)([fillbit] * (width - len(self)))
 
     @classmethod
-    def cast_if_not_bitarray(
+    def cast_if_not_bitvector(
         cls: type[Self], obj: BitsConstructible
     ) -> Union[Self, BitVector]:
         """
@@ -1624,7 +1638,7 @@ class BitVector(bitarray, MutableSequence[Literal[0, 1]]):
 
     # Temporary methods. For transition from bits to bitarray only
     @classmethod
-    def from_int(cls, integer: int, size=None):
+    def from_int(cls, integer: int, size: Optional[int] = None):
         """
         Converts an integer to a Bits object.
          The size parameter determines the number of bits to use.\
@@ -1648,7 +1662,7 @@ class BitVector(bitarray, MutableSequence[Literal[0, 1]]):
     @classmethod
     def from_bytes(cls, byte_arr: bytes, reverse_endianness=False):
         if reverse_endianness:
-            byte_arr = reversed(byte_arr)
+            byte_arr = bytes(reversed(byte_arr))
 
         return cls(byte_arr)
 
@@ -1670,6 +1684,7 @@ class BitVector(bitarray, MutableSequence[Literal[0, 1]]):
         for i in range(0, len(self), 8):
             byte = 0
             byte_end_index = min(i + 8, len(self))
+
             for bit in self[i:byte_end_index]:
                 byte = (byte << 1) | bit
             byte_arr.append(byte)
@@ -1680,7 +1695,7 @@ class BitVector(bitarray, MutableSequence[Literal[0, 1]]):
 
 
 BitsConstructible = Union[
-    BitVector, bytes, str, Iterable[Literal[0, 1]], BitsCastable, bitarray
+    BitVector, bytes, str, Iterable[LaxLiteral01], BitsCastable, bitarray
 ]
 """
 The types that can be used to construct a BitVector.
