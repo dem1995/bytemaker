@@ -22,7 +22,7 @@ sys.path.insert(0, os.path.abspath("../bytemaker/conversions"))
 project = "bytemaker"
 copyright = "2023, DEMcKnight"
 author = "DEMcKnight"
-version = "0.9.1"
+version = "0.9.2"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
