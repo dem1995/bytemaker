@@ -4,6 +4,7 @@
 [![PEP8](https://img.shields.io/badge/code%20style-pep8-orange.svg)](https://www.python.org/dev/peps/pep-0008/)
 [![Licence - MIT](https://img.shields.io/badge/licence-MIT-750014)](https://github.com/dem1995/bytemaker/blob/main/LICENCE.md)
 [![docs](https://readthedocs.org/projects/bytemaker/badge/?version=latest)](https://readthedocs.org/projects/bytemaker/)
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/dem1995/bytemaker/main?labpath=binder%2Fbinder.ipynb)
 
 ## What is it?
 bytemaker is a Python 3.8-compatible library for bit-manipulation and byte serialization/deserialization. It brings C bitfield functionality over to Python version 3.8+. To that end, it provides methods and types for converting @dataclass-decorated classes.
