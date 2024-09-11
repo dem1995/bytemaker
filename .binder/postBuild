@@ -1,4 +1,4 @@
 #!/bin/bash
 
 # Move or copy necessary files from .binder to another directory
-cp -r .binder ~/.binder
+cp -r .binder ~/binder
