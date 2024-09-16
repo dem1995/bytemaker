@@ -1,7 +1,7 @@
-# Runs PyTest
+# Runs PyTest and uploads to CodeCov
 # For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
 
-name: PyTest testing checks
+name: Testing
 
 on:
   push:
