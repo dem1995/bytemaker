@@ -103,7 +103,10 @@ def to_bytes_individual(unit: UnitType, reverse_endianness: bool = False) -> byt
     if is_instance_of_union(unit, CType):
         return ctype_to_bytes(unit, reverse_endianness=reverse_endianness)
     elif isinstance(unit, BitType):
-        return unit.to_bytes(reverse_endianness=reverse_endianness)
+        unit_bytes = bytes(unit)
+        if reverse_endianness:
+            unit_bytes = unit_bytes[::-1]
+        return unit_bytes
     elif is_instance_of_union(unit, PyType):
         return pytype_to_bytes(unit, reverse_endianness=reverse_endianness)
     else:

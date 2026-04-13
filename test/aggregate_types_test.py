@@ -22,6 +22,7 @@ from bytemaker.conversions.aggregate_types import (
     from_bits_individual,
     to_bits_aggregate,
     to_bits_individual,
+    to_bytes_individual,
 )
 
 test_unit_data = [
@@ -86,6 +87,28 @@ test_unit_data = [
     (Float16(-1.0), "0b10111100_00000000"),
     (Float16(3.140625), "0b01000010_01001000"),
 ]
+
+
+test_bittype_to_bytes_data = [
+    (UInt8(1), b"\x01", b"\x01"),
+    (UInt16(1), b"\x00\x01", b"\x01\x00"),
+    (UInt32(1), b"\x00\x00\x00\x01", b"\x01\x00\x00\x00"),
+    (SInt16(-1), b"\xff\xff", b"\xff\xff"),
+    (SInt32(256), b"\x00\x00\x01\x00", b"\x00\x01\x00\x00"),
+]
+
+
+@pytest.mark.parametrize(
+    "bittype_val, expected_bytes, expected_bytes_reversed", test_bittype_to_bytes_data
+)
+def test_to_bytes_individual_bittype(
+    bittype_val, expected_bytes, expected_bytes_reversed
+):
+    assert to_bytes_individual(bittype_val) == expected_bytes
+    assert (
+        to_bytes_individual(bittype_val, reverse_endianness=True)
+        == expected_bytes_reversed
+    )
 
 
 @pytest.mark.parametrize("unitdata, expected_bitstring", test_unit_data)
