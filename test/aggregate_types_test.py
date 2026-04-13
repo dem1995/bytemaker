@@ -20,6 +20,7 @@ from bytemaker.bitvector import BitVector
 from bytemaker.conversions.aggregate_types import (
     from_bits_aggregate,
     from_bits_individual,
+    from_bytes_aggregate,
     from_bytes_individual,
     to_bits_aggregate,
     to_bits_individual,
@@ -130,6 +131,20 @@ def test_from_bytes_individual_roundtrip(unittype, original):
 
     reversed_bytes = to_bytes_individual(original, reverse_endianness=True)
     assert from_bytes_individual(reversed_bytes, unittype, reverse_endianness=True) == original
+
+
+@dataclass
+class SingleFieldDataclass:
+    a: UInt8
+
+
+def test_from_bytes_aggregate_field_type_assignment():
+    """Regression test: from_bytes_aggregate must assign field_type = field.type
+    before checking isinstance(field.type, str). Previously field_type was
+    undefined on the first iteration when the type was not a string annotation,
+    causing a NameError."""
+    result = from_bytes_aggregate(b"\x2a", SingleFieldDataclass)
+    assert result.a.value == 42
 
 
 @pytest.mark.parametrize("unitdata, expected_bitstring", test_unit_data)

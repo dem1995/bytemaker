@@ -415,6 +415,7 @@ def from_bytes_aggregate(
 
             read_fields = list()
             for field in dataclasses.fields(aggregate_type):
+                field_type = field.type
                 if isinstance(field.type, str):
                     field_type = eval(field.type)
                 field_size_in_bits = count_bits_in_unit_type(field_type)
