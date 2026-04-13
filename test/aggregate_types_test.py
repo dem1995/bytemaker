@@ -27,6 +27,7 @@ from bytemaker.conversions.aggregate_types import (
     from_bytes_individual,
     to_bits_aggregate,
     to_bits_individual,
+    to_bytes_aggregate,
     to_bytes_individual,
 )
 
@@ -182,6 +183,19 @@ def test_from_bytes_aggregate_byte_slicing():
     result = from_bytes_aggregate(raw_bytes, TwoFieldDataclass)
     assert result.a.value == 1
     assert result.b.value == 2
+
+
+def test_from_bytes_aggregate_roundtrip_with_reverse_endianness():
+    """Regression test: from_bytes_aggregate must not reverse the entire byte
+    stream before splitting into fields. Previously it reversed the whole
+    bytes_obj at the top level and then passed reverse_endianness=True to each
+    field, causing double reversal. Endianness reversal should only happen at
+    the leaf level (per-field)."""
+    original = TwoFieldDataclass(UInt16(0x0102), UInt16(0x0304))
+    serialized = to_bytes_aggregate(original, reverse_endianness=True)
+    result = from_bytes_aggregate(serialized, TwoFieldDataclass, reverse_endianness=True)
+    assert result.a.value == 0x0102
+    assert result.b.value == 0x0304
 
 
 @pytest.mark.parametrize("unitdata, expected_bitstring", test_unit_data)

@@ -395,9 +395,6 @@ def from_bytes_aggregate(
         Union[UnitType, AggregateTypeByteConvertible]: The object(s) represented by
             the bytes.
     """
-    if reverse_endianness:
-        bytes_obj = bytes_obj[::-1]
-
     if is_subclass_of_union(aggregate_type, UnitType):
         return from_bytes_individual(
             bytes_obj, aggregate_type, reverse_endianness=reverse_endianness
