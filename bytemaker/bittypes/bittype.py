@@ -478,6 +478,12 @@ class StructPackedBitType(BitType[T]):
         else:
             super().value = value
 
+    def __bytes__(self):
+        if not self.skip_struct_packing:
+            return bytes(self.bits)
+        else:
+            return super().__bytes__()
+
 
 def bytes_to_bittype(
     unitbytes: bytes, unittype: type[BitType], reverse_endianness: bool = False
