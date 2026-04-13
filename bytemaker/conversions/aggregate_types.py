@@ -337,19 +337,7 @@ def to_bytes_aggregate(
             if isinstance(field.type, str):
                 field_type = eval(field_type)
             field_value = getattr(units, field.name)
-            # print(field_type)
-            field_value = field_type(field_value)
-            # print("-----")
-            try:
-                field_value = field_type(field_value)
-            except TypeError:
-                # print("Couldn't get field value")
-                pass
-            # print(field)
-            # print(field_value)
-            # print(field_type)
-            # print(type(field_value))
-            # print("-----")
+            field_value = trycast(field_value, field_type)
             field_value_bytes = to_bytes_aggregate(
                 field_value, reverse_endianness=reverse_endianness
             )
