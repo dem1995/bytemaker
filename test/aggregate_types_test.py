@@ -7,7 +7,9 @@ from bytemaker.bittypes import (
     Buffer4,
     Float16,
     Float32,
+    SInt5,
     SInt8,
+    SInt10,
     SInt16,
     SInt32,
     SInt64,
@@ -18,6 +20,7 @@ from bytemaker.bittypes import (
 )
 from bytemaker.bitvector import BitVector
 from bytemaker.conversions.aggregate_types import (
+    count_bytes_in_unit_type,
     from_bits_aggregate,
     from_bits_individual,
     from_bytes_aggregate,
@@ -145,6 +148,40 @@ def test_from_bytes_aggregate_field_type_assignment():
     causing a NameError."""
     result = from_bytes_aggregate(b"\x2a", SingleFieldDataclass)
     assert result.a.value == 42
+
+
+@dataclass
+class TwoFieldDataclass:
+    a: UInt16
+    b: UInt16
+
+
+test_count_bytes_data = [
+    (UInt8, 1),     # 8 bits -> 1 byte
+    (UInt16, 2),    # 16 bits -> 2 bytes
+    (UInt32, 4),    # 32 bits -> 4 bytes
+    (SInt5, 1),     # 5 bits -> 1 byte (ceiling)
+    (SInt10, 2),    # 10 bits -> 2 bytes (ceiling)
+]
+
+
+@pytest.mark.parametrize("unittype, expected_bytes", test_count_bytes_data)
+def test_count_bytes_in_unit_type(unittype, expected_bytes):
+    """Regression test: count_bytes_in_unit_type must use ceiling division
+    ((bits + 7) // 8). Previously it used (bits + 1) // 8, which returned
+    1 byte for a 10-bit type instead of 2."""
+    assert count_bytes_in_unit_type(unittype) == expected_bytes
+
+
+def test_from_bytes_aggregate_byte_slicing():
+    """Regression test: from_bytes_aggregate must slice bytes_obj by byte count,
+    not bit count. Previously count_bits_in_unit_type (returning bits) was used
+    directly to index a bytes object, so a 16-bit field would consume 16 bytes
+    instead of 2."""
+    raw_bytes = b"\x00\x01\x00\x02"  # UInt16(1) followed by UInt16(2)
+    result = from_bytes_aggregate(raw_bytes, TwoFieldDataclass)
+    assert result.a.value == 1
+    assert result.b.value == 2
 
 
 @pytest.mark.parametrize("unitdata, expected_bitstring", test_unit_data)

@@ -75,7 +75,7 @@ def count_bytes_in_unit_type(unit_type: UnitType) -> int:
     Function to count the number of bytes in a UnitType-
         a Python numeric/binary/string type, ctype, or BitType (bytemaker type).
     """
-    return (count_bits_in_unit_type(unit_type) + 1) // 8
+    return (count_bits_in_unit_type(unit_type) + 7) // 8
 
 
 def to_bits_individual(unit: UnitType) -> BitVector:
@@ -418,21 +418,22 @@ def from_bytes_aggregate(
                 field_type = field.type
                 if isinstance(field.type, str):
                     field_type = eval(field.type)
-                field_size_in_bits = count_bits_in_unit_type(field_type)
-                field_bytes = bytes_obj[:field_size_in_bits]
+                field_size_in_bytes = (count_bits_in_unit_type(field_type) + 7) // 8
+                field_bytes = bytes_obj[:field_size_in_bytes]
                 field_value = from_bytes_aggregate(
                     field_bytes, field_type, reverse_endianness=reverse_endianness
                 )
                 read_fields.append(field_value)
-                bytes_obj = bytes_obj[field_size_in_bits:]
+                bytes_obj = bytes_obj[field_size_in_bytes:]
             retval = aggregate_type(*read_fields)
 
         else:
             arr_entry_list = list()
-            for i in range(0, len(bytes_obj), size_in_bits):
+            size_in_bytes = (size_in_bits + 7) // 8
+            for i in range(0, len(bytes_obj), size_in_bytes):
                 endindex = (
-                    i + size_in_bits
-                    if i + size_in_bits < len(bytes_obj)
+                    i + size_in_bytes
+                    if i + size_in_bytes < len(bytes_obj)
                     else len(bytes_obj)
                 )
                 arr_entry_list.append(
