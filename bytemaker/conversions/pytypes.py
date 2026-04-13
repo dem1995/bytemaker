@@ -317,18 +317,21 @@ def bits_to_pytype(bits_obj: BitVector, pytype: type):
     return conversion.from_bits(bits_obj)
 
 
-def bytes_to_pytype(bytes_obj: BitVector, pytype: type):
+def bytes_to_pytype(bytes_obj: bytes, pytype: type, reverse_endianness: bool = False):
     """
     Function to convert bytes into instances of Python types.
 
     Args:
         bytes_obj (bytes): The bytes object to convert to a Python primitive
-        py_prim_type (type): The type of the Python primitive to convert to.
+        pytype (type): The type of the Python primitive to convert to.
             Must be a member of PyTypeWithDefaultBytes
+        reverse_endianness (bool, optional): Whether to reverse the byte order
+            before converting. Defaults to False.
 
     Returns:
-        pytype: The instance of thee provided Python type represented by the
+        pytype: The instance of the provided Python type represented by the
             bytes
     """
-
+    if reverse_endianness:
+        bytes_obj = bytes_obj[::-1]
     return bits_to_pytype(BitVector(bytes_obj), pytype)

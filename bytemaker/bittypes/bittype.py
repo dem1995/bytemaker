@@ -479,15 +479,21 @@ class StructPackedBitType(BitType[T]):
             super().value = value
 
 
-def bytes_to_bittype(unitbytes: bytes, unittype: type[BitType]) -> BitType:
+def bytes_to_bittype(
+    unitbytes: bytes, unittype: type[BitType], reverse_endianness: bool = False
+) -> BitType:
     """
     Converts a bytes object to an instance of the provided BitType object.
 
     Args:
         unitbytes (bytes): The bytes object to convert.
         unittype (type[BitType]): The BitType object to convert to.
+        reverse_endianness (bool, optional): Whether to reverse the byte order
+            before converting. Defaults to False.
 
     Returns:
         BitType: The BitType object created from the bytes object.
     """
+    if reverse_endianness:
+        unitbytes = unitbytes[::-1]
     return unittype(bits=BitVector(unitbytes))

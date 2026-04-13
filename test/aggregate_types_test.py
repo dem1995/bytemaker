@@ -20,6 +20,7 @@ from bytemaker.bitvector import BitVector
 from bytemaker.conversions.aggregate_types import (
     from_bits_aggregate,
     from_bits_individual,
+    from_bytes_individual,
     to_bits_aggregate,
     to_bits_individual,
     to_bytes_individual,
@@ -109,6 +110,26 @@ def test_to_bytes_individual_bittype(
         to_bytes_individual(bittype_val, reverse_endianness=True)
         == expected_bytes_reversed
     )
+
+
+test_from_bytes_roundtrip_data = [
+    (UInt8, UInt8(1)),
+    (UInt16, UInt16(1)),
+    (UInt32, UInt32(1)),
+    (SInt16, SInt16(-1)),
+    (SInt32, SInt32(256)),
+]
+
+
+@pytest.mark.parametrize("unittype, original", test_from_bytes_roundtrip_data)
+def test_from_bytes_individual_roundtrip(unittype, original):
+    """Round-trip: to_bytes_individual -> from_bytes_individual should recover
+    the original value, both with and without reverse_endianness."""
+    raw_bytes = to_bytes_individual(original)
+    assert from_bytes_individual(raw_bytes, unittype) == original
+
+    reversed_bytes = to_bytes_individual(original, reverse_endianness=True)
+    assert from_bytes_individual(reversed_bytes, unittype, reverse_endianness=True) == original
 
 
 @pytest.mark.parametrize("unitdata, expected_bitstring", test_unit_data)
