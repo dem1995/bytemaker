@@ -23,6 +23,13 @@ Run `python -m pip install bytemaker`.
 The main goal of the project is to ease development of projects working with compiled code (e.g. ROM hacking). As such, streaming features are currently deemphasized, although I may implement them at some later date.
 
 ## Changelog
+### Version 0.10.1
+(13 April 2026)
+#### Breaking changes
+- Replaced `reverse_endianness: bool` parameter with `endianness: Literal["big", "little"] = "big"` across all conversion functions (`to_bytes_individual`, `from_bytes_individual`, `to_bytes_aggregate`, `from_bytes_aggregate`, `bytes_to_bittype`, `bytes_to_pytype`, `ctype_to_bytes`, `bytes_to_ctype`, `ctype_to_bits`, `bits_to_ctype`, `pytype_to_bytes`). The old boolean was relative and had inconsistent defaults. The new parameter is absolute, self-documenting, and matches Python conventions (`int.from_bytes` byteorder).
+- `StructPackedBitType` now stores bits in canonical big-endian order internally. Endianness is applied only at the bytes boundary by `BitType.__bytes__()`. This matches the stated design: "while the types have endianness, their underlying bit representations do not."
+- For ctypes, endianness reversal now checks `endianness != sys.byteorder` instead of a hardcoded boolean, making it correct on both little-endian and big-endian platforms.
+
 ### Version 0.9.3
 (12 April 2026)
 #### Bugfixes
@@ -62,7 +69,7 @@ Modified BitTypes' `__repr__` to include endianness
 
 `ytypes` are now `BitTypes`, and, rather than extending from `Bits`, now contain `BitVectors`. This change was made so that, in the long run, uint:UInt8 + sint:SInt8 wouldn't be the same as concatenation, and so that str24[1] would grab the second element.
 
-`BitTypes` now have full support for endianness when casting to `bytes`. Note that while the types have endianness, their underlying bit representations do not (because that wouldn't make much sense!). Usage of `ctypes` still assumes development is done on a little-endian machine. This is the vast, vast, vast majority of consumer hardware today, unless you run a bi-endian machine and have set it to big-endian mode. This may not change; the remaining primary use of `ctypes` is for non-chararray array types (to be resolved in a near-future version).
+`BitTypes` now have full support for endianness when casting to `bytes`. Note that while the types have endianness, their underlying bit representations do not (because that wouldn't make much sense!). ~~Usage of `ctypes` still assumes development is done on a little-endian machine.~~ As of v0.10.1, ctypes conversions use `sys.byteorder` to detect the platform endianness, so they work correctly on both little-endian and big-endian machines.
 
 Upcoming deprecations:
 (any BitType)`.to_bits()` and (any BitType)`.from_bits()`. This behavior should instead be replicated by (any BitType)`.bits` and (any BitType)`(bits)`
