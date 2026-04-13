@@ -93,6 +93,7 @@ class String(BitType[str]):
             hash(cls._codepoint_changes),
             codepoint_changes_field,
         )  # type: ignore[reportAttributeAccessIssue]
+        return cls._codepoint_changes_cache[1]
 
     @classproperty
     @classmethod
@@ -112,6 +113,7 @@ class String(BitType[str]):
             hash(cls._codepoint_changes),
             reverse_codepoint_changes,
         )
+        return cls._reverse_codepoint_changes_cache[1]
 
     @classproperty
     @classmethod
