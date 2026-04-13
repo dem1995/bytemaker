@@ -161,11 +161,11 @@ class TwoFieldDataclass:
 
 
 test_count_bytes_data = [
-    (UInt8, 1),     # 8 bits -> 1 byte
-    (UInt16, 2),    # 16 bits -> 2 bytes
-    (UInt32, 4),    # 32 bits -> 4 bytes
-    (SInt5, 1),     # 5 bits -> 1 byte (ceiling)
-    (SInt10, 2),    # 10 bits -> 2 bytes (ceiling)
+    (UInt8, 1),  # 8 bits -> 1 byte
+    (UInt16, 2),  # 16 bits -> 2 bytes
+    (UInt32, 4),  # 32 bits -> 4 bytes
+    (SInt5, 1),  # 5 bits -> 1 byte (ceiling)
+    (SInt10, 2),  # 10 bits -> 2 bytes (ceiling)
 ]
 
 
