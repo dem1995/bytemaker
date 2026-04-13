@@ -5,12 +5,12 @@ import logging
 import math
 from typing import TYPE_CHECKING, cast, overload
 
-logger = logging.getLogger(__name__)
-
 from bitarray import bitarray
 from bitarray.util import ba2base, base2ba
 
 from bytemaker.utils import twos_complement_bit_length
+
+logger = logging.getLogger(__name__)
 
 try:
     from bytemaker.typing_redirect import (

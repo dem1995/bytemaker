@@ -1,6 +1,5 @@
 import pytest
 
-from bytemaker.bittypes.bittype import StructPackedBitType
 from bytemaker.bittypes import (
     Buffer4,
     Buffer8,
@@ -21,6 +20,7 @@ from bytemaker.bittypes import (
     UInt32,
     UInt64,
 )
+from bytemaker.bittypes.bittype import StructPackedBitType
 from bytemaker.bitvector import BitVector
 
 # from bytemaker.bittypes_old import Str8

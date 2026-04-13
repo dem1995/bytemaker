@@ -134,7 +134,10 @@ def test_from_bytes_individual_roundtrip(unittype, original):
     assert from_bytes_individual(raw_bytes, unittype) == original
 
     reversed_bytes = to_bytes_individual(original, reverse_endianness=True)
-    assert from_bytes_individual(reversed_bytes, unittype, reverse_endianness=True) == original
+    assert (
+        from_bytes_individual(reversed_bytes, unittype, reverse_endianness=True)
+        == original
+    )
 
 
 @dataclass
@@ -193,7 +196,9 @@ def test_from_bytes_aggregate_roundtrip_with_reverse_endianness():
     the leaf level (per-field)."""
     original = TwoFieldDataclass(UInt16(0x0102), UInt16(0x0304))
     serialized = to_bytes_aggregate(original, reverse_endianness=True)
-    result = from_bytes_aggregate(serialized, TwoFieldDataclass, reverse_endianness=True)
+    result = from_bytes_aggregate(
+        serialized, TwoFieldDataclass, reverse_endianness=True
+    )
     assert result.a.value == 0x0102
     assert result.b.value == 0x0304
 
