@@ -1,5 +1,6 @@
 import pytest
 
+from bytemaker.bittypes.bittype import StructPackedBitType
 from bytemaker.bittypes import (
     Buffer4,
     Buffer8,
@@ -217,3 +218,26 @@ def test_bit_serialization_and_deserialization(
     assert bittype_instance.to_bits() == expected_bits_length
     deserialized_value = bittype_class.from_bits(bittype_instance.to_bits()).value
     assert deserialized_value == input_value
+
+
+class UInt12Packed(StructPackedBitType, UInt16.__mro__[2]):
+    """A 12-bit unsigned int that uses struct packing with 'H' (unsigned short).
+    Used to test StructPackedBitType.value padding for non-multiple-of-8 bit counts."""
+
+    _num_bits = 12
+    base_bit_type = UInt16.__mro__[2]
+    py_type = int
+    packing_format_letter = "H"
+
+
+def test_struct_packed_bittype_non_byte_aligned_value():
+    """Regression test: StructPackedBitType.value must pad bits to a byte
+    boundary before calling struct.unpack. Previously it computed the
+    padded bits into a local variable but then passed the unpadded
+    self.bits to struct.unpack instead."""
+    from bytemaker.bitvector import BitVector
+
+    # 12 bits representing the value 42: 000000101010
+    bits_42 = BitVector("0b000000101010")
+    instance = UInt12Packed(bits=bits_42)
+    assert instance.value == 42

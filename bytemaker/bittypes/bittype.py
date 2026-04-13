@@ -467,7 +467,7 @@ class StructPackedBitType(BitType[T]):
             the_bits = self.bits
             if not len(the_bits) % 8 == 0:
                 the_bits = BitVector(8 - len(the_bits) % 8) + the_bits
-            return struct.unpack(self.packing_format, bytes(self.bits))[0]
+            return struct.unpack(self.packing_format, bytes(the_bits))[0]
         else:
             return super().value
 
