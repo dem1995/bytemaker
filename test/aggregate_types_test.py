@@ -112,8 +112,7 @@ def test_to_bytes_individual_bittype(
 ):
     assert to_bytes_individual(bittype_val) == expected_bytes
     assert (
-        to_bytes_individual(bittype_val, reverse_endianness=True)
-        == expected_bytes_reversed
+        to_bytes_individual(bittype_val, endianness="little") == expected_bytes_reversed
     )
 
 
@@ -129,14 +128,13 @@ test_from_bytes_roundtrip_data = [
 @pytest.mark.parametrize("unittype, original", test_from_bytes_roundtrip_data)
 def test_from_bytes_individual_roundtrip(unittype, original):
     """Round-trip: to_bytes_individual -> from_bytes_individual should recover
-    the original value, both with and without reverse_endianness."""
+    the original value, both with and without endianness."""
     raw_bytes = to_bytes_individual(original)
     assert from_bytes_individual(raw_bytes, unittype) == original
 
-    reversed_bytes = to_bytes_individual(original, reverse_endianness=True)
+    reversed_bytes = to_bytes_individual(original, endianness="little")
     assert (
-        from_bytes_individual(reversed_bytes, unittype, reverse_endianness=True)
-        == original
+        from_bytes_individual(reversed_bytes, unittype, endianness="little") == original
     )
 
 
@@ -188,17 +186,15 @@ def test_from_bytes_aggregate_byte_slicing():
     assert result.b.value == 2
 
 
-def test_from_bytes_aggregate_roundtrip_with_reverse_endianness():
+def test_from_bytes_aggregate_roundtrip_with_endianness():
     """Regression test: from_bytes_aggregate must not reverse the entire byte
     stream before splitting into fields. Previously it reversed the whole
-    bytes_obj at the top level and then passed reverse_endianness=True to each
+    bytes_obj at the top level and then passed endianness="little" to each
     field, causing double reversal. Endianness reversal should only happen at
     the leaf level (per-field)."""
     original = TwoFieldDataclass(UInt16(0x0102), UInt16(0x0304))
-    serialized = to_bytes_aggregate(original, reverse_endianness=True)
-    result = from_bytes_aggregate(
-        serialized, TwoFieldDataclass, reverse_endianness=True
-    )
+    serialized = to_bytes_aggregate(original, endianness="little")
+    result = from_bytes_aggregate(serialized, TwoFieldDataclass, endianness="little")
     assert result.a.value == 0x0102
     assert result.b.value == 0x0304
 

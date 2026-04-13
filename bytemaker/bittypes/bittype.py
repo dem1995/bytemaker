@@ -443,23 +443,17 @@ class StructPackedBitType(BitType[T]):
     @property
     def packing_format(self) -> str:
         """
-        Returns the packing format for the class.
+        Returns the struct packing format for the class.
 
-        Args:
-            endianness (str): the endianness of the packing format. Defaults to little
+        Always uses big-endian format because bits are stored in canonical
+        big-endian order internally. Endianness is applied at the bytes
+        boundary by BitType.__bytes__().
 
         Returns:
             str: the struct packing format for the subclass.
         """
         cls = self.__class__
-        if self.endianness == "little":
-            return f"<{cls.packing_format_letter}"
-        elif self.endianness == "big":
-            return f">{cls.packing_format_letter}"
-        else:
-            raise ValueError(
-                f"Endianness must be either 'little' or 'big', not {self.endianness}"
-            )
+        return f">{cls.packing_format_letter}"
 
     @property
     def value(self) -> T:
@@ -478,15 +472,11 @@ class StructPackedBitType(BitType[T]):
         else:
             super().value = value
 
-    def __bytes__(self):
-        if not self.skip_struct_packing:
-            return bytes(self.bits)
-        else:
-            return super().__bytes__()
-
 
 def bytes_to_bittype(
-    unitbytes: bytes, unittype: type[BitType], reverse_endianness: bool = False
+    unitbytes: bytes,
+    unittype: type[BitType],
+    endianness: Literal["big", "little"] = "big",
 ) -> BitType:
     """
     Converts a bytes object to an instance of the provided BitType object.
@@ -494,12 +484,12 @@ def bytes_to_bittype(
     Args:
         unitbytes (bytes): The bytes object to convert.
         unittype (type[BitType]): The BitType object to convert to.
-        reverse_endianness (bool, optional): Whether to reverse the byte order
-            before converting. Defaults to False.
+        endianness: The byte order of the input bytes.
+            Defaults to "big".
 
     Returns:
         BitType: The BitType object created from the bytes object.
     """
-    if reverse_endianness:
+    if endianness == "little":
         unitbytes = unitbytes[::-1]
     return unittype(bits=BitVector(unitbytes))

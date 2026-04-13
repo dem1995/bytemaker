@@ -4,7 +4,7 @@ import struct
 from dataclasses import dataclass
 
 from bytemaker.bitvector import BitVector
-from bytemaker.typing_redirect import Any, Callable
+from bytemaker.typing_redirect import Any, Callable, Literal
 from bytemaker.utils import is_subclass_of_union
 
 
@@ -278,19 +278,23 @@ def pytype_to_bits(py_prim: type) -> BitVector:
     return conversion.to_bits(py_prim)
 
 
-def pytype_to_bytes(py_prim: type, reverse_endianness: bool = False) -> bytes:
+def pytype_to_bytes(
+    py_prim: type, endianness: Literal["big", "little"] = "big"
+) -> bytes:
     """
     Function to convert Python instances into a default number of bytes.
         Uses the conversions in ConversionConfig.
 
     Args:
         py_prim: The python instance to convert to bytes
+        endianness: The byte order of the output.
+            Defaults to "big".
 
     Returns:
         bytes: The bytes representation of the python instance
     """
     retval = pytype_to_bits(py_prim).to_bytes()
-    if reverse_endianness:
+    if endianness == "little":
         retval = retval[::-1]
     return retval
 
@@ -317,7 +321,9 @@ def bits_to_pytype(bits_obj: BitVector, pytype: type):
     return conversion.from_bits(bits_obj)
 
 
-def bytes_to_pytype(bytes_obj: bytes, pytype: type, reverse_endianness: bool = False):
+def bytes_to_pytype(
+    bytes_obj: bytes, pytype: type, endianness: Literal["big", "little"] = "big"
+):
     """
     Function to convert bytes into instances of Python types.
 
@@ -325,13 +331,13 @@ def bytes_to_pytype(bytes_obj: bytes, pytype: type, reverse_endianness: bool = F
         bytes_obj (bytes): The bytes object to convert to a Python primitive
         pytype (type): The type of the Python primitive to convert to.
             Must be a member of PyTypeWithDefaultBytes
-        reverse_endianness (bool, optional): Whether to reverse the byte order
-            before converting. Defaults to False.
+        endianness: The byte order of the input bytes.
+            Defaults to "big".
 
     Returns:
         pytype: The instance of the provided Python type represented by the
             bytes
     """
-    if reverse_endianness:
+    if endianness == "little":
         bytes_obj = bytes_obj[::-1]
     return bits_to_pytype(BitVector(bytes_obj), pytype)

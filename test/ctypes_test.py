@@ -56,9 +56,7 @@ def test_bytes_to_ctype(bytes_obj, ctype_type, expected_ctype_obj):
     ],
 )
 def test_unreversed_endianness(ctype_obj, expected_bytes_unreversed):
-    assert (
-        ctype_to_bytes(ctype_obj, reverse_endianness=False) == expected_bytes_unreversed
-    )
+    assert ctype_to_bytes(ctype_obj, endianness="little") == expected_bytes_unreversed
 
 
 # Test invalid inputs

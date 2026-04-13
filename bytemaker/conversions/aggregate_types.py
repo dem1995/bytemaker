@@ -18,7 +18,7 @@ from bytemaker.conversions.pytypes import (
     pytype_to_bits,
     pytype_to_bytes,
 )
-from bytemaker.typing_redirect import Iterable, Union
+from bytemaker.typing_redirect import Iterable, Literal, Union
 from bytemaker.utils import DataClassType, is_instance_of_union, is_subclass_of_union
 
 UnitType = Union[CType, BitType, PyType]
@@ -95,20 +95,22 @@ def to_bits_individual(unit: UnitType) -> BitVector:
         )
 
 
-def to_bytes_individual(unit: UnitType, reverse_endianness: bool = False) -> bytes:
+def to_bytes_individual(
+    unit: UnitType, endianness: Literal["big", "little"] = "big"
+) -> bytes:
     """
     Function to convert a single Python primitive or ctypes object into bytes.
     """
 
     if is_instance_of_union(unit, CType):
-        return ctype_to_bytes(unit, reverse_endianness=reverse_endianness)
+        return ctype_to_bytes(unit, endianness=endianness)
     elif isinstance(unit, BitType):
         unit_bytes = bytes(unit)
-        if reverse_endianness:
+        if endianness == "little":
             unit_bytes = unit_bytes[::-1]
         return unit_bytes
     elif is_instance_of_union(unit, PyType):
-        return pytype_to_bytes(unit, reverse_endianness=reverse_endianness)
+        return pytype_to_bytes(unit, endianness=endianness)
     else:
         raise Exception(
             f"Cannot convert {unit} to bytes because"
@@ -149,7 +151,9 @@ def from_bits_individual(unitbits: BitVector, unittype: type) -> PyType:
 
 
 def from_bytes_individual(
-    unitbytes: bytes, unittype: type, reverse_endianness: bool = False
+    unitbytes: bytes,
+    unittype: type,
+    endianness: Literal["big", "little"] = "big",
 ) -> PyType:
     """
     Function to convert bytes into a single UnitType-
@@ -159,8 +163,8 @@ def from_bytes_individual(
         unitbytes (bytes): The bytes object to convert to a UnitType
         unittype (type): The type of the UnitType to convert to.
             Must be a member of UnitType
-        reverse_endianness (bool, optional): Whether to reverse the endianness of
-            the bytes before converting. Defaults to False.
+        endianness: The byte order of the input bytes.
+            Defaults to "big".
     """
 
     size_in_bits = count_bits_in_unit_type(unittype)
@@ -171,17 +175,11 @@ def from_bytes_individual(
             f" does not match the number of bits in the unit type ({size_in_bits})"
         )
     if is_subclass_of_union(unittype, CType):
-        return bytes_to_ctype(
-            unitbytes, unittype, reverse_endianness=reverse_endianness
-        )
+        return bytes_to_ctype(unitbytes, unittype, endianness=endianness)
     elif is_subclass_of_union(unittype, BitType):
-        return bytes_to_bittype(
-            unitbytes, unittype, reverse_endianness=reverse_endianness
-        )
+        return bytes_to_bittype(unitbytes, unittype, endianness=endianness)
     elif is_subclass_of_union(unittype, PyType):
-        return bytes_to_pytype(
-            unitbytes, unittype, reverse_endianness=reverse_endianness
-        )
+        return bytes_to_pytype(unitbytes, unittype, endianness=endianness)
     else:
         raise Exception(
             f"Cannot convert {unitbytes} to {unittype}"
@@ -310,7 +308,8 @@ def from_bits_aggregate(
 
 
 def to_bytes_aggregate(
-    units: AggregateTypeByteConvertible, reverse_endianness: bool = False
+    units: AggregateTypeByteConvertible,
+    endianness: Literal["big", "little"] = "big",
 ) -> bytes:
     """
     Function to convert a collection of Python primitives or ctypes objects into bytes.
@@ -319,6 +318,8 @@ def to_bytes_aggregate(
 
     Args:
         units [Iterable | DataClassType]): The objects to convert to bytes
+        endianness: The byte order of the output.
+            Defaults to "big".
 
     Returns:
         bytes: The bytes representation of the objects
@@ -326,33 +327,21 @@ def to_bytes_aggregate(
     ret_bytes = bytearray()
 
     if is_instance_of_union(units, UnitType):
-        # print("Is unit", type(units))
-        ret_bytes = to_bytes_individual(units, reverse_endianness=reverse_endianness)
+        ret_bytes = to_bytes_individual(units, endianness=endianness)
 
     elif isinstance(units, DataClassType):
-        # print("Is dataclass", type(units))
-
         for field in dataclasses.fields(units):
             field_type = field.type
             if isinstance(field.type, str):
                 field_type = eval(field_type)
             field_value = getattr(units, field.name)
             field_value = trycast(field_value, field_type)
-            field_value_bytes = to_bytes_aggregate(
-                field_value, reverse_endianness=reverse_endianness
-            )
-            # print(field_value_bytes)
-
+            field_value_bytes = to_bytes_aggregate(field_value, endianness=endianness)
             ret_bytes.extend(field_value_bytes)
 
     elif isinstance(units, Iterable):
-        # print("Is iterable")
-        # print("Units:", units)
         for unit in units:
-            # print(unit)
-            ret_bytes.extend(
-                to_bytes_aggregate(unit, reverse_endianness=reverse_endianness)
-            )
+            ret_bytes.extend(to_bytes_aggregate(unit, endianness=endianness))
 
     return bytes(ret_bytes)
 
@@ -361,7 +350,7 @@ def from_bytes_aggregate(
     bytes_obj: bytes,
     aggregate_type: type,
     is_array=False,
-    reverse_endianness: bool = False,
+    endianness: Literal["big", "little"] = "big",
 ) -> Union[UnitType, AggregateTypeByteConvertible]:
     """
     Function to convert a collection of bytes into Python primitives, ctypes objects,\
@@ -376,17 +365,15 @@ def from_bytes_aggregate(
             Must be a member of UnitType or a dataclass annotated with UnitType members.
         is_array (bool, optional): Whether the object is an array of the aggregate type.
             Defaults to False.
-        reverse_endianness (bool, optional): Whether to reverse the endianness of the
-            bytes before converting. Defaults to False.
+        endianness: The byte order of the input bytes.
+            Defaults to "big".
 
     Returns:
         Union[UnitType, AggregateTypeByteConvertible]: The object(s) represented by
             the bytes.
     """
     if is_subclass_of_union(aggregate_type, UnitType):
-        return from_bytes_individual(
-            bytes_obj, aggregate_type, reverse_endianness=reverse_endianness
-        )
+        return from_bytes_individual(bytes_obj, aggregate_type, endianness=endianness)
     else:
         size_in_bits = count_bits_in_unit_type(aggregate_type)
 
@@ -406,7 +393,7 @@ def from_bytes_aggregate(
                 field_size_in_bytes = (count_bits_in_unit_type(field_type) + 7) // 8
                 field_bytes = bytes_obj[:field_size_in_bytes]
                 field_value = from_bytes_aggregate(
-                    field_bytes, field_type, reverse_endianness=reverse_endianness
+                    field_bytes, field_type, endianness=endianness
                 )
                 read_fields.append(field_value)
                 bytes_obj = bytes_obj[field_size_in_bytes:]
@@ -425,7 +412,7 @@ def from_bytes_aggregate(
                     from_bytes_aggregate(
                         bytes_obj[i:endindex],
                         aggregate_type,
-                        reverse_endianness=reverse_endianness,
+                        endianness=endianness,
                     )
                 )
             retval = aggregate_type(*arr_entry_list)
