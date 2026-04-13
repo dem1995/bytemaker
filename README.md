@@ -23,6 +23,24 @@ Run `python -m pip install bytemaker`.
 The main goal of the project is to ease development of projects working with compiled code (e.g. ROM hacking). As such, streaming features are currently deemphasized, although I may implement them at some later date.
 
 ## Changelog
+### Version 0.9.3
+(12 April 2026)
+#### Bugfixes
+- Made the conversions subpackage exposed
+- Fixed missing return statements in `String.codepoint_changes` and `String._reverse_codepoint_changes` properties (first call always returned None)
+- Fixed `to_bytes_individual` calling nonexistent `BitType.to_bytes()` method
+- Fixed `from_bytes_individual` passing unsupported `reverse_endianness` parameter to `bytes_to_bittype` and `bytes_to_pytype`
+- Fixed double endianness reversal in `from_bytes_aggregate`
+- Fixed `from_bytes_aggregate` using bit counts to slice byte objects (e.g. taking 32 bytes for a 32-bit field)
+- Fixed missing `field_type` assignment in `from_bytes_aggregate` dataclass field loop
+- Fixed `count_bytes_in_unit_type` using wrong ceiling division
+- Fixed `StructPackedBitType.value` getter ignoring its own padding for non-multiple-of-8 bit types
+- Fixed `StructPackedBitType.__bytes__` applying endianness reversal on top of struct packing, which already handles endianness
+- Fixed `to_bytes_aggregate` crashing on certain nested dataclasses
+
+#### Other
+- Replaced debug `print()` statements in `BitVector.from_chararray` with `logging.debug()`
+
 ### Version 0.9.2
 (29 August 2024)
 #### Bugfixes
