@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import copy
+import logging
 import math
 from typing import TYPE_CHECKING, cast, overload
+
+logger = logging.getLogger(__name__)
 
 from bitarray import bitarray
 from bitarray.util import ba2base, base2ba
@@ -421,10 +424,8 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
 
             retval = cls(buffer=char_array_as_bytes)
 
-            # retval.frombytes()
-            print("using standard encoding...")
-            # print(char_array.encode(encoding))
-            print("retval", retval)
+            logger.debug("using standard encoding...")
+            logger.debug(f"retval {retval}")
             return retval
         else:
             bitarray_list: list[cls] = []
