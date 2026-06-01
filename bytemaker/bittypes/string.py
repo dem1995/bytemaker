@@ -157,7 +157,7 @@ class String(BitType[str]):
     @codepoint_changes.setter
     @classmethod
     def codepoint_changes(
-        cls, value: (HashableMapping[BitVector, BitVector] | HashableMapping[str, str])
+        cls, value: HashableMapping[BitVector, BitVector] | HashableMapping[str, str]
     ):
         if len(value) > 0:
             if isinstance(value.items().__iter__().__next__()[0], BitVector):
@@ -206,9 +206,9 @@ class String(BitType[str]):
         temp_value = value
         reverse_codepoint_changes = self._reverse_codepoint_changes
         if reverse_codepoint_changes is not None:
-            reverse_codepoint_changes_regex: re.Pattern[
-                str
-            ] = self._reverse_codepoint_change_regex
+            reverse_codepoint_changes_regex: re.Pattern[str] = (
+                self._reverse_codepoint_change_regex
+            )
             temp_value = self.perform_codepoint_substitution(
                 temp_value, reverse_codepoint_changes, reverse_codepoint_changes_regex
             )

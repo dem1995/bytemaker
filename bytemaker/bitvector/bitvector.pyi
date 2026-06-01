@@ -7,6 +7,7 @@ That is, the BitVector class is guaranteed to meet the below behavior,
    with the exception of "extra" behavior (e.g., implementations of this
    class may extend another class or have additional methods).
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, overload

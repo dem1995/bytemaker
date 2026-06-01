@@ -551,9 +551,7 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
         """
         cls = type(self)
         if isinstance(encoding, str):
-            assert (
-                len(self) % 8 == 0
-            ), "BitVector length must be a multiple of 8\
+            assert len(self) % 8 == 0, "BitVector length must be a multiple of 8\
                 to use a standard encoding"
             return bytes(self).decode(encoding)
         else:
@@ -843,16 +841,13 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
             return first_index != -1
 
     @overload
-    def __getitem__(self, key: int) -> Literal[0, 1]:
-        ...
+    def __getitem__(self, key: int) -> Literal[0, 1]: ...
 
     @overload
-    def __getitem__(self: Self, key: slice) -> Self:
-        ...
+    def __getitem__(self: Self, key: slice) -> Self: ...
 
     @overload
-    def __getitem__(self: Self, key: Iterable[int]) -> Self:
-        ...
+    def __getitem__(self: Self, key: Iterable[int]) -> Self: ...
 
     def __getitem__(self, key):  # type: ignore[override]
         if isinstance(key, int):
