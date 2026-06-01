@@ -5,6 +5,7 @@ This module allows for Python version-agnostic typing and collections.abc import
     It uses Python standard library batteries where possible.
     For older versions, this module will export from typing_extensions.
 """
+
 import sys
 from importlib.util import find_spec
 from typing import Any

@@ -118,9 +118,9 @@ class ConversionConfig:
 
         # Set the conversion info
         cls._implemented_conversions[conversion_info.pytype] = conversion_info
-        cls._known_furthest_descendant_mappings[
+        cls._known_furthest_descendant_mappings[conversion_info.pytype] = (
             conversion_info.pytype
-        ] = conversion_info.pytype
+        )
         cls._has_a_suitable_conversion[conversion_info.pytype] = True
 
         # Check types previously ascertained to have no suitable conversion
@@ -185,9 +185,9 @@ class ConversionConfig:
                     cur_suitable_implemented_pytype = candidate_implemented_pytype
 
             if cur_suitable_implemented_pytype is not None:
-                cls._known_furthest_descendant_mappings[
-                    pytype
-                ] = cur_suitable_implemented_pytype
+                cls._known_furthest_descendant_mappings[pytype] = (
+                    cur_suitable_implemented_pytype
+                )
 
             return cls._implemented_conversions[
                 cls._known_furthest_descendant_mappings[pytype]
