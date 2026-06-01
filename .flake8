@@ -1,0 +1,7 @@
+[flake8]
+exclude = build,dist,.git,.github,.vscode,.venv,__pycache__,*.egg-info
+max-complexity = 8
+max-line-length = 88
+# E203: whitespace before ':' — flake8 and black disagree on this.
+# C901: function is too complex — ignored for now.
+extend-ignore = E203,C901
