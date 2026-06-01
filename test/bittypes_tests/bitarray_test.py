@@ -22,7 +22,7 @@ source_to_bits = (
     [
         (10, "0" * 10),  # Integer source
         ("1010", "1010"),  # Binary string
-        (b"\xA5", "10100101"),  # Bytes-like object
+        (b"\xa5", "10100101"),  # Bytes-like object
         ([1, 0, 1, 0], "1010"),  # List of bits
         ((1, 0, 1, 0), "1010"),  # Tuple of bits
         (BitVector("1010"), "1010"),  # Another BitVector
