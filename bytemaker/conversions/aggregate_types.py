@@ -18,7 +18,7 @@ from bytemaker.conversions.pytypes import (
     pytype_to_bits,
     pytype_to_bytes,
 )
-from bytemaker.typing_redirect import Iterable, Literal, Union
+from bytemaker.typing_redirect import Dict, Iterable, Literal, Union, get_type_hints
 from bytemaker.utils import DataClassType, is_instance_of_union, is_subclass_of_union
 
 UnitType = Union[CType, BitType, PyType]
@@ -26,6 +26,26 @@ UnitType = Union[CType, BitType, PyType]
 # CType is a Union of _SimpleCData, Structure, Union, and Array
 # YType is a Union of YInt, YFloat, YString, YBytes, YBool, YEnum, YArray, and YStruct
 # PyType is a Union of int, float, str, bytes, bool, and Enum
+
+
+def resolve_field_types(dataclass_type: type) -> Dict[str, type]:
+    """
+    Resolve a dataclass's field annotations to concrete types.
+
+    Field annotations are strings rather than types whenever the defining
+    module uses ``from __future__ import annotations`` (PEP 563) or otherwise
+    stringizes its annotations. ``typing.get_type_hints`` evaluates those
+    strings in the namespace of the module that defined the dataclass, so
+    concrete types such as ``SInt16`` resolve correctly. A bare ``eval`` would
+    instead resolve them in bytemaker's own namespace and raise ``NameError``.
+
+    For non-stringized annotations the field types are already real objects and
+    are returned unchanged, so this is safe to use unconditionally.
+
+    Returns:
+        Dict[str, type]: A mapping from field name to its resolved type.
+    """
+    return get_type_hints(dataclass_type)
 
 
 def count_bits_in_unit_type(unit_type: UnitType) -> int:
@@ -44,11 +64,9 @@ def count_bits_in_unit_type(unit_type: UnitType) -> int:
         return ConversionConfig.get_conversion_info(unit_type).num_bits("")
     elif is_subclass_of_union(unit_type, DataClassType):
         size_in_bits = 0
+        field_types = resolve_field_types(unit_type)
         for field in dataclasses.fields(unit_type):
-            field_type = field.type
-            if isinstance(field_type, str):
-                field_type = eval(field_type)
-            size_in_bits += count_bits_in_unit_type(field_type)
+            size_in_bits += count_bits_in_unit_type(field_types[field.name])
         return size_in_bits
 
 
@@ -62,11 +80,9 @@ def count_bits_in_aggregate_type(aggregate_type: type) -> int:
         return count_bits_in_unit_type(aggregate_type)
     else:
         size_in_bits = 0
+        field_types = resolve_field_types(aggregate_type)
         for field in dataclasses.fields(aggregate_type):
-            field_type = field.type
-            if isinstance(field_type, str):
-                field_type = eval(field_type)
-            size_in_bits += count_bits_in_unit_type(field_type)
+            size_in_bits += count_bits_in_unit_type(field_types[field.name])
         return size_in_bits
 
 
@@ -225,11 +241,9 @@ def to_bits_aggregate(convertible_object: AggregateTypeByteConvertible) -> BitVe
         ret_bits = to_bits_individual(convertible_object)
     elif isinstance(convertible_object, DataClassType):
         fields = dataclasses.fields(convertible_object)
+        resolved_types = resolve_field_types(type(convertible_object))
         field_values = [getattr(convertible_object, field.name) for field in fields]
-        field_types = [
-            field.type if not isinstance(field.type, str) else eval(field.type)
-            for field in fields
-        ]
+        field_types = [resolved_types[field.name] for field in fields]
         # print("types", field_types)
         # print("type_is_dataclass", [isinstance(field_type, DataClassType)
         # for field_type in field_types])
@@ -292,10 +306,9 @@ def from_bits_aggregate(
             )
 
         read_fields = list()
+        field_types = resolve_field_types(aggregate_type)
         for field in dataclasses.fields(aggregate_type):
-            field_type = field.type
-            if isinstance(field.type, str):
-                field_type = eval(field.type)
+            field_type = field_types[field.name]
 
             field_size_in_bits = count_bits_in_unit_type(field_type)
             field_bits = unitbits[:field_size_in_bits]
@@ -330,10 +343,9 @@ def to_bytes_aggregate(
         ret_bytes = to_bytes_individual(units, endianness=endianness)
 
     elif isinstance(units, DataClassType):
+        field_types = resolve_field_types(type(units))
         for field in dataclasses.fields(units):
-            field_type = field.type
-            if isinstance(field.type, str):
-                field_type = eval(field_type)
+            field_type = field_types[field.name]
             field_value = getattr(units, field.name)
             field_value = trycast(field_value, field_type)
             field_value_bytes = to_bytes_aggregate(field_value, endianness=endianness)
@@ -386,10 +398,9 @@ def from_bytes_aggregate(
                 )
 
             read_fields = list()
+            field_types = resolve_field_types(aggregate_type)
             for field in dataclasses.fields(aggregate_type):
-                field_type = field.type
-                if isinstance(field.type, str):
-                    field_type = eval(field.type)
+                field_type = field_types[field.name]
                 field_size_in_bytes = (count_bits_in_unit_type(field_type) + 7) // 8
                 field_bytes = bytes_obj[:field_size_in_bytes]
                 field_value = from_bytes_aggregate(
