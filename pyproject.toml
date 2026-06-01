@@ -45,23 +45,7 @@ packages = ["bytemaker", "bytemaker.bittypes", "bytemaker.bitvector", "bytemaker
 "Homepage" = "https://github.com/dem1995/bytemaker"
 "PyPi Page" = "https://pypi.org/project/bytemaker/"
 
-[tool.flake8]
-exclude = [
-    'build',
-    'dist',
-    '.git',
-    '.github',
-    '.vscode',
-    '.venv',
-    '__pycache__',
-    '*.egg-info']
-
-max-complexity = 8
-max-line-length = 88
-
-extend-ignore = [
-    'E203', # E203: Whitespace before ':'. Flake and black disagree on this.
-    'C901'] # C901: Function is too complex. We are ignoring this for now.
+# flake8 config lives in .flake8 (flake8 does not read pyproject.toml natively).
 
 [tool.isort]
 profile = "black"
