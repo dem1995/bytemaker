@@ -23,6 +23,11 @@ Run `python -m pip install bytemaker`.
 The main goal of the project is to ease development of projects working with compiled code (e.g. ROM hacking). As such, streaming features are currently deemphasized, although I may implement them at some later date.
 
 ## Changelog
+### Version 0.10.2
+(1 June 2026)
+#### Bugfixes
+- Fixed aggregate (de)serialization raising `NameError` for dataclasses defined under `from __future__ import annotations` (PEP 563). Field type annotations are now resolved with `typing.get_type_hints` in the defining module's namespace instead of a bare `eval` in bytemaker's namespace, so stringized annotations such as `"SInt16"` resolve correctly in `count_bits_in_aggregate_type`, `to_bits_aggregate`, `from_bits_aggregate`, `to_bytes_aggregate`, and `from_bytes_aggregate`.
+
 ### Version 0.10.1
 (13 April 2026)
 #### Breaking changes
