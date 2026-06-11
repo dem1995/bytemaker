@@ -659,6 +659,8 @@ def test_replace(array, old, new, count, expected):
     bit_array = BitVector(array)
     result = bit_array.replace(BitVector(old), BitVector(new), count)
     assert result.to01() == expected
+    # replace generates a new BitVector; the receiver must be unchanged
+    assert bit_array.to01() == array
 
 
 # join
