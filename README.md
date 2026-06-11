@@ -25,6 +25,17 @@ For faster, C-backed bit manipulation, install with the optional [bitarray](http
 The main goal of the project is to ease development of projects working with compiled code (e.g. ROM hacking). As such, streaming features are currently deemphasized, although I may implement them at some later date.
 
 ## Changelog
+### Version 0.11.0
+(11 June 2026)
+#### Major changes
+- bitarray is now an optional dependency. bytemaker includes a pure-Python `BitVector` implementation that is used automatically when bitarray is not installed; install `bytemaker[speedups]` to get the faster, C-backed bitarray implementation. Both implementations conform to the behavior specified in `bitvector.pyi` and are exercised by a shared, parametrized test suite.
+
+#### Bugfixes
+- Fixed `BitVector.from01` raising `AttributeError` for sequences of `"0"`/`"1"` characters rather than strings
+- Fixed slice and index-list assignment raising `TypeError` for `str` (and other `BitsConstructible`) values
+- Fixed `BitVector.replace` never terminating when `old` is empty
+- Fixed construction from `BitsCastable` objects padding sub-byte `__Bits__` results up to whole bytes
+
 ### Version 0.10.2
 (1 June 2026)
 #### Bugfixes
