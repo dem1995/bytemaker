@@ -129,6 +129,12 @@ def test_from_bin(bin_str, expected_bin):
     # assert bit_array_little_endian.endianness == "little"
 
 
+# from01 with a sequence of characters rather than a string
+def test_from01_char_sequence():
+    assert BitVector.from01(["1", "0", "1"]).to01() == "101"
+    assert BitVector.from01(("1", "0", "1")).to01() == "101"
+
+
 # frombase
 @pytest.mark.parametrize(
     "base_str,base,expected_bin",
