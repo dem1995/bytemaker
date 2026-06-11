@@ -676,6 +676,14 @@ def test_replace(array, old, new, count, expected):
     assert bit_array.to01() == array
 
 
+# replace with an empty pattern terminates and leaves the bits unchanged
+def test_replace_empty_old_returns_copy():
+    bit_array = BitVector("1010")
+    result = bit_array.replace(BitVector(""), BitVector("1"))
+    assert result == bit_array
+    assert result is not bit_array
+
+
 # join
 @pytest.mark.parametrize(
     "separator,iterable,expected",
