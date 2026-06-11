@@ -1414,6 +1414,10 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
         accumulated_bits: Optional[Self] = None
         if len(old) != len(new):
             accumulated_bits: Optional[Self] = type(self)()
+        else:
+            # The equal-length path patches slices in place,
+            # so work on a copy to keep the receiver unmutated.
+            self = self.copy()
 
         while float(num_replacements) < max_replacements:
             found_index = self.find(old, index)
