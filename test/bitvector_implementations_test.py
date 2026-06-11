@@ -54,6 +54,8 @@ class IndexOnly:
 
 def test_construction_from_bitscastable(BitVector):
     assert BitVector(Castable(BitVector, "11001010")).to01() == "11001010"
+    # sub-byte lengths are preserved
+    assert BitVector(Castable(BitVector, "1100")).to01() == "1100"
 
 
 def test_construction_invalid_source_type(BitVector):
@@ -72,6 +74,10 @@ def test_fromsize_negative_is_empty(BitVector):
 def test_from01_rejects_other_characters(BitVector):
     with pytest.raises(ValueError):
         BitVector.from01("102")
+
+
+def test_from01_accepts_char_sequences(BitVector):
+    assert BitVector.from01(["1", "0", "1"]).to01() == "101"
 
 
 # endregion construction
@@ -315,6 +321,18 @@ def test_setitem_slice_with_bitvector_resizes(BitVector):
     assert bv.to01() == "01110"
 
 
+def test_setitem_slice_with_str_resizes(BitVector):
+    bv = BitVector("0000")
+    bv[1:3] = "111"
+    assert bv.to01() == "01110"
+
+
+def test_setitem_extended_slice_requires_matching_length(BitVector):
+    bv = BitVector("1010")
+    with pytest.raises(ValueError):
+        bv[0::2] = "111"
+
+
 def test_setitem_iterable_key(BitVector):
     bv = BitVector("0000")
     bv[[0, 2]] = 1
@@ -322,6 +340,11 @@ def test_setitem_iterable_key(BitVector):
     bv = BitVector("0000")
     bv[[1, 3]] = BitVector("11")
     assert bv.to01() == "0101"
+    bv = BitVector("0000")
+    bv[[1, 3]] = "11"
+    assert bv.to01() == "0101"
+    with pytest.raises(ValueError):
+        bv[[0, 2]] = "111"
 
 
 def test_setitem_invalid_key(BitVector):
@@ -437,6 +460,13 @@ def test_replace_accepts_constructibles_and_does_not_mutate(BitVector):
     assert bv.to01() == "101010"
 
 
+def test_replace_empty_old_returns_copy(BitVector):
+    bv = BitVector("1010")
+    result = bv.replace("", "1")
+    assert result == bv
+    assert result is not bv
+
+
 def test_replace_with_different_lengths(BitVector):
     assert BitVector("101010").replace("10", "0").to01() == "000"
     assert BitVector("101010").replace("0", "11", 1).to01() == "1111010"
@@ -490,11 +520,11 @@ def test_to_int(BitVector):
 # endregion transitional methods
 
 # region native-only behavior
-# The pure-Python implementation accepts some spec-permitted inputs that the
-# bitarray-backed one rejects (or, for replace("", ...), does not terminate
-# on). For assignments, the bitarray-backed implementation handles BitVector
-# values fine (tested in the shared regions); what it lacks is converting
-# other BitsConstructibles such as str.
+# The remaining differences from the bitarray-backed implementation are
+# unspecified behavior rather than functionality gaps: that implementation
+# raises TypeError directly from the comparison dunders rather than
+# returning NotImplemented, and returns False from startswith for
+# non-constructible inputs rather than raising TypeError.
 
 
 def test_native_comparison_dunders_return_notimplemented():
@@ -503,44 +533,9 @@ def test_native_comparison_dunders_return_notimplemented():
         assert getattr(bv, operation)("10") is NotImplemented
 
 
-def test_native_from01_accepts_char_sequences():
-    assert NativeBitVector.from01(["1", "0", "1"]).to01() == "101"
-
-
-def test_native_castable_preserves_sub_byte_lengths():
-    assert NativeBitVector(Castable(NativeBitVector, "1100")).to01() == "1100"
-
-
-def test_native_setitem_slice_with_str_resizes():
-    bv = NativeBitVector("0000")
-    bv[1:3] = "111"
-    assert bv.to01() == "01110"
-
-
-def test_native_setitem_extended_slice_requires_matching_length():
-    bv = NativeBitVector("1010")
-    with pytest.raises(ValueError):
-        bv[0::2] = "111"
-
-
-def test_native_setitem_iterable_key_with_str_value():
-    bv = NativeBitVector("0000")
-    bv[[1, 3]] = "11"
-    assert bv.to01() == "0101"
-    with pytest.raises(ValueError):
-        bv[[0, 2]] = "111"
-
-
 def test_native_startswith_non_constructible_is_a_type_error():
     with pytest.raises(TypeError):
         NativeBitVector("1011011").startswith(3.5)
-
-
-def test_native_replace_empty_old_returns_copy():
-    bv = NativeBitVector("1010")
-    result = bv.replace("", "1")
-    assert result == bv
-    assert result is not bv
 
 
 # endregion native-only behavior
