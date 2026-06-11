@@ -169,9 +169,12 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
             return self
         # BitsCastable constructor
         elif isinstance(source, BitsCastable):
+            # Copy-construct from the returned BitVector rather than reading
+            # it through the buffer protocol, which would round the length
+            # up to whole bytes.
             curinstance = source.__Bits__()
             self: Self = super().__new__(
-                cls, buffer=curinstance  # type: ignore[reportCallIssue]
+                cls, curinstance  # type: ignore[reportCallIssue]
             )
             return self
 
