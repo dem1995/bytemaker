@@ -52,6 +52,17 @@ def test_invalid_source_type(source, expected_exception):
         BitVector(source)
 
 
+# BitsCastable objects construct from their __Bits__ representation,
+# preserving sub-byte lengths
+class CastableToBits:
+    def __Bits__(self):
+        return BitVector("1100")
+
+
+def test_initialization_from_bitscastable():
+    assert BitVector(CastableToBits()).to01() == "1100"
+
+
 # @pytest.mark.parametrize(
 #     "source,expected_exception",
 #     [
