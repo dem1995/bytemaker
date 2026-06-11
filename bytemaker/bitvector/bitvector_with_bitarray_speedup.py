@@ -308,19 +308,23 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
     @classmethod
     def from01(
         cls: type[Self],
-        string: str,
+        string: LaxLiteral01Str,
     ) -> Self:
         """
-        Create a BitVector from a binary string.
+        Create a BitVector from a binary string
+            (or sequence of "0"/"1" characters).
         The string may contain any of '_', '-', ' ', or ':'.
         The string must contain only 0s and 1s other than these.
 
         Args:
-            string (str): The binary string to convert
+            string (Union[Sequence[Literal["0", "1"]], str]): The binary
+                string (or character sequence) to convert
 
         Returns:
             BitVector: The BitVector created from the binary string
         """
+        if not isinstance(string, str):
+            string = "".join(string)
         string = string.translate(str.maketrans("", "", "_- :"))
         bit_array = bitarray(string)
         return cls(bit_array)
