@@ -7,6 +7,10 @@ if find_spec("bitarray"):
         BitVector,
     )
 else:
-    raise NotImplementedError("Add non-bitarray implementation")
+    from bytemaker.bitvector.bitvector_native import (
+        BitsCastable,
+        BitsConstructible,
+        BitVector,
+    )
 
 __all__ = ["BitVector", "BitsCastable", "BitsConstructible"]
