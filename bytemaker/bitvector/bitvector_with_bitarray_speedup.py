@@ -169,9 +169,12 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
             return self
         # BitsCastable constructor
         elif isinstance(source, BitsCastable):
+            # Copy-construct from the returned BitVector rather than reading
+            # it through the buffer protocol, which would round the length
+            # up to whole bytes.
             curinstance = source.__Bits__()
             self: Self = super().__new__(
-                cls, buffer=curinstance  # type: ignore[reportCallIssue]
+                cls, curinstance  # type: ignore[reportCallIssue]
             )
             return self
 
@@ -308,19 +311,23 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
     @classmethod
     def from01(
         cls: type[Self],
-        string: str,
+        string: LaxLiteral01Str,
     ) -> Self:
         """
-        Create a BitVector from a binary string.
+        Create a BitVector from a binary string
+            (or sequence of "0"/"1" characters).
         The string may contain any of '_', '-', ' ', or ':'.
         The string must contain only 0s and 1s other than these.
 
         Args:
-            string (str): The binary string to convert
+            string (Union[Sequence[Literal["0", "1"]], str]): The binary
+                string (or character sequence) to convert
 
         Returns:
             BitVector: The BitVector created from the binary string
         """
+        if not isinstance(string, str):
+            string = "".join(string)
         string = string.translate(str.maketrans("", "", "_- :"))
         bit_array = bitarray(string)
         return cls(bit_array)
@@ -872,14 +879,17 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
            or the bits across the indices given in slice or Sequence form.
 
         An individual bit can be set with a BitsConstructible of length 1.
+
+        A slice or sequence of indices can be set either with a single bit
+           (setting every indexed position to that bit) or with a
+           BitsConstructible (matching positions elementwise; for non-unit
+           slice steps and index sequences, the lengths must agree).
         """
         if isinstance(key, int):
             if not isinstance(value, int):
                 value = BitVector(value)[0]
-        # if isinstance(key, Iterable):
-        #     key = list(key)
-        # elif isinstance(key, slice):
-        #     pass
+        elif not isinstance(value, (int, bitarray)):
+            value = self.cast_if_not_bitvector(value)
         super().__setitem__(key, value)  # type: ignore[reportCallIssue]
 
     def __delitem__(self, key: Union[int, slice, Sequence[int]]) -> None:
@@ -1406,6 +1416,11 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
             new = type(self)(new)
         assert isinstance(old, type(self))
         assert isinstance(new, type(self))
+
+        if len(old) == 0:
+            # An empty pattern would match at every index without ever
+            # advancing the search, so return an unchanged copy instead.
+            return self.copy()
 
         max_replacements = float("inf") if count is None else count
         num_replacements = 0

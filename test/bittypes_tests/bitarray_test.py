@@ -52,6 +52,17 @@ def test_invalid_source_type(source, expected_exception):
         BitVector(source)
 
 
+# BitsCastable objects construct from their __Bits__ representation,
+# preserving sub-byte lengths
+class CastableToBits:
+    def __Bits__(self):
+        return BitVector("1100")
+
+
+def test_initialization_from_bitscastable():
+    assert BitVector(CastableToBits()).to01() == "1100"
+
+
 # @pytest.mark.parametrize(
 #     "source,expected_exception",
 #     [
@@ -127,6 +138,12 @@ def test_from_bin(bin_str, expected_bin):
     # bit_array_little_endian = BitVector.frombin(bin_str, endianness="little")
     # assert bit_array_little_endian.to01() == expected_bin
     # assert bit_array_little_endian.endianness == "little"
+
+
+# from01 with a sequence of characters rather than a string
+def test_from01_char_sequence():
+    assert BitVector.from01(["1", "0", "1"]).to01() == "101"
+    assert BitVector.from01(("1", "0", "1")).to01() == "101"
 
 
 # frombase
@@ -350,6 +367,13 @@ def test_setitem():
     assert a == BitVector("0010")
     a[1:3] = BitVector("11")
     assert a == BitVector("0110")
+    # BitsConstructible values are converted
+    a[1:3] = "00"
+    assert a == BitVector("0000")
+    a[1:4] = "111111"  # unit-step slices resize to fit the value
+    assert a == BitVector("0111111")
+    a[[0, 1]] = "10"
+    assert a == BitVector("1011111")
 
 
 # __delitem__
@@ -661,6 +685,14 @@ def test_replace(array, old, new, count, expected):
     assert result.to01() == expected
     # replace generates a new BitVector; the receiver must be unchanged
     assert bit_array.to01() == array
+
+
+# replace with an empty pattern terminates and leaves the bits unchanged
+def test_replace_empty_old_returns_copy():
+    bit_array = BitVector("1010")
+    result = bit_array.replace(BitVector(""), BitVector("1"))
+    assert result == bit_array
+    assert result is not bit_array
 
 
 # join
