@@ -876,14 +876,17 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
            or the bits across the indices given in slice or Sequence form.
 
         An individual bit can be set with a BitsConstructible of length 1.
+
+        A slice or sequence of indices can be set either with a single bit
+           (setting every indexed position to that bit) or with a
+           BitsConstructible (matching positions elementwise; for non-unit
+           slice steps and index sequences, the lengths must agree).
         """
         if isinstance(key, int):
             if not isinstance(value, int):
                 value = BitVector(value)[0]
-        # if isinstance(key, Iterable):
-        #     key = list(key)
-        # elif isinstance(key, slice):
-        #     pass
+        elif not isinstance(value, (int, bitarray)):
+            value = self.cast_if_not_bitvector(value)
         super().__setitem__(key, value)  # type: ignore[reportCallIssue]
 
     def __delitem__(self, key: Union[int, slice, Sequence[int]]) -> None:

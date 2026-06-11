@@ -356,6 +356,13 @@ def test_setitem():
     assert a == BitVector("0010")
     a[1:3] = BitVector("11")
     assert a == BitVector("0110")
+    # BitsConstructible values are converted
+    a[1:3] = "00"
+    assert a == BitVector("0000")
+    a[1:4] = "111111"  # unit-step slices resize to fit the value
+    assert a == BitVector("0111111")
+    a[[0, 1]] = "10"
+    assert a == BitVector("1011111")
 
 
 # __delitem__
