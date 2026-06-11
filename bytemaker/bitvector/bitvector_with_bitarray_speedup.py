@@ -1414,6 +1414,11 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
         assert isinstance(old, type(self))
         assert isinstance(new, type(self))
 
+        if len(old) == 0:
+            # An empty pattern would match at every index without ever
+            # advancing the search, so return an unchanged copy instead.
+            return self.copy()
+
         max_replacements = float("inf") if count is None else count
         num_replacements = 0
 
