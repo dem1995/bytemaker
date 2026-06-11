@@ -27,15 +27,19 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        # Install the dependencies specified in pyproject.toml (core dependencies)
-        python -m pip install .
-        # Install additional dependencies under dev (e.g., pytest)
+        # Install the package along with the optional bitarray speedup
+        python -m pip install .[speedups]
+        # Install additional dependencies under testing (e.g., pytest)
         python -m pip install .[testing]
         # Install codecov dependency
         python -m pip install pytest-cov
-    - name: Test with pytest
+    - name: Test with pytest (bitarray-backed BitVector)
       run: |
         pytest --cov
+    - name: Test with pytest (pure-Python BitVector)
+      run: |
+        python -m pip uninstall -y bitarray
+        pytest --cov --cov-append
     - name: Upload results to Codecov
       uses: codecov/codecov-action@v4
       with:

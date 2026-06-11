@@ -19,6 +19,8 @@ bytemaker is a Python 3.8-compatible library for bit-manipulation and byte seria
 ## How do I install it?
 Run `python -m pip install bytemaker`.
 
+For faster, C-backed bit manipulation, install with the optional [bitarray](https://pypi.org/project/bitarray/) dependency by running `python -m pip install bytemaker[speedups]` instead. Without it, bytemaker uses a pure-Python `BitVector` implementation with identical behavior.
+
 ## Project intent
 The main goal of the project is to ease development of projects working with compiled code (e.g. ROM hacking). As such, streaming features are currently deemphasized, although I may implement them at some later date.
 

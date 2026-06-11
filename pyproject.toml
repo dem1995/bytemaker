@@ -13,15 +13,18 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent"]
 
-dependencies = [
-    "bitarray >= 2.9.0"]
+dependencies = []
 
 [project.optional-dependencies]
+speedups = [
+    "bitarray >= 2.9.0"
+]
 testing = [
     "pytest>=6",
     "flake8>=3.8"
 ]
 dev = [
+    "bitarray >= 2.9.0",
     "pytest>=6",
     "flake8>=3.8",
     "pre-commit >= 3.8.0"
