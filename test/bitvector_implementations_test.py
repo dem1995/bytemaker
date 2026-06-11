@@ -309,10 +309,19 @@ def test_setitem_slice_with_int_fills(BitVector):
     assert bv.to01() == "1010"
 
 
-def test_setitem_iterable_key_with_int_fills(BitVector):
+def test_setitem_slice_with_bitvector_resizes(BitVector):
+    bv = BitVector("0000")
+    bv[1:3] = BitVector("111")
+    assert bv.to01() == "01110"
+
+
+def test_setitem_iterable_key(BitVector):
     bv = BitVector("0000")
     bv[[0, 2]] = 1
     assert bv.to01() == "1010"
+    bv = BitVector("0000")
+    bv[[1, 3]] = BitVector("11")
+    assert bv.to01() == "0101"
 
 
 def test_setitem_invalid_key(BitVector):
@@ -324,6 +333,9 @@ def test_setitem_invalid_key(BitVector):
 def test_delitem_iterable_key_and_invalid_key(BitVector):
     bv = BitVector("1010")
     del bv[[0, 3]]
+    assert bv.to01() == "01"
+    bv = BitVector("1010")
+    del bv[[0, -1]]
     assert bv.to01() == "01"
     with pytest.raises(TypeError):
         del bv[object()]
@@ -479,7 +491,10 @@ def test_to_int(BitVector):
 
 # region native-only behavior
 # The pure-Python implementation accepts some spec-permitted inputs that the
-# bitarray-backed one rejects (or, for replace("", ...), does not terminate on).
+# bitarray-backed one rejects (or, for replace("", ...), does not terminate
+# on). For assignments, the bitarray-backed implementation handles BitVector
+# values fine (tested in the shared regions); what it lacks is converting
+# other BitsConstructibles such as str.
 
 
 def test_native_comparison_dunders_return_notimplemented():
@@ -496,7 +511,7 @@ def test_native_castable_preserves_sub_byte_lengths():
     assert NativeBitVector(Castable(NativeBitVector, "1100")).to01() == "1100"
 
 
-def test_native_setitem_slice_with_constructible_resizes():
+def test_native_setitem_slice_with_str_resizes():
     bv = NativeBitVector("0000")
     bv[1:3] = "111"
     assert bv.to01() == "01110"
@@ -508,18 +523,12 @@ def test_native_setitem_extended_slice_requires_matching_length():
         bv[0::2] = "111"
 
 
-def test_native_setitem_iterable_key_with_constructible_value():
+def test_native_setitem_iterable_key_with_str_value():
     bv = NativeBitVector("0000")
     bv[[1, 3]] = "11"
     assert bv.to01() == "0101"
     with pytest.raises(ValueError):
         bv[[0, 2]] = "111"
-
-
-def test_native_delitem_iterable_key_with_negative_indices():
-    bv = NativeBitVector("1010")
-    del bv[[0, -1]]
-    assert bv.to01() == "01"
 
 
 def test_native_startswith_non_constructible_is_a_type_error():
