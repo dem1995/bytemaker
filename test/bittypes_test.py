@@ -10,12 +10,14 @@ from bytemaker.bittypes import (
     Float32,
     Float64,
     SInt8,
+    SInt10,
     SInt16,
     SInt32,
     SInt64,
     Str8,
     Str16,
     UInt8,
+    UInt10,
     UInt16,
     UInt32,
     UInt64,
@@ -241,3 +243,72 @@ def test_struct_packed_bittype_non_byte_aligned_value():
     bits_42 = BitVector("0b000000101010")
     instance = UInt12Packed(bits=bits_42)
     assert instance.value == 42
+
+
+def test_uint_non_struct_value_setter_zero_pads():
+    """Regression test: the non-struct UInt.value setter must produce exactly
+    num_bits, zero-padded, through the validating bits property. Previously it
+    assigned BitVector(bin(value)[2:]) straight to self._bits, yielding
+    minimal-width bits (UInt10(1).bits had length 1, not 10) and breaking
+    aggregate serialization."""
+    u = UInt10(1)
+    assert len(u.bits) == UInt10.num_bits == 10
+    assert u.bits.to01() == "0000000001"
+    assert u.value == 1
+    assert len(u.to_bits()) == 10
+
+    # zero and the maximum stay full-width and round-trip through the bits
+    assert len(UInt10(0).bits) == 10
+    hi = UInt10(2**10 - 1)
+    assert len(hi.bits) == 10 and hi.value == 2**10 - 1
+    assert UInt10.from_bits(hi.to_bits()).value == 2**10 - 1
+
+    # out-of-range values wrap modulo 2**num_bits, like a C (uint10_t) cast
+    u.value = 2**10  # 1024 -> 0
+    assert u.value == 0 and len(u.bits) == 10
+    u.value = 2**10 + 5  # 1029 -> 5
+    assert u.value == 5
+    u.value = -1  # -> 1023 (all ones), like (uint10_t)(-1)
+    assert u.value == 2**10 - 1
+
+
+def test_sint_non_struct_value_setter_wraps_like_c():
+    """The non-struct (two's-complement) SInt.value setter narrows an
+    out-of-range value by truncation, matching a C (int10_t) cast, rather
+    than raising."""
+    s = SInt10(0, int_format="twos_complement")
+    assert len(s.bits) == 10
+
+    s.value = 2**9  # 512 overflows the top of [-512, 511] -> -512
+    assert s.value == -(2**9)
+    s.value = -(2**9) - 1  # -513 underflows -> 511
+    assert s.value == 2**9 - 1
+    assert len(s.bits) == 10
+
+
+def test_struct_packed_int_value_wraps_like_c():
+    """Struct-packed integer types narrow out-of-range values by truncation
+    (C (uintN_t)/(intN_t) semantics) instead of raising struct.error. Floats
+    are unaffected."""
+    u = UInt8(0)
+    u.value = 256  # -> 0
+    assert u.value == 0 and len(u.bits) == 8
+    u.value = 257  # -> 1
+    assert u.value == 1
+    u.value = -1  # -> 255
+    assert u.value == 255
+
+    s = SInt8(0)
+    s.value = 128  # overflows [-128, 127] -> -128
+    assert s.value == -128
+    s.value = -129  # underflows -> 127
+    assert s.value == 127
+
+    w = UInt16(0)
+    w.value = 2**16 + 3  # -> 3
+    assert w.value == 3
+
+    # floats still round-trip (and reject non-representable magnitudes as before)
+    f = Float32(1.5)
+    f.value = 2.5
+    assert f.value == 2.5
