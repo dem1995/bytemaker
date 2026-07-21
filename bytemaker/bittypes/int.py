@@ -455,10 +455,16 @@ class SInt(Int):
 
     @value.setter
     def value(self, value):
+        n = self.num_bits
+        if self.int_format == "twos_complement":
+            # C-style narrowing conversion: wrap into the signed range
+            # (mod 2**n), matching (intN_t) truncation in C. The other
+            # (non-two's-complement) formats have no C analogue and still
+            # reject out-of-range values.
+            value = ((value + (1 << (n - 1))) % (1 << n)) - (1 << (n - 1))
         str_bits = Int.to_bitstring(
-            value, signed=True, bit_length=self.num_bits, rep_format=self.int_format
+            value, signed=True, bit_length=n, rep_format=self.int_format
         )
-
         self.bits = BitVector(str_bits)
 
     @classmethod
@@ -637,6 +643,10 @@ class UInt(Int):
 
     @value.setter
     def value(self, value):
+        # C-style narrowing conversion: keep the low num_bits bits
+        # (value modulo 2**num_bits), so out-of-range values wrap instead
+        # of raising, matching (uintN_t) truncation in C.
+        value &= (1 << self.num_bits) - 1
         str_bits = Int.to_bitstring(value, signed=False, bit_length=self.num_bits)
         self.bits = BitVector(str_bits)
 

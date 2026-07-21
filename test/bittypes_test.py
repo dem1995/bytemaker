@@ -10,6 +10,7 @@ from bytemaker.bittypes import (
     Float32,
     Float64,
     SInt8,
+    SInt10,
     SInt16,
     SInt32,
     SInt64,
@@ -262,8 +263,24 @@ def test_uint_non_struct_value_setter_zero_pads():
     assert len(hi.bits) == 10 and hi.value == 2**10 - 1
     assert UInt10.from_bits(hi.to_bits()).value == 2**10 - 1
 
-    # out-of-range values are rejected, matching SInt and the struct-packed path
-    with pytest.raises(ValueError):
-        u.value = 2**10
-    with pytest.raises(ValueError):
-        u.value = -1
+    # out-of-range values wrap modulo 2**num_bits, like a C (uint10_t) cast
+    u.value = 2**10  # 1024 -> 0
+    assert u.value == 0 and len(u.bits) == 10
+    u.value = 2**10 + 5  # 1029 -> 5
+    assert u.value == 5
+    u.value = -1  # -> 1023 (all ones), like (uint10_t)(-1)
+    assert u.value == 2**10 - 1
+
+
+def test_sint_non_struct_value_setter_wraps_like_c():
+    """The non-struct (two's-complement) SInt.value setter narrows an
+    out-of-range value by truncation, matching a C (int10_t) cast, rather
+    than raising."""
+    s = SInt10(0, int_format="twos_complement")
+    assert len(s.bits) == 10
+
+    s.value = 2**9  # 512 overflows the top of [-512, 511] -> -512
+    assert s.value == -(2**9)
+    s.value = -(2**9) - 1  # -513 underflows -> 511
+    assert s.value == 2**9 - 1
+    assert len(s.bits) == 10
