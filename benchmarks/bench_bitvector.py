@@ -71,39 +71,53 @@ def bench_ops(nbits, quadratic_cap=100_000):
             lambda cls, bits=[int(c) for c in s01]: (lambda: cls(bits)),
             None,
         ),
-        ("from_int", lambda cls: (lambda: cls.from_int(int_value, nbits)), quadratic_cap),
+        (
+            "from_int",
+            lambda cls: (lambda: cls.from_int(int_value, nbits)),
+            quadratic_cap,
+        ),
         ("bytes(bv) / tobytes", lambda cls, bv=None: (lambda: bytes(cls(data))), None),
         ("to_bytes", lambda cls: (lambda bv=cls(data): bv.to_bytes()), None),
         ("to_int", lambda cls: (lambda bv=cls(data): bv.to_int()), None),
         ("to01", lambda cls: (lambda bv=cls(data): bv.to01()), None),
         ("hex", lambda cls: (lambda bv=cls(data): bv.hex()), None),
-        ("xor equal-length", lambda cls: (
-            lambda a=cls(data), b=cls(data): a ^ b
-        ), None),
+        (
+            "xor equal-length",
+            lambda cls: (lambda a=cls(data), b=cls(data): a ^ b),
+            None,
+        ),
         ("invert", lambda cls: (lambda bv=cls(data): ~bv), None),
         ("lshift 3", lambda cls: (lambda bv=cls(data): bv << 3), None),
-        ("slice half (unaligned)", lambda cls: (
-            lambda bv=cls(data): bv[1 : nbits // 2 + 1]
-        ), None),
+        (
+            "slice half (unaligned)",
+            lambda cls: (lambda bv=cls(data): bv[1 : nbits // 2 + 1]),
+            None,
+        ),
         ("concat", lambda cls: (lambda a=cls(data), b=cls(data): a + b), None),
         ("equality", lambda cls: (lambda a=cls(data), b=cls(data): a == b), None),
         ("count(1)", lambda cls: (lambda bv=cls(data): bv.count(1)), None),
-        ("find subsequence", lambda cls: (
-            lambda bv=cls(data), pat="0" * 24 + "1": bv.find(pat)
-        ), None),
-        ("get bit (middle)", lambda cls: (
-            lambda bv=cls(data): bv[nbits // 2]
-        ), None),
-        ("set bit (middle)", lambda cls: (
-            lambda bv=cls(data): bv.__setitem__(nbits // 2, 1)
-        ), None),
-        ("append x100", lambda cls: (
-            lambda bv=cls(data): [bv.append(1) for _ in range(100)]
-        ), None),
+        (
+            "find subsequence",
+            lambda cls: (lambda bv=cls(data), pat="0" * 24 + "1": bv.find(pat)),
+            None,
+        ),
+        ("get bit (middle)", lambda cls: (lambda bv=cls(data): bv[nbits // 2]), None),
+        (
+            "set bit (middle)",
+            lambda cls: (lambda bv=cls(data): bv.__setitem__(nbits // 2, 1)),
+            None,
+        ),
+        (
+            "append x100",
+            lambda cls: (lambda bv=cls(data): [bv.append(1) for _ in range(100)]),
+            None,
+        ),
         ("reverse", lambda cls: (lambda bv=cls(data): bv.reverse()), None),
-        ("replace('101','010')", lambda cls: (
-            lambda bv=cls(data): bv.replace("101", "010")
-        ), None),
+        (
+            "replace('101','010')",
+            lambda cls: (lambda bv=cls(data): bv.replace("101", "010")),
+            None,
+        ),
     ]:
         if cap is not None and nbits > cap:
             print(f"{name:34s} {'(skipped: quadratic in native)':>33s}")
@@ -111,9 +125,7 @@ def bench_ops(nbits, quadratic_cap=100_000):
         native_time = _time(make_op(NativeBitVector))
         speedup_time = _time(make_op(SpeedupBitVector))
         ratio = native_time / speedup_time if speedup_time else float("inf")
-        print(
-            f"{name:34s} {_fmt(native_time)} {_fmt(speedup_time)} {ratio:8.1f}x"
-        )
+        print(f"{name:34s} {_fmt(native_time)} {_fmt(speedup_time)} {ratio:8.1f}x")
 
 
 _E2E_WORKER = """

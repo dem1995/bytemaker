@@ -104,7 +104,11 @@ _CHUNK_TO_DIGIT = {
     for base in (4, 32, 64)
 }
 _DIGIT_TO_BITS[16].update(
-    {digit.upper(): bits for digit, bits in _DIGIT_TO_BITS[16].items() if digit.isalpha()}
+    {
+        digit.upper(): bits
+        for digit, bits in _DIGIT_TO_BITS[16].items()
+        if digit.isalpha()
+    }
 )
 
 if hasattr(int, "bit_count"):  # Python >= 3.10
@@ -159,7 +163,7 @@ def _valbits_from_iterable(source: Iterable[LaxLiteral01]) -> bytearray:
     return bytearray(_coerce_bit(bit) for bit in source)
 
 
-def _pack_valbits(valbits: bytearray) -> "tuple[bytearray, int]":
+def _pack_valbits(valbits: bytearray) -> tuple[bytearray, int]:
     """Packs a bytearray of 0/1 byte values into (packed buffer, bit length)."""
     nbits = len(valbits)
     if nbits == 0:
@@ -187,7 +191,7 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
     -----------
     n = len(self) in bits; m = the other operand's or pattern's length;
     k = the number of bits read or produced.
-    
+
     Bulk operations run as a single C-level pass
     (int.from_bytes -> op -> int.to_bytes, or a bytearray memcpy).
 
@@ -811,9 +815,7 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
         """
         other = self.cast_if_not_bitvector(other)
         if self._len & 7 == 0:
-            return type(self)._with_buf(
-                self._buf + other._buf, self._len + other._len
-            )
+            return type(self)._with_buf(self._buf + other._buf, self._len + other._len)
         nbits = self._len + other._len
         value = (self._as_int() << other._len) | other._as_int()
         return type(self)._with_buf(_pack_int(value, nbits), nbits)
@@ -856,9 +858,7 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
             other = type(self)(other)
         if other._len != self._len:
             raise ValueError("BitVectors of equal length expected")
-        result = op(
-            int.from_bytes(self._buf, "big"), int.from_bytes(other._buf, "big")
-        )
+        result = op(int.from_bytes(self._buf, "big"), int.from_bytes(other._buf, "big"))
         return type(self)._with_buf(
             bytearray(result.to_bytes(len(self._buf), "big")), self._len
         )

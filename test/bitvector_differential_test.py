@@ -16,6 +16,7 @@ import pytest
 from bytemaker.bitvector.bitvector_native import BitVector as NativeBitVector
 from bytemaker.bitvector.bitvector_speedup import BitVector as SpeedupBitVector
 
+
 # Marker resolved per-implementation so each side operates on its own class.
 class SameImplBV:
     def __init__(self, s01):
@@ -139,9 +140,11 @@ OPS = [
     (
         "delitem_iterable",
         lambda rng, s: (
-            [rng.randrange(-len(s), len(s)) for _ in range(rng.randrange(3))]
-            if s
-            else [],
+            (
+                [rng.randrange(-len(s), len(s)) for _ in range(rng.randrange(3))]
+                if s
+                else []
+            ),
         ),
         lambda bv, cls, p: bv.__delitem__(p[0]),
     ),
@@ -209,9 +212,7 @@ OPS = [
         "bitwise",
         lambda rng, s: (
             rng.choice(["__and__", "__or__", "__xor__"]),
-            SameImplBV(
-                _random01(rng, len(s) if rng.random() < 0.8 else len(s) + 1)
-            ),
+            SameImplBV(_random01(rng, len(s) if rng.random() < 0.8 else len(s) + 1)),
         ),
         lambda bv, cls, p: getattr(bv, p[0])(_resolve(p[1], cls)),
     ),
@@ -269,7 +270,9 @@ OPS = [
     ),
     (
         "join",
-        lambda rng, s: ([_random01(rng, rng.randrange(5)) for _ in range(rng.randrange(4))],),
+        lambda rng, s: (
+            [_random01(rng, rng.randrange(5)) for _ in range(rng.randrange(4))],
+        ),
         lambda bv, cls, p: bv.join(p[0]),
     ),
     (
@@ -365,7 +368,7 @@ CLASSMETHOD_OPS = [
     (
         "from_int",
         lambda rng: (
-            rng.randint(-(2 ** 16), 2 ** 16),
+            rng.randint(-(2**16), 2**16),
             rng.choice([None, rng.randint(0, 40)]),
         ),
         lambda cls, p: cls.from_int(p[0], p[1]),
@@ -380,17 +383,14 @@ CLASSMETHOD_OPS = [
     ),
     (
         "from01",
-        lambda rng: (
-            "".join(rng.choice("01_- :2") for _ in range(rng.randrange(10))),
-        ),
+        lambda rng: ("".join(rng.choice("01_- :2") for _ in range(rng.randrange(10))),),
         lambda cls, p: cls.from01(p[0]),
     ),
     (
         "frombase",
         lambda rng: (
             "".join(
-                rng.choice("0123456789abcdefABCDEFG+/")
-                for _ in range(rng.randrange(6))
+                rng.choice("0123456789abcdefABCDEFG+/") for _ in range(rng.randrange(6))
             ),
             rng.choice([2, 4, 8, 16, 32, 64, 10]),
         ),
