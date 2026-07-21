@@ -7,7 +7,7 @@ if find_spec("bitarray"):
         BitVector,
     )
 else:
-    from bytemaker.bitvector.bitvector_native import (
+    from bytemaker.bitvector.bitvector_speedup import (
         BitsCastable,
         BitsConstructible,
         BitVector,

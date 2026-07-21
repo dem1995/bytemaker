@@ -14,8 +14,12 @@ import copy
 import pytest
 
 from bytemaker.bitvector.bitvector_native import BitVector as NativeBitVector
+from bytemaker.bitvector.bitvector_speedup import BitVector as SpeedupBitVector
 
-_IMPLEMENTATIONS = [pytest.param(NativeBitVector, id="native")]
+_IMPLEMENTATIONS = [
+    pytest.param(NativeBitVector, id="native"),
+    pytest.param(SpeedupBitVector, id="speedup"),
+]
 try:
     from bytemaker.bitvector.bitvector_with_bitarray_speedup import (
         BitVector as BitarrayBitVector,
@@ -519,23 +523,30 @@ def test_to_int(BitVector):
 
 # endregion transitional methods
 
-# region native-only behavior
+# region pure-Python-only behavior
 # The remaining differences from the bitarray-backed implementation are
 # unspecified behavior rather than functionality gaps: that implementation
 # raises TypeError directly from the comparison dunders rather than
 # returning NotImplemented, and returns False from startswith for
 # non-constructible inputs rather than raising TypeError.
 
+_PUREPY_IMPLEMENTATIONS = [
+    pytest.param(NativeBitVector, id="native"),
+    pytest.param(SpeedupBitVector, id="speedup"),
+]
 
-def test_native_comparison_dunders_return_notimplemented():
-    bv = NativeBitVector("10")
+
+@pytest.mark.parametrize("cls", _PUREPY_IMPLEMENTATIONS)
+def test_native_comparison_dunders_return_notimplemented(cls):
+    bv = cls("10")
     for operation in ("__lt__", "__le__", "__gt__", "__ge__"):
         assert getattr(bv, operation)("10") is NotImplemented
 
 
-def test_native_startswith_non_constructible_is_a_type_error():
+@pytest.mark.parametrize("cls", _PUREPY_IMPLEMENTATIONS)
+def test_native_startswith_non_constructible_is_a_type_error(cls):
     with pytest.raises(TypeError):
-        NativeBitVector("1011011").startswith(3.5)
+        cls("1011011").startswith(3.5)
 
 
-# endregion native-only behavior
+# endregion pure-Python-only behavior
