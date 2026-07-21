@@ -16,6 +16,7 @@ from bytemaker.bittypes import (
     Str8,
     Str16,
     UInt8,
+    UInt10,
     UInt16,
     UInt32,
     UInt64,
@@ -241,3 +242,28 @@ def test_struct_packed_bittype_non_byte_aligned_value():
     bits_42 = BitVector("0b000000101010")
     instance = UInt12Packed(bits=bits_42)
     assert instance.value == 42
+
+
+def test_uint_non_struct_value_setter_zero_pads():
+    """Regression test: the non-struct UInt.value setter must produce exactly
+    num_bits, zero-padded, through the validating bits property. Previously it
+    assigned BitVector(bin(value)[2:]) straight to self._bits, yielding
+    minimal-width bits (UInt10(1).bits had length 1, not 10) and breaking
+    aggregate serialization."""
+    u = UInt10(1)
+    assert len(u.bits) == UInt10.num_bits == 10
+    assert u.bits.to01() == "0000000001"
+    assert u.value == 1
+    assert len(u.to_bits()) == 10
+
+    # zero and the maximum stay full-width and round-trip through the bits
+    assert len(UInt10(0).bits) == 10
+    hi = UInt10(2**10 - 1)
+    assert len(hi.bits) == 10 and hi.value == 2**10 - 1
+    assert UInt10.from_bits(hi.to_bits()).value == 2**10 - 1
+
+    # out-of-range values are rejected, matching SInt and the struct-packed path
+    with pytest.raises(ValueError):
+        u.value = 2**10
+    with pytest.raises(ValueError):
+        u.value = -1

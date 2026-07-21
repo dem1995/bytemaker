@@ -637,7 +637,8 @@ class UInt(Int):
 
     @value.setter
     def value(self, value):
-        self._bits = BitVector(bin(value)[2:])
+        str_bits = Int.to_bitstring(value, signed=False, bit_length=self.num_bits)
+        self.bits = BitVector(str_bits)
 
     @classmethod
     def specialize(
