@@ -468,6 +468,17 @@ class StructPackedBitType(BitType[T]):
     @value.setter
     def value(self, value: T):
         if not self.skip_struct_packing:
+            if self.py_type is int and isinstance(value, int):
+                # C-style narrowing: wrap an out-of-range integer to the low
+                # num_bits bits instead of letting struct.pack raise, matching
+                # (uintN_t)/(intN_t) truncation. Floats are packed unchanged.
+                n = self.num_bits
+                # struct's integer format letters are lowercase for signed
+                # types (b/h/i/q) and uppercase for unsigned (B/H/I/Q)
+                if self.packing_format_letter.islower():
+                    value = ((value + (1 << (n - 1))) % (1 << n)) - (1 << (n - 1))
+                else:
+                    value &= (1 << n) - 1
             self._bits = BitVector(struct.pack(self.packing_format, value))
         else:
             super().value = value

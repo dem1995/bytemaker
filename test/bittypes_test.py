@@ -284,3 +284,31 @@ def test_sint_non_struct_value_setter_wraps_like_c():
     s.value = -(2**9) - 1  # -513 underflows -> 511
     assert s.value == 2**9 - 1
     assert len(s.bits) == 10
+
+
+def test_struct_packed_int_value_wraps_like_c():
+    """Struct-packed integer types narrow out-of-range values by truncation
+    (C (uintN_t)/(intN_t) semantics) instead of raising struct.error. Floats
+    are unaffected."""
+    u = UInt8(0)
+    u.value = 256  # -> 0
+    assert u.value == 0 and len(u.bits) == 8
+    u.value = 257  # -> 1
+    assert u.value == 1
+    u.value = -1  # -> 255
+    assert u.value == 255
+
+    s = SInt8(0)
+    s.value = 128  # overflows [-128, 127] -> -128
+    assert s.value == -128
+    s.value = -129  # underflows -> 127
+    assert s.value == 127
+
+    w = UInt16(0)
+    w.value = 2**16 + 3  # -> 3
+    assert w.value == 3
+
+    # floats still round-trip (and reject non-representable magnitudes as before)
+    f = Float32(1.5)
+    f.value = 2.5
+    assert f.value == 2.5
