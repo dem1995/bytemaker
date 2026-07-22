@@ -209,8 +209,9 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
             self: Self = super().__new__(cls)
             self._bits = bytearray(source._bits)
             return self
-        # BitsCastable constructor
-        elif isinstance(source, BitsCastable):
+        # BitsCastable constructor (getattr instead of the runtime-protocol
+        # isinstance, which is very slow pre-3.12; same membership test)
+        elif getattr(source, "__Bits__", None) is not None:
             curinstance = source.__Bits__()
             self: Self = super().__new__(cls)
             self._bits = bytearray(curinstance._bits)

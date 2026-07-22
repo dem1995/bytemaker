@@ -163,12 +163,24 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
                 [],  # type: ignore[reportCallIssue]
             )
             return self
+        # Exact-type fast paths. These cannot carry a __Bits__ method, so
+        # checking them before the BitsCastable protocol preserves the
+        # protocol's documented priority while skipping the (very slow,
+        # pre-3.12) runtime-protocol isinstance cost.
+        source_type = type(source)
+        if source_type is bytes or source_type is bytearray:
+            self: Self = super().__new__(
+                cls,
+                buffer=memoryview(source),  # type: ignore[reportCallIssue]
+            )
+            return self
+
         # Copy constructor
-        elif isinstance(source, bitarray):
+        if isinstance(source, bitarray):
             self: Self = super().__new__(cls, source)  # type: ignore[reportCallIssue]
             return self
         # BitsCastable constructor
-        elif isinstance(source, BitsCastable):
+        elif getattr(source, "__Bits__", None) is not None:
             # Copy-construct from the returned BitVector rather than reading
             # it through the buffer protocol, which would round the length
             # up to whole bytes.
