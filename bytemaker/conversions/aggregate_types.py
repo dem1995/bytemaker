@@ -1,36 +1,75 @@
-import ctypes
-import dataclasses
+"""
+Aggregate conversions: dataclasses of BitTypes/ctypes/Python primitives
+to and from bits/bytes.
 
-from bytemaker.bittypes import BitType, bytes_to_bittype
-from bytemaker.bitvector import BitVector
-from bytemaker.conversions.ctypes_ import (
-    CType,
-    bits_to_ctype,
-    bytes_to_ctype,
-    ctype_to_bits,
-    ctype_to_bytes,
+Public API is unchanged from bytemaker 0.11/0.12. Internally, the byte-level
+functions now route eligible dataclasses (every field a byte-aligned BitType
+class) through compiled per-class plans (:mod:`bytemaker.plans`): field types
+are resolved and offsets computed once per class instead of per call, and no
+whole-record BitVector is built. Everything else -- ctypes fields, PyType
+fields, nested dataclasses, sub-byte fields, and all bit-level calls --
+delegates to the frozen reference implementation in
+:mod:`bytemaker._legacy_aggregate`, which is also the differential-test
+oracle the fast paths are validated against.
+
+One deliberate behavior fix vs 0.12: ``from_bytes_aggregate(...,
+is_array=True)`` now returns a ``list`` of decoded entries. (Previously it
+attempted ``aggregate_type(*entries)``, which was unusable, and ignored
+``is_array`` entirely for scalar types.)
+"""
+
+import struct as _struct
+
+from bytemaker import _legacy_aggregate as _legacy
+
+# Re-exported verbatim (bit-level paths and shared helpers keep the reference
+# implementation; sub-byte-capable callers go through these).
+from bytemaker._legacy_aggregate import (  # noqa: F401
+    AggregateTypeByteConvertible,
+    UnitType,
+    count_bytes_in_unit_type,
+    from_bits_aggregate,
+    from_bits_individual,
+    from_bytes_individual,
+    to_bits_aggregate,
+    to_bits_individual,
+    to_bytes_individual,
+    trycast,
 )
-from bytemaker.conversions.pytypes import (
-    ConversionConfig,
-    PyType,
-    bits_to_pytype,
-    bytes_to_pytype,
-    pytype_to_bits,
-    pytype_to_bytes,
-)
-from bytemaker.typing_redirect import Dict, Iterable, Literal, Union, get_type_hints
+from bytemaker.bittypes import BitType
+from bytemaker.bittypes.int import SignedConfig
+from bytemaker.plans import compile_legacy_record_plan
+from bytemaker.typing_redirect import Dict, Literal, Union, get_type_hints
 from bytemaker.utils import DataClassType, is_instance_of_union, is_subclass_of_union
 
-UnitType = Union[CType, BitType, PyType]
+__all__ = [
+    "UnitType",
+    "AggregateTypeByteConvertible",
+    "resolve_field_types",
+    "count_bits_in_unit_type",
+    "count_bits_in_aggregate_type",
+    "count_bytes_in_unit_type",
+    "to_bits_individual",
+    "to_bytes_individual",
+    "from_bits_individual",
+    "from_bytes_individual",
+    "to_bits_aggregate",
+    "from_bits_aggregate",
+    "to_bytes_aggregate",
+    "from_bytes_aggregate",
+    "trycast",
+]
 
-# CType is a Union of _SimpleCData, Structure, Union, and Array
-# YType is a Union of YInt, YFloat, YString, YBytes, YBool, YEnum, YArray, and YStruct
-# PyType is a Union of int, float, str, bytes, bool, and Enum
+_HINTS_CACHE: Dict[type, Dict[str, type]] = {}
+_UNIT_BITS_CACHE: Dict[type, int] = {}
+
+_orig_count_bits_in_unit_type = _legacy.count_bits_in_unit_type
 
 
 def resolve_field_types(dataclass_type: type) -> Dict[str, type]:
     """
-    Resolve a dataclass's field annotations to concrete types.
+    Resolve a dataclass's field annotations to concrete types, cached per
+    class.
 
     Field annotations are strings rather than types whenever the defining
     module uses ``from __future__ import annotations`` (PEP 563) or otherwise
@@ -39,35 +78,42 @@ def resolve_field_types(dataclass_type: type) -> Dict[str, type]:
     concrete types such as ``SInt16`` resolve correctly. A bare ``eval`` would
     instead resolve them in bytemaker's own namespace and raise ``NameError``.
 
-    For non-stringized annotations the field types are already real objects and
-    are returned unchanged, so this is safe to use unconditionally.
+    ``get_type_hints`` dominated the per-call cost of the 0.11/0.12 aggregate
+    functions (~50 us of every call), so its result is cached per class here.
+    Mutating a class's annotations after first use is not supported.
 
     Returns:
         Dict[str, type]: A mapping from field name to its resolved type.
     """
-    return get_type_hints(dataclass_type)
+    try:
+        return _HINTS_CACHE[dataclass_type]
+    except (KeyError, TypeError):
+        pass
+    hints = get_type_hints(dataclass_type)
+    try:
+        _HINTS_CACHE[dataclass_type] = hints
+    except TypeError:
+        pass
+    return hints
 
 
-def count_bits_in_unit_type(unit_type: UnitType) -> int:
+def count_bits_in_unit_type(unit_type) -> int:
     """
     Function to count the number of bits in a UnitType-\
         a Python, type, ctype, or BitType (bytemaker type).
-    """
 
-    # print("Counting bits in unit type", unit_type)
-    if is_subclass_of_union(unit_type, CType):
-        return ctypes.sizeof(unit_type) * 8
-    elif is_subclass_of_union(unit_type, BitType):
-        return unit_type.num_bits
-    elif is_subclass_of_union(unit_type, PyType):
-        # print(ConversionConfig.get_conversion_info(unit_type).num_bits)
-        return ConversionConfig.get_conversion_info(unit_type).num_bits("")
-    elif is_subclass_of_union(unit_type, DataClassType):
-        size_in_bits = 0
-        field_types = resolve_field_types(unit_type)
-        for field in dataclasses.fields(unit_type):
-            size_in_bits += count_bits_in_unit_type(field_types[field.name])
-        return size_in_bits
+    Cached per type.
+    """
+    try:
+        return _UNIT_BITS_CACHE[unit_type]
+    except (KeyError, TypeError):
+        pass
+    bits = _orig_count_bits_in_unit_type(unit_type)
+    try:
+        _UNIT_BITS_CACHE[unit_type] = bits
+    except TypeError:
+        pass
+    return bits
 
 
 def count_bits_in_aggregate_type(aggregate_type: type) -> int:
@@ -76,248 +122,54 @@ def count_bits_in_aggregate_type(aggregate_type: type) -> int:
         a Python, type, ctype, BitType (bytemaker type), or
         a dataclass annotated with those.
     """
-    if is_subclass_of_union(aggregate_type, UnitType):
-        return count_bits_in_unit_type(aggregate_type)
-    else:
-        size_in_bits = 0
-        field_types = resolve_field_types(aggregate_type)
-        for field in dataclasses.fields(aggregate_type):
-            size_in_bits += count_bits_in_unit_type(field_types[field.name])
-        return size_in_bits
+    return _legacy.count_bits_in_aggregate_type(aggregate_type)
 
 
-def count_bytes_in_unit_type(unit_type: UnitType) -> int:
-    """
-    Function to count the number of bytes in a UnitType-
-        a Python numeric/binary/string type, ctype, or BitType (bytemaker type).
-    """
-    return (count_bits_in_unit_type(unit_type) + 7) // 8
+# Point the reference implementation's module globals at the cached versions,
+# so fallback calls (and its internal recursion) share the per-class caches.
+# Caching is behavior-transparent; the oracle's semantics are unchanged.
+_legacy.resolve_field_types = resolve_field_types
+_legacy.count_bits_in_unit_type = count_bits_in_unit_type
 
 
-def to_bits_individual(unit: UnitType) -> BitVector:
-    """
-    Function to convert a single Python primitive or ctypes object into BitVector.
-    """
-    if is_instance_of_union(unit, CType):
-        return ctype_to_bits(unit)
-    elif isinstance(unit, BitType):
-        return unit.to_bits()
-    elif is_instance_of_union(unit, PyType):
-        return pytype_to_bits(unit)
-    else:
-        raise Exception(
-            f"Cannot convert {unit} to bits because"
-            f" the unit type is not a CType, YType, or PyType"
+def _get_record_plan(aggregate_type):
+    """Fast-path plan for a dataclass, or None (cached either way)."""
+    try:
+        return compile_legacy_record_plan(
+            aggregate_type, resolve_field_types(aggregate_type)
         )
+    except Exception:
+        return None
 
 
-def to_bytes_individual(
-    unit: UnitType, endianness: Literal["big", "little"] = "big"
-) -> bytes:
-    """
-    Function to convert a single Python primitive or ctypes object into bytes.
-    """
-
-    if is_instance_of_union(unit, CType):
-        return ctype_to_bytes(unit, endianness=endianness)
-    elif isinstance(unit, BitType):
-        unit_bytes = bytes(unit)
-        if endianness == "little":
-            unit_bytes = unit_bytes[::-1]
-        return unit_bytes
-    elif is_instance_of_union(unit, PyType):
-        return pytype_to_bytes(unit, endianness=endianness)
-    else:
-        raise Exception(
-            f"Cannot convert {unit} to bytes because"
-            f" the unit type is not a CType, YType, or PyType"
-        )
-
-
-def from_bits_individual(unitbits: BitVector, unittype: type) -> PyType:
-    """
-    Function to convert BitVector into a single UnitType-
-        a Python numeric/binary/string type, ctype, or YType (bytemaker type).
-
-    Args:
-        unitbits (BitVector): The BitVector object to convert to a UnitType
-        unittype (type): The type of the UnitType to convert to.
-            Must be a member of UnitType
-    """
-
-    size_in_bits = count_bits_in_unit_type(unittype)
-
-    if len(unitbits) != size_in_bits:
-        raise Exception(
-            f"Cannot convert {unitbits} to {unittype}"
-            f" because the number of bits in the bits object ({unitbits.num_bits})"
-            f" does not match the number of bits in the unit type ({size_in_bits})"
-        )
-    if is_subclass_of_union(unittype, CType):
-        return bits_to_ctype(unitbits, unittype)
-    elif is_subclass_of_union(unittype, BitType):
-        return unittype.from_bits(unitbits)
-    elif is_subclass_of_union(unittype, PyType):
-        return bits_to_pytype(unitbits, unittype)
-    else:
-        raise Exception(
-            f"Cannot convert {unitbits} to {unittype}"
-            f" because the unit type is not a CType, YType, or PyType"
-        )
-
-
-def from_bytes_individual(
-    unitbytes: bytes,
-    unittype: type,
-    endianness: Literal["big", "little"] = "big",
-) -> PyType:
-    """
-    Function to convert bytes into a single UnitType-
-        a Python numeric/binary/string type, ctype, or YType (bytemaker type).
-
-    Args:
-        unitbytes (bytes): The bytes object to convert to a UnitType
-        unittype (type): The type of the UnitType to convert to.
-            Must be a member of UnitType
-        endianness: The byte order of the input bytes.
-            Defaults to "big".
-    """
-
-    size_in_bits = count_bits_in_unit_type(unittype)
-    if len(unitbytes) * 8 != size_in_bits:
-        raise Exception(
-            f"Cannot convert {unitbytes} to {unittype}"
-            f" because the number of bits in the bytes object ({len(unitbytes) * 8})"
-            f" does not match the number of bits in the unit type ({size_in_bits})"
-        )
-    if is_subclass_of_union(unittype, CType):
-        return bytes_to_ctype(unitbytes, unittype, endianness=endianness)
-    elif is_subclass_of_union(unittype, BitType):
-        return bytes_to_bittype(unitbytes, unittype, endianness=endianness)
-    elif is_subclass_of_union(unittype, PyType):
-        return bytes_to_pytype(unitbytes, unittype, endianness=endianness)
-    else:
-        raise Exception(
-            f"Cannot convert {unitbytes} to {unittype}"
-            f" because the unit type is not a CType, YType, or PyType"
-        )
-
-
-AggregateTypeByteConvertible = Union[DataClassType, BitType, CType, PyType, Iterable]
-
-
-def trycast(obj, type_):
-    if not isinstance(obj, type_):
-        obj = type_(obj)
-    return obj
-
-
-def to_bits_aggregate(convertible_object: AggregateTypeByteConvertible) -> BitVector:
-    """
-    Function to convert a BitType, Python primitive, ctypes object, or dataclass\
-        of those types into a BitVector.
-
-    Essentially a bitfield serializer.
-
-    Args:
-        units (DataClassType | YType | CType | PyType | Iterable):\
-            The object to convert to BitVector
-
-    Returns:
-        BitVector: The BitVector representation of the object
-    """
-
-    ret_bits = BitVector()
-
-    # print("to_bits_aggregate", convertible_object)
-    # print("type(units)", type(convertible_object))
-    # print("isinstance(units, DataClassType)",
-    # isinstance(convertible_object, DataClassType))
-
-    # try:
-    if is_instance_of_union(convertible_object, UnitType) and not (
-        isinstance(convertible_object, str) and len(convertible_object) > 1
-    ):
-        ret_bits = to_bits_individual(convertible_object)
-    elif isinstance(convertible_object, DataClassType):
-        fields = dataclasses.fields(convertible_object)
-        resolved_types = resolve_field_types(type(convertible_object))
-        field_values = [getattr(convertible_object, field.name) for field in fields]
-        field_types = [resolved_types[field.name] for field in fields]
-        # print("types", field_types)
-        # print("type_is_dataclass", [isinstance(field_type, DataClassType)
-        # for field_type in field_types])
-        field_values = [
-            trycast(field_value, field_type)
-            for field_type, field_value in zip(field_types, field_values)
-        ]
-        field_value_bits = []
-        for field_value in field_values:
-            bitsified = to_bits_aggregate(field_value)
-            field_value_bits.append(bitsified)
-        # field_value_bits = [to_bits_aggregate(field_value)
-        # for field_value in field_values]
-        ret_bits = BitVector().join(field_value_bits)
-    elif isinstance(convertible_object, Iterable):
-        for unit in convertible_object:
-            ret_bits.extend(to_bits_aggregate(unit))
-    else:
-        raise Exception(
-            f"Cannot convert {convertible_object} to bits because the unit type"
-            f" is not a CType, YType, or PyType"
-        )
-    # except Exception as e:
-    #     raise Exception(f"Cannot convert {convertible_object} to bits.\n
-    #                     f"Next-level error: {e}") from e
-
-    return ret_bits
-
-
-def from_bits_aggregate(
-    unitbits: BitVector, aggregate_type: type
-) -> Union[UnitType, AggregateTypeByteConvertible]:
-    """
-    Function to convert a collection of BitVector objects into Python primitives,\
-        ctypes objects, BitTypes, or a dataclass of those types.
-
-    Essentially a bitfield deserializer.
-
-    Args:
-        unitbits (BitVector): The BitVector object to convert to a Python primitive,\
-            ctypes object, BitType, or dataclass.
-        aggregate_type (type): The type(s) of the object to convert to.
-            Must be a member of UnitType or a dataclass annotated with UnitType members.
-
-    Returns:
-        Union[UnitType, AggregateTypeByteConvertible]: The object(s)
-            represented by the bits.
-    """
-    if is_subclass_of_union(aggregate_type, UnitType):
-        return from_bits_individual(unitbits, aggregate_type)
-    else:
-        size_in_bits = count_bits_in_aggregate_type(aggregate_type)
-        # print("unitbits type", type(unitbits))
-        # print(unitbits)
-        if len(unitbits) != size_in_bits:
-            raise Exception(
-                f"Cannot convert {unitbits} to {aggregate_type}"
-                f" because the number of bits in the bits object ({unitbits.num_bits})"
-                f" does not match the number of bits in the unit type ({size_in_bits})"
-            )
-
-        read_fields = list()
-        field_types = resolve_field_types(aggregate_type)
-        for field in dataclasses.fields(aggregate_type):
-            field_type = field_types[field.name]
-
-            field_size_in_bits = count_bits_in_unit_type(field_type)
-            field_bits = unitbits[:field_size_in_bits]
-            field_value = from_bits_aggregate(field_bits, field_type)
-            read_fields.append(field_value)
-            unitbits = unitbits[field_size_in_bits:]
-        retval = aggregate_type(*read_fields)
-
-    return retval
+def _pack_all_plain_numbers(plan, units, endianness):
+    """One-call struct.pack when every field value is a plain number and every
+    field has a struct letter. Signed ints require the global two's-complement
+    format (otherwise the boxed coercion path is authoritative). Returns None
+    when ineligible."""
+    letters = plan.fmt_letters
+    if None in letters:
+        return None
+    if SignedConfig.signed_int_format != "twos_complement":
+        return None
+    values = []
+    for name, ftype, letter in zip(plan.names, plan.types, letters):
+        v = getattr(units, name)
+        if isinstance(v, int) and not isinstance(v, BitType):
+            if letter in "bhiq":  # signed: C-style wrap into range
+                n = ftype.num_bits
+                v = ((v + (1 << (n - 1))) % (1 << n)) - (1 << (n - 1))
+            elif letter in "BHIQ":
+                v &= (1 << ftype.num_bits) - 1
+            else:
+                return None  # int into a float field: defer to boxed path
+        elif isinstance(v, float) and letter in "efd":
+            pass
+        else:
+            return None
+        values.append(v)
+    prefix = "<" if endianness == "little" else ">"
+    return _struct.pack(prefix + "".join(letters), *values)
 
 
 def to_bytes_aggregate(
@@ -337,25 +189,14 @@ def to_bytes_aggregate(
     Returns:
         bytes: The bytes representation of the objects
     """
-    ret_bytes = bytearray()
-
-    if is_instance_of_union(units, UnitType):
-        ret_bytes = to_bytes_individual(units, endianness=endianness)
-
-    elif isinstance(units, DataClassType):
-        field_types = resolve_field_types(type(units))
-        for field in dataclasses.fields(units):
-            field_type = field_types[field.name]
-            field_value = getattr(units, field.name)
-            field_value = trycast(field_value, field_type)
-            field_value_bytes = to_bytes_aggregate(field_value, endianness=endianness)
-            ret_bytes.extend(field_value_bytes)
-
-    elif isinstance(units, Iterable):
-        for unit in units:
-            ret_bytes.extend(to_bytes_aggregate(unit, endianness=endianness))
-
-    return bytes(ret_bytes)
+    if isinstance(units, DataClassType) and not is_instance_of_union(units, UnitType):
+        plan = _get_record_plan(type(units))
+        if plan is not None:
+            fast = _pack_all_plain_numbers(plan, units, endianness)
+            if fast is not None:
+                return fast
+            return plan.pack(units, endianness)
+    return _legacy.to_bytes_aggregate(units, endianness=endianness)
 
 
 def from_bytes_aggregate(
@@ -375,8 +216,9 @@ def from_bytes_aggregate(
             ctypes object, BitType, or dataclass.
         aggregate_type (type): The type(s) of the object to convert to.
             Must be a member of UnitType or a dataclass annotated with UnitType members.
-        is_array (bool, optional): Whether the object is an array of the aggregate type.
-            Defaults to False.
+        is_array (bool, optional): Whether ``bytes_obj`` holds consecutive
+            entries of ``aggregate_type``; if so a ``list`` of decoded entries
+            is returned. Defaults to False.
         endianness: The byte order of the input bytes.
             Defaults to "big".
 
@@ -384,48 +226,20 @@ def from_bytes_aggregate(
         Union[UnitType, AggregateTypeByteConvertible]: The object(s) represented by
             the bytes.
     """
-    if is_subclass_of_union(aggregate_type, UnitType):
-        return from_bytes_individual(bytes_obj, aggregate_type, endianness=endianness)
-    else:
-        size_in_bits = count_bits_in_unit_type(aggregate_type)
+    if is_array:
+        entry_bits = count_bits_in_aggregate_type(aggregate_type)
+        entry_bytes = (entry_bits + 7) // 8
+        return [
+            from_bytes_aggregate(
+                bytes_obj[i : i + entry_bytes], aggregate_type, endianness=endianness
+            )
+            for i in range(0, len(bytes_obj), entry_bytes)
+        ]
 
-        if not is_array:
-            if len(bytes_obj) * 8 != size_in_bits:
-                raise Exception(
-                    f"Cannot convert {bytes_obj} to {aggregate_type}"
-                    f" because the # of bits in the bytes object ({len(bytes_obj) * 8})"
-                    f" does not match the # of bits in the unit type ({size_in_bits})"
-                )
-
-            read_fields = list()
-            field_types = resolve_field_types(aggregate_type)
-            for field in dataclasses.fields(aggregate_type):
-                field_type = field_types[field.name]
-                field_size_in_bytes = (count_bits_in_unit_type(field_type) + 7) // 8
-                field_bytes = bytes_obj[:field_size_in_bytes]
-                field_value = from_bytes_aggregate(
-                    field_bytes, field_type, endianness=endianness
-                )
-                read_fields.append(field_value)
-                bytes_obj = bytes_obj[field_size_in_bytes:]
-            retval = aggregate_type(*read_fields)
-
-        else:
-            arr_entry_list = list()
-            size_in_bytes = (size_in_bits + 7) // 8
-            for i in range(0, len(bytes_obj), size_in_bytes):
-                endindex = (
-                    i + size_in_bytes
-                    if i + size_in_bytes < len(bytes_obj)
-                    else len(bytes_obj)
-                )
-                arr_entry_list.append(
-                    from_bytes_aggregate(
-                        bytes_obj[i:endindex],
-                        aggregate_type,
-                        endianness=endianness,
-                    )
-                )
-            retval = aggregate_type(*arr_entry_list)
-
-    return retval
+    if not is_subclass_of_union(aggregate_type, UnitType):
+        plan = _get_record_plan(aggregate_type)
+        if plan is not None:
+            return plan.parse(bytes_obj, endianness)
+    return _legacy.from_bytes_aggregate(
+        bytes_obj, aggregate_type, is_array=False, endianness=endianness
+    )
