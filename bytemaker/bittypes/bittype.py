@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import operator
 import struct
-from abc import ABC, abstractmethod
+from abc import ABC, ABCMeta, abstractmethod
 from typing import TYPE_CHECKING
 
 from bytemaker.bitvector import BitVector
@@ -31,7 +31,22 @@ else:
         BitSelf = TypeVar("BitSelf", bound="BitType")
 
 
-class BitType(ABC, Generic[T]):
+class BitTypeMeta(ABCMeta):
+    """Metaclass of BitType: adds ``cls * N`` -> ``bytemaker.structs.Array``
+    codec sugar (``UInt16 * 257`` is a 257-element little/big-endian-agnostic
+    array codec; pick the byte order with ``Array.of(UInt16, 257, endian)``).
+    """
+
+    def __mul__(cls, count: int):
+        from bytemaker.structs import Array
+
+        return Array.of(cls, count)
+
+    def __rmul__(cls, count: int):
+        return cls.__mul__(count)
+
+
+class BitType(ABC, Generic[T], metaclass=BitTypeMeta):
     """
     A type representable by a sequence of bits.
 
@@ -481,7 +496,12 @@ class StructPackedBitType(BitType[T]):
                     value &= (1 << n) - 1
             self._bits = BitVector(struct.pack(self.packing_format, value))
         else:
-            super().value = value
+            # ``super().value = value`` does not work: super() proxies do not
+            # support attribute assignment, so it raised AttributeError
+            # whenever skip_struct_packing was true (e.g. any SInt8/16/32/64
+            # under a non-two's-complement SignedConfig). Invoke the next
+            # value setter in the MRO explicitly instead.
+            super(StructPackedBitType, type(self)).value.fset(self, value)
 
 
 def bytes_to_bittype(
