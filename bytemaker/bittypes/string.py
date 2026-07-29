@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from abc import abstractmethod
+from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
 from bytemaker.bittypes.bittype import BitType
@@ -20,6 +21,23 @@ else:
 
 class String(BitType[str]):
     py_type = str
+
+    # Field-schema knobs (active when num_bits is a whole number of bytes;
+    # sub-byte-width String classes keep the historical exact-width
+    # behavior). ``pad`` is the fill byte written after content on encode
+    # (None = exact width required); ``terminator`` cuts the *decode* at its
+    # first occurrence; ``strip`` drops trailing pad bytes on decode;
+    # ``truncate`` opts into code-unit-safe truncation on overflow instead
+    # of raising; ``errors`` is the decode error policy where the codec
+    # supports one. Cut and strip happen at the BYTE layer, before decoding
+    # (a 0xFF pad region is not valid UTF-8; garbage after a terminator is
+    # normal in ROM data).
+    pad: Optional[int] = 0x00
+    terminator: Optional[int] = None
+    strip: bool = True
+    errors: str = "strict"
+    truncate: bool = False
+
     _codepoint_changes: Optional[
         HashableMapping[BitVector, BitVector] | HashableMapping[str, str]
     ] = None
@@ -201,29 +219,79 @@ class String(BitType[str]):
             lambda match: codepoint_changes[match.group(0)], input_string
         )
 
+    @classmethod
+    def _substitute_forward(cls, value):
+        codepoint_changes = cls.codepoint_changes
+        if codepoint_changes is not None:
+            value = cls.perform_codepoint_substitution(
+                value, codepoint_changes, cls._codepoint_change_regex
+            )
+        return value
+
+    @classmethod
+    def _substitute_reverse(cls, value):
+        reverse_changes = cls._reverse_codepoint_changes
+        if reverse_changes is not None:
+            value = cls.perform_codepoint_substitution(
+                value, reverse_changes, cls._reverse_codepoint_change_regex
+            )
+        return value
+
+    @classmethod
+    def _encode_padded(cls, value) -> bytes:
+        """Encode ``value`` to exactly ``num_bits // 8`` wire bytes:
+        substitute, encode, then pad — or, on overflow, truncate whole
+        characters (if ``truncate``) or raise."""
+        nbytes = cls.num_bits // 8
+        substituted = cls._substitute_reverse(value)
+        raw = bytes(cls.encoding(substituted))
+        if len(raw) > nbytes:
+            if not cls.truncate:
+                raise ValueError(
+                    f"{cls.__name__}: {value!r} encodes to {len(raw)} bytes;"
+                    f" the field holds {nbytes} (set truncate=True to clip)"
+                )
+            # Clip whole characters until it fits: correct at code-unit
+            # boundaries for ANY codec, including multi-byte tables.
+            while substituted and len(raw) > nbytes:
+                substituted = substituted[:-1]
+                raw = bytes(cls.encoding(substituted))
+        if len(raw) < nbytes:
+            if cls.pad is None:
+                raise ValueError(
+                    f"{cls.__name__}: {value!r} encodes to {len(raw)} bytes;"
+                    f" the field holds exactly {nbytes} and padding is"
+                    f" disabled (pad=None)"
+                )
+            raw += bytes((cls.pad,)) * (nbytes - len(raw))
+        return raw
+
+    @classmethod
+    def _decode_wire(cls, raw) -> str:
+        """Decode wire bytes: cut at the terminator, strip trailing pad —
+        both at the byte layer, *before* decoding — then decode and
+        substitute."""
+        raw = bytes(raw)
+        if cls.terminator is not None:
+            cut = raw.find(bytes((cls.terminator,)))
+            if cut >= 0:
+                raw = raw[:cut]
+        if cls.strip and cls.pad is not None:
+            raw = raw.rstrip(bytes((cls.pad,)))
+        return cls._substitute_forward(cls.decoding(BitVector(raw)))
+
     @property
     def value(self):
-        temp_value = self.decoding(self.bits)
-        codepoint_changes = self.codepoint_changes
-        if codepoint_changes is not None:
-            codepoint_changes_regex: re.Pattern[str] = self._codepoint_change_regex
-            temp_value = self.perform_codepoint_substitution(
-                temp_value, codepoint_changes, codepoint_changes_regex
-            )
-        return temp_value
+        if self.num_bits % 8:
+            return self._substitute_forward(self.decoding(self.bits))
+        return self._decode_wire(bytes(self.bits))
 
     @value.setter
     def value(self, value):
-        temp_value = value
-        reverse_codepoint_changes = self._reverse_codepoint_changes
-        if reverse_codepoint_changes is not None:
-            reverse_codepoint_changes_regex: re.Pattern[str] = (
-                self._reverse_codepoint_change_regex
-            )
-            temp_value = self.perform_codepoint_substitution(
-                temp_value, reverse_codepoint_changes, reverse_codepoint_changes_regex
-            )
-        self.bits = self.encoding(temp_value)
+        if self.num_bits % 8:
+            self.bits = self.encoding(self._substitute_reverse(value))
+        else:
+            self.bits = BitVector(self._encode_padded(value))
 
     @classmethod
     def specialize(cls, num_bits_: int, name_: Optional[str] = None):
@@ -234,6 +302,61 @@ class String(BitType[str]):
             _String.__name__ = name_
 
         return _String
+
+    @classmethod
+    def of(
+        cls,
+        chars: int,
+        *,
+        encoding=None,
+        pad: Optional[int] = 0x00,
+        terminator: Optional[int] = None,
+        strip: bool = True,
+        errors: str = "strict",
+        truncate: bool = False,
+        name: Optional[str] = None,
+    ):
+        """Mint a fixed-size text field type.
+
+        ``chars`` is the field size in **bytes** (the C ``char name[N]``
+        count; multi-byte codecs fit fewer characters). ``encoding`` may be
+        a Python codec name (``"ascii"``, ``"shift-jis"``, …), a
+        ``.tbl``-style mapping (``{0x80: "A", 0xE1: "[PK]", …}`` — see
+        :class:`TableString`), an ``(encode, decode)`` callable pair
+        (``str -> bytes``, ``bytes -> str``), or None to inherit ``cls``'s
+        codec (call it on a concrete class such as ``UTF8String``).
+
+        Note (PEP 563): under ``from __future__ import annotations``, field
+        types must be bound to module-level names for annotation resolution.
+        """
+        ns = {
+            "_num_bits": chars * 8,
+            "pad": pad,
+            "terminator": terminator,
+            "strip": strip,
+            "errors": errors,
+            "truncate": truncate,
+        }
+        if encoding is None:
+            if "encoding" in getattr(cls, "__abstractmethods__", ()):
+                raise TypeError(
+                    f"{cls.__name__}.of(): pass encoding=..., or call of()"
+                    f" on a concrete String subclass"
+                )
+            base = cls
+        elif isinstance(encoding, str):
+            base = StandardEncodingString
+            ns["encoding_name"] = encoding
+        elif isinstance(encoding, Mapping):
+            base = TableString
+            ns["table"] = dict(encoding)
+        else:
+            enc, dec = encoding
+            base = String
+            ns["encoding"] = classmethod(lambda c, v, _e=enc: BitVector(_e(v)))
+            ns["decoding"] = classmethod(lambda c, b, _d=dec: _d(bytes(b)))
+        typename = name or f"{base.__name__}x{chars}"
+        return type(base)(typename, (base,), ns)
 
 
 String.base_bit_type = String
@@ -254,39 +377,86 @@ class StandardEncodingString(String):
 
     @classmethod
     def decoding(cls, bits: BitVector) -> str:
-        return bytes(bits).decode(cls.encoding_name)
+        return bytes(bits).decode(cls.encoding_name, cls.errors)
+
+
+class TableString(String):
+    """A String whose codec *is* a character table (``.tbl``-style).
+
+    ``table`` maps wire units to text: keys are ints (single bytes) or
+    ``bytes`` (multi-byte sequences); values are strings (single characters
+    or control codes like ``"[PK]"``). Both directions match
+    **longest-first**. Decoding an unmapped byte follows ``errors``
+    ("strict" raises; "replace" yields U+FFFD and advances one byte);
+    encoding an unmapped character always raises (there is no meaningful
+    replacement byte).
+    """
+
+    table: Mapping = {}
+    _tbl_cache = None
+
+    @classmethod
+    def _maps(cls):
+        cache = cls.__dict__.get("_tbl_cache")
+        if cache is None:
+            dec = {}
+            for k, v in cls.table.items():
+                kb = bytes((k,)) if isinstance(k, int) else bytes(k)
+                dec[kb] = v
+            enc = {v: kb for kb, v in dec.items()}
+            cache = (
+                dec,
+                sorted(dec, key=len, reverse=True),
+                enc,
+                sorted(enc, key=len, reverse=True),
+            )
+            cls._tbl_cache = cache
+        return cache
+
+    @classmethod
+    def encoding(cls, value: str) -> BitVector:
+        _, _, enc, enc_keys = cls._maps()
+        out = bytearray()
+        pos = 0
+        while pos < len(value):
+            for key in enc_keys:
+                if key and value.startswith(key, pos):
+                    out += enc[key]
+                    pos += len(key)
+                    break
+            else:
+                raise ValueError(
+                    f"{cls.__name__}: no table entry encodes"
+                    f" {value[pos]!r} (position {pos})"
+                )
+        return BitVector(bytes(out))
+
+    @classmethod
+    def decoding(cls, bits: BitVector) -> str:
+        dec, dec_keys, _, _ = cls._maps()
+        raw = bytes(bits)
+        out = []
+        pos = 0
+        while pos < len(raw):
+            for key in dec_keys:
+                if key and raw.startswith(key, pos):
+                    out.append(dec[key])
+                    pos += len(key)
+                    break
+            else:
+                if cls.errors == "replace":
+                    out.append("�")
+                    pos += 1
+                else:
+                    raise ValueError(
+                        f"{cls.__name__}: no table entry decodes byte"
+                        f" 0x{raw[pos]:02x} (position {pos})"
+                    )
+        return "".join(out)
 
 
 class UTF8String(StandardEncodingString):
     encoding_name = "utf-8"
-
-
-class Str1(UTF8String):
-    _num_bits = 1
-
-
-class Str2(UTF8String):
-    _num_bits = 2
-
-
-class Str3(UTF8String):
-    _num_bits = 3
-
-
-class Str4(UTF8String):
-    _num_bits = 4
-
-
-class Str5(UTF8String):
-    _num_bits = 5
-
-
-class Str6(UTF8String):
-    _num_bits = 6
-
-
-class Str7(UTF8String):
-    _num_bits = 7
 
 
 class Str8(UTF8String):
@@ -348,14 +518,8 @@ class Str512(UTF8String):
 __all__ = [
     "String",
     "StandardEncodingString",
+    "TableString",
     "UTF8String",
-    "Str1",
-    "Str2",
-    "Str3",
-    "Str4",
-    "Str5",
-    "Str6",
-    "Str7",
     "Str8",
     "Str9",
     "Str10",

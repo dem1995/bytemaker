@@ -102,13 +102,6 @@ from bytemaker.bittypes.int import (
 )
 from bytemaker.bittypes.string import (
     StandardEncodingString,
-    Str1,
-    Str2,
-    Str3,
-    Str4,
-    Str5,
-    Str6,
-    Str7,
     Str8,
     Str9,
     Str10,
@@ -124,6 +117,7 @@ from bytemaker.bittypes.string import (
     Str256,
     Str512,
     String,
+    TableString,
     UTF8String,
 )
 
@@ -228,14 +222,8 @@ __all__ = [
     "UInt256",
     "String",
     "StandardEncodingString",
+    "TableString",
     "UTF8String",
-    "Str1",
-    "Str2",
-    "Str3",
-    "Str4",
-    "Str5",
-    "Str6",
-    "Str7",
     "Str8",
     "Str9",
     "Str10",

@@ -39,7 +39,15 @@ from __future__ import annotations
 import dataclasses
 import struct as _struct
 
-from bytemaker.bittypes import BitType, Float, Int, SInt, bytes_to_bittype
+from bytemaker.bittypes import (
+    BitType,
+    Buffer,
+    Float,
+    Int,
+    SInt,
+    String,
+    bytes_to_bittype,
+)
 from bytemaker.typing_redirect import (
     Dict,
     Iterator,
@@ -76,9 +84,11 @@ def _bswap(value: int, num_bytes: int) -> int:
 class FieldSpec:
     """One leaf field of a compiled record layout.
 
-    ``kind`` is ``"u"`` (unsigned int), ``"s"`` (signed int) or ``"f"``
-    (float). Nested Structs are flattened away before FieldSpecs are made;
-    ``name`` is dotted (``"child.x"``) for their leaves.
+    ``kind`` is ``"u"`` (unsigned int), ``"s"`` (signed int), ``"f"``
+    (float), or ``"b"`` (bytes payload: String/Buffer fields — the tuple
+    entry is the field's wire ``bytes``). Nested Structs are flattened away
+    before FieldSpecs are made; ``name`` is dotted (``"child.x"``) for
+    their leaves.
     """
 
     __slots__ = ("name", "bit_offset", "bit_width", "kind", "letter", "endian")
@@ -177,7 +187,7 @@ class Plan:
             self.struct_obj = None
             self._int_order = "little" if bit_order == "lsb" else "big"
             natural = self._int_order
-            shift_masks: List[Tuple[int, int, int, int]] = []
+            shift_masks: List[Tuple[int, int, int, int, int]] = []
             for f in fields:
                 if bit_order == "lsb":
                     shift = f.bit_offset
@@ -185,13 +195,21 @@ class Plan:
                     shift = num_bits - f.bit_offset - f.bit_width
                 mask = (1 << f.bit_width) - 1
                 sign_bit = (1 << (f.bit_width - 1)) if f.kind == "s" else 0
-                whole_bytes = f.bit_width % 8 == 0 and f.bit_width > 8
+                whole_bytes = (
+                    f.kind in ("u", "s")
+                    and f.bit_width % 8 == 0
+                    and f.bit_width > 8
+                )
                 swap = (
                     f.bit_width // 8
                     if whole_bytes and f.endian != natural
                     else 0
                 )
-                shift_masks.append((shift, mask, sign_bit, swap))
+                # nbytes > 0 marks a bytes-payload field: its tuple entry is
+                # `bytes`, converted at the int boundary with the tier's own
+                # bit ordering (stream order, matching the int fields).
+                nbytes = f.bit_width // 8 if f.kind == "b" else 0
+                shift_masks.append((shift, mask, sign_bit, swap, nbytes))
             self.shift_masks = tuple(shift_masks)
 
     @property
@@ -205,8 +223,11 @@ class Plan:
             return self.struct_obj.unpack(data)
         raw = int.from_bytes(bytes(data), self._int_order)
         out = []
-        for shift, mask, sign_bit, swap in self.shift_masks:
+        for shift, mask, sign_bit, swap, nbytes in self.shift_masks:
             v = (raw >> shift) & mask
+            if nbytes:
+                out.append(v.to_bytes(nbytes, self._int_order))
+                continue
             if swap:
                 v = _bswap(v, swap)
             if sign_bit and v & sign_bit:
@@ -226,7 +247,11 @@ class Plan:
             except (_struct.error, TypeError):
                 return self.struct_obj.pack(*self._wrap_values(values))
         acc = 0
-        for (shift, mask, sign_bit, swap), v in zip(self.shift_masks, values):
+        for (shift, mask, sign_bit, swap, nbytes), v in zip(
+            self.shift_masks, values
+        ):
+            if nbytes:
+                v = int.from_bytes(v, self._int_order)
             v &= mask
             if swap:
                 v = _bswap(v, swap)
@@ -268,6 +293,11 @@ class Plan:
         """Raise ``ValueError`` naming each value outside its field's range."""
         bad = []
         for f, spec, v in zip(self.fields, self._wrap_specs, values):
+            if f.kind == "b":
+                nbytes = f.bit_width // 8
+                if not isinstance(v, (bytes, bytearray)) or len(v) != nbytes:
+                    bad.append(f"{f.name}={v!r} is not exactly {nbytes} bytes")
+                continue
             if spec is None:
                 continue
             mask, sign_bit = spec
@@ -317,10 +347,18 @@ def _classify_scalar(bittype: type) -> Tuple[int, str, Optional[str]]:
     if issubclass(bittype, Float):
         letter = _FLOAT_LETTERS.get(width)
         return width, "f", letter
+    if issubclass(bittype, (String, Buffer)):
+        if width % 8:
+            raise PlanCompileError(
+                f"text/bytes fields need whole-byte widths, got {width} bits"
+            )
+        # The flat-tuple entry is the field's wire bytes; struct's "Ns"
+        # format carries it natively on the aligned tier.
+        return width, "b", f"{width // 8}s"
     raise PlanCompileError(
         f"unsupported field type {bittype.__name__}: Struct fields must be"
-        f" Int/UInt/SInt or Float BitType classes, Annotated[...] of one,"
-        f" or a nested Struct"
+        f" Int/UInt/SInt, Float, String, or Buffer BitType classes,"
+        f" Annotated[...] of one, or a nested Struct"
     )
 
 
@@ -371,6 +409,10 @@ def compile_plan(
             raise PlanCompileError(f"{owner_name}.{full}: {exc}") from None
         if width <= 0:
             raise PlanCompileError(f"{owner_name}.{full}: zero-width field")
+        if kind == "b":
+            # Byte strings have no byte order; never force the shiftmask
+            # tier on their account.
+            field_endian = endian
         flat.append(FieldSpec(full, offset, width, kind, letter, field_endian))
         offset += width
 

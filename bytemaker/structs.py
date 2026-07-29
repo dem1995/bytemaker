@@ -50,7 +50,15 @@ import operator
 import os
 import typing
 
-from bytemaker.bittypes import BitType, Float, Int, SInt, bytes_to_bittype
+from bytemaker.bittypes import (
+    BitType,
+    Buffer,
+    Float,
+    Int,
+    SInt,
+    String,
+    bytes_to_bittype,
+)
 from bytemaker.bittypes.bittype import (
     NarrowingConfig,
     NarrowingWarning,
@@ -206,6 +214,46 @@ class _FloatField:
         self._slot.__set__(obj, float(value))
 
 
+class _StrField:
+    __slots__ = ("_slot", "_ftype")
+
+    def __init__(self, slot, ftype):
+        self._slot = slot
+        self._ftype = ftype
+
+    def __get__(self, obj, objtype=None):
+        if obj is None:
+            return self
+        return self._slot.__get__(obj, objtype)
+
+    def __set__(self, obj, value):
+        # Encode-validates through the box (raising on overflow, per the
+        # field type's truncate/pad policy) and canonicalizes: the slot
+        # holds the post-round-trip str; pack() re-encodes trusting it.
+        self._slot.__set__(obj, self._ftype(value).value)
+
+
+class _BytesField:
+    __slots__ = ("_slot", "_nbytes")
+
+    def __init__(self, slot, nbytes):
+        self._slot = slot
+        self._nbytes = nbytes
+
+    def __get__(self, obj, objtype=None):
+        if obj is None:
+            return self
+        return self._slot.__get__(obj, objtype)
+
+    def __set__(self, obj, value):
+        v = bytes(value)
+        if len(v) != self._nbytes:
+            raise ValueError(
+                f"expected exactly {self._nbytes} bytes, got {len(v)}"
+            )
+        self._slot.__set__(obj, v)
+
+
 class _StructField:
     __slots__ = ("_slot", "_child")
 
@@ -277,12 +325,17 @@ def _generate_methods(cls, field_defs, defaults) -> None:
     env: Dict[str, Any] = {"_new": object.__new__, "_cls": cls}
     slot_of = {}
     child_of = {}
+    str_of = {}  # String fields: slot holds str; the tuple carries wire bytes
     for i, (n, ftype) in enumerate(field_defs):
         slot_of[n] = f"_s{i}"
         env[f"_s{i}"] = cls.__dict__["_bm_" + n]
         if isinstance(ftype, StructMeta):
             child_of[n] = f"_c{i}"
             env[f"_c{i}"] = ftype
+        elif isinstance(ftype, type) and issubclass(ftype, String):
+            str_of[n] = (f"_enc{i}", f"_dec{i}")
+            env[f"_enc{i}"] = ftype._encode_padded
+            env[f"_dec{i}"] = ftype._decode_wire
 
     # __init__: assignments run through the narrowing descriptors.
     params = []
@@ -308,6 +361,11 @@ def _generate_methods(cls, field_defs, defaults) -> None:
                 f" {child_of[n]}._bm_from_tuple(values[{idx}:{idx + span}]))"
             )
             idx += span
+        elif n in str_of:
+            lines.append(
+                f"    {slot_of[n]}.__set__(obj, {str_of[n][1]}(values[{idx}]))"
+            )
+            idx += 1
         else:
             lines.append(f"    {slot_of[n]}.__set__(obj, values[{idx}])")
             idx += 1
@@ -319,6 +377,8 @@ def _generate_methods(cls, field_defs, defaults) -> None:
     for n, _ftype in field_defs:
         if n in child_of:
             parts.append(f"*{child_of[n]}._bm_to_tuple({slot_of[n]}.__get__(obj))")
+        elif n in str_of:
+            parts.append(f"{str_of[n][0]}({slot_of[n]}.__get__(obj))")
         else:
             parts.append(f"{slot_of[n]}.__get__(obj)")
     to_tuple_src = f"def _bm_to_tuple(obj):\n    return ({', '.join(parts)},)\n"
@@ -427,6 +487,10 @@ class StructMeta(type):
                     descriptor = _SIntField(slot, mask, 1 << (ftype.num_bits - 1))
                 else:
                     descriptor = _UIntField(slot, mask)
+            elif issubclass(ftype, String):
+                descriptor = _StrField(slot, ftype)
+            elif issubclass(ftype, Buffer):
+                descriptor = _BytesField(slot, ftype.num_bits // 8)
             else:  # Float; compile_plan already rejected everything else
                 descriptor = _FloatField(slot)
             setattr(cls, n, descriptor)
