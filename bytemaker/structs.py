@@ -56,6 +56,7 @@ from bytemaker.bittypes.bittype import (
     NarrowingWarning,
     _warn_narrowing,
 )
+from bytemaker.bitvector import BitVector
 from bytemaker.plans import Plan, PlanCompileError, compile_plan
 from bytemaker.typing_redirect import (
     Any,
@@ -107,6 +108,8 @@ __all__ = [
     "DEBUG_VALIDATE",
     "NarrowingConfig",
     "NarrowingWarning",
+    "BoundField",
+    "BoundBits",
     "u8",
     "u16",
     "u32",
@@ -223,6 +226,12 @@ class _StructField:
         self._slot.__set__(obj, value)
 
 
+# Annotation-only ClassVars (invisible to hasattr on the base) that the
+# metaclass assigns per class; everything else reserved is caught by the
+# hasattr-over-bases check (which auto-covers future API) or the _bm_ prefix.
+_RESERVED_FIELD_NAMES = frozenset({"plan", "num_bits"})
+
+
 # --------------------------------------------------------------------------
 # Annotation resolution
 # --------------------------------------------------------------------------
@@ -286,15 +295,17 @@ def _generate_methods(cls, field_defs, defaults) -> None:
     body = "".join(f"    self.{n} = {n}\n" for n in names)
     init_src = f"def __init__(self, {', '.join(params)}):\n{body}"
 
-    # _from_tuple: descriptor-bypassing construction from a flat plan tuple.
-    lines = ["def _from_tuple(values):", "    obj = _new(_cls)"]
+    # _bm_from_tuple: descriptor-bypassing construction from a flat plan
+    # tuple. (The _bm_ prefix keeps generated internals out of the user's
+    # field namespace, which the metaclass guard reserves by prefix.)
+    lines = ["def _bm_from_tuple(values):", "    obj = _new(_cls)"]
     idx = 0
     for n, ftype in field_defs:
         if n in child_of:
             span = len(ftype.plan.fields)
             lines.append(
                 f"    {slot_of[n]}.__set__(obj,"
-                f" {child_of[n]}._from_tuple(values[{idx}:{idx + span}]))"
+                f" {child_of[n]}._bm_from_tuple(values[{idx}:{idx + span}]))"
             )
             idx += span
         else:
@@ -303,20 +314,20 @@ def _generate_methods(cls, field_defs, defaults) -> None:
     lines.append("    return obj")
     from_tuple_src = "\n".join(lines) + "\n"
 
-    # _to_tuple: flat plan tuple from slot reads (descriptors bypassed).
+    # _bm_to_tuple: flat plan tuple from slot reads (descriptors bypassed).
     parts = []
     for n, _ftype in field_defs:
         if n in child_of:
-            parts.append(f"*{child_of[n]}._to_tuple({slot_of[n]}.__get__(obj))")
+            parts.append(f"*{child_of[n]}._bm_to_tuple({slot_of[n]}.__get__(obj))")
         else:
             parts.append(f"{slot_of[n]}.__get__(obj)")
-    to_tuple_src = f"def _to_tuple(obj):\n    return ({', '.join(parts)},)\n"
+    to_tuple_src = f"def _bm_to_tuple(obj):\n    return ({', '.join(parts)},)\n"
 
     namespace: Dict[str, Any] = {}
     exec(init_src + from_tuple_src + to_tuple_src, env, namespace)  # noqa: S102
     cls.__init__ = namespace["__init__"]
-    cls._from_tuple = staticmethod(namespace["_from_tuple"])
-    cls._to_tuple = namespace["_to_tuple"]
+    cls._bm_from_tuple = staticmethod(namespace["_bm_from_tuple"])
+    cls._bm_to_tuple = namespace["_bm_to_tuple"]
 
 
 # --------------------------------------------------------------------------
@@ -357,6 +368,22 @@ class StructMeta(type):
 
         defaults: Dict[str, Any] = {}
         for n in field_names:
+            # Reserved-name guard: field descriptors are installed with plain
+            # setattr, so a colliding name would silently shadow the Struct
+            # API (or, for the _bm_ slot prefix, cross-wire field storage).
+            # The invariant this buys: if the class compiles, documented
+            # attributes mean what the docs say — for everyone.
+            if (
+                n.startswith("_bm_")
+                or n in _RESERVED_FIELD_NAMES
+                or any(hasattr(b, n) for b in bases)
+            ):
+                raise PlanCompileError(
+                    f"{name}.{n}: field name collides with the Struct API"
+                    f" ({n!r} is reserved); rename the field"
+                    f" (e.g. {n + '_'!r} — layout is positional, so field"
+                    f" names never affect the wire format)"
+                )
             if n in ns:
                 defaults[n] = ns.pop(n)
             elif defaults:
@@ -387,6 +414,8 @@ class StructMeta(type):
         cls.num_bits = plan.num_bits
         cls._bm_concrete = True
         cls._bm_fields = tuple(field_names)
+        cls._bm_field_types = dict(field_defs)
+        cls._bm_endian = endian
 
         for n, ftype in field_defs:
             slot = cls.__dict__["_bm_" + n]
@@ -435,6 +464,8 @@ class Struct(metaclass=StructMeta):
     num_bits: ClassVar[int]
     _bm_concrete: ClassVar[bool] = False
     _bm_fields: ClassVar[Tuple[str, ...]] = ()
+    _bm_field_types: ClassVar[Dict[str, type]] = {}
+    _bm_endian: ClassVar[str] = "big"
 
     @classmethod
     def parse(cls, data) -> "Struct":
@@ -444,22 +475,33 @@ class Struct(metaclass=StructMeta):
             raise ValueError(
                 f"{cls.__name__}.parse: expected {n} bytes, got {len(data)}"
             )
-        return cls._from_tuple(cls.plan.unpack_tuple(data))
+        return cls._bm_from_tuple(cls.plan.unpack_tuple(data))
 
     def pack(self) -> bytes:
         """Encode this instance; trusts the store-time narrowing invariant."""
-        values = self._to_tuple()
+        values = self._bm_to_tuple()
         if DEBUG_VALIDATE:
             self.plan.validate_tuple(values)
         return self.plan.pack_tuple(values)
 
     def detach_copy(self) -> "Struct":
         """A new instance with the same field values."""
-        return self._from_tuple(self._to_tuple())
+        return self._bm_from_tuple(self._bm_to_tuple())
+
+    @property
+    def sizedview(self):
+        """Width-carrying live view of this record's fields.
+
+        ``t.sizedview.<field>`` returns a :class:`BoundField` — a live lvalue
+        handle. The handle and its ``.bits`` are live; width is invariant;
+        reads promote to plain values, stores narrow, width-breaking
+        mutations raise; ``.boxed()`` detaches a snapshot.
+        """
+        return _SizedView(self)
 
     def __eq__(self, other):
         if other.__class__ is self.__class__:
-            return self._to_tuple() == other._to_tuple()
+            return self._bm_to_tuple() == other._bm_to_tuple()
         return NotImplemented
 
     __hash__ = None  # mutable record semantics, like an eq dataclass
@@ -467,6 +509,364 @@ class Struct(metaclass=StructMeta):
     def __repr__(self):
         args = ", ".join(f"{n}={getattr(self, n)!r}" for n in self._bm_fields)
         return f"{type(self).__name__}({args})"
+
+
+# --------------------------------------------------------------------------
+# The sized view: live, width-carrying field handles
+# --------------------------------------------------------------------------
+
+
+def _unwrap_bound(value):
+    return value.value if isinstance(value, BoundField) else value
+
+
+class BoundField:
+    """Live lvalue handle to one Struct field (any scalar kind).
+
+    Stores no data — only ``(owner, field name, field's BitType)``; the only
+    storage is the struct's slot, so handles are live in both directions and
+    never go stale. Semantics are a C lvalue's: rvalue use promotes to the
+    plain value; stores narrow through the field descriptor; compound
+    assignment is read-promote / full-width compute / narrowing store.
+
+    Operators exist only where the design leaves one lawful meaning.
+    ``__index__`` and the bitwise family (``& | ^ << >> ~``) are deliberately
+    absent: on a value/bits seam each has two lawful meanings, so the code
+    names the plane instead — ``f.value & m`` (value plane), ``f.bits & bv``
+    (bit plane), ``f"{f:#x}"`` / ``f.value`` where an int is required.
+    Handles are unhashable (their value mutates under them); key with
+    ``f.value`` or ``f.boxed()``.
+    """
+
+    __slots__ = ("_owner", "_name", "_ftype")
+
+    def __init__(self, owner, name, ftype):
+        object.__setattr__(self, "_owner", owner)
+        object.__setattr__(self, "_name", name)
+        object.__setattr__(self, "_ftype", ftype)
+
+    # -- the two channels ---------------------------------------------------
+
+    @property
+    def value(self):
+        return getattr(self._owner, self._name)
+
+    @value.setter
+    def value(self, new):
+        setattr(self._owner, self._name, _unwrap_bound(new))
+
+    @property
+    def bits(self):
+        return BoundBits(self)
+
+    @bits.setter
+    def bits(self, new):
+        if isinstance(new, BoundBits):
+            new = new._snapshot()
+        elif not isinstance(new, BitVector):
+            new = BitVector(new)
+        setattr(self._owner, self._name, self._ftype(bits=new).value)
+
+    @property
+    def num_bits(self):
+        return self._ftype.num_bits
+
+    def boxed(self):
+        """A detached BitType snapshot (record's endianness); survives
+        later struct mutation."""
+        return self._ftype(self.value, endianness=type(self._owner)._bm_endian)
+
+    def __setattr__(self, name, value):
+        # Only the two channels are assignable; everything else is a likely
+        # typo that would otherwise vanish into an instance attribute.
+        if name in ("value", "bits"):
+            type(self).__dict__[name].__set__(self, value)
+        else:
+            raise AttributeError(
+                f"cannot set {name!r} on a bound field; assign .value or .bits"
+            )
+
+    # -- bit access: [] has no value-plane rival on a number -----------------
+
+    def __getitem__(self, index):
+        return self._ftype(self.value).bits[index]
+
+    def __setitem__(self, index, bit):
+        b = self._ftype(self.value).bits
+        b[index] = bit
+        setattr(self._owner, self._name, self._ftype(bits=b).value)
+
+    # -- promotion: rvalue use yields plain results ---------------------------
+
+    def __eq__(self, other):
+        return self.value == _unwrap_bound(other)
+
+    __hash__ = None
+
+    def __lt__(self, other):
+        return self.value < _unwrap_bound(other)
+
+    def __le__(self, other):
+        return self.value <= _unwrap_bound(other)
+
+    def __gt__(self, other):
+        return self.value > _unwrap_bound(other)
+
+    def __ge__(self, other):
+        return self.value >= _unwrap_bound(other)
+
+    def __add__(self, other):
+        return self.value + _unwrap_bound(other)
+
+    def __radd__(self, other):
+        return _unwrap_bound(other) + self.value
+
+    def __sub__(self, other):
+        return self.value - _unwrap_bound(other)
+
+    def __rsub__(self, other):
+        return _unwrap_bound(other) - self.value
+
+    def __mul__(self, other):
+        return self.value * _unwrap_bound(other)
+
+    def __rmul__(self, other):
+        return _unwrap_bound(other) * self.value
+
+    def __truediv__(self, other):
+        return self.value / _unwrap_bound(other)
+
+    def __rtruediv__(self, other):
+        return _unwrap_bound(other) / self.value
+
+    def __floordiv__(self, other):
+        return self.value // _unwrap_bound(other)
+
+    def __rfloordiv__(self, other):
+        return _unwrap_bound(other) // self.value
+
+    def __mod__(self, other):
+        return self.value % _unwrap_bound(other)
+
+    def __rmod__(self, other):
+        return _unwrap_bound(other) % self.value
+
+    def __pow__(self, other):
+        return self.value ** _unwrap_bound(other)
+
+    def __rpow__(self, other):
+        return _unwrap_bound(other) ** self.value
+
+    def __neg__(self):
+        return -self.value
+
+    def __pos__(self):
+        return +self.value
+
+    def __abs__(self):
+        return abs(self.value)
+
+    def __int__(self):
+        return int(self.value)
+
+    def __float__(self):
+        return float(self.value)
+
+    def __bool__(self):
+        return bool(self.value)
+
+    # -- compound assignment: RMW through the narrowing store ----------------
+
+    def __iadd__(self, other):
+        self.value = self.value + _unwrap_bound(other)
+        return self
+
+    def __isub__(self, other):
+        self.value = self.value - _unwrap_bound(other)
+        return self
+
+    def __imul__(self, other):
+        self.value = self.value * _unwrap_bound(other)
+        return self
+
+    def __itruediv__(self, other):
+        self.value = self.value / _unwrap_bound(other)
+        return self
+
+    def __ifloordiv__(self, other):
+        self.value = self.value // _unwrap_bound(other)
+        return self
+
+    def __imod__(self, other):
+        self.value = self.value % _unwrap_bound(other)
+        return self
+
+    def __ipow__(self, other):
+        self.value = self.value ** _unwrap_bound(other)
+        return self
+
+    # -- display --------------------------------------------------------------
+
+    def __format__(self, format_spec):
+        # No spec: displaying the handle (sized form, agrees with print).
+        # Any spec: formatting the number (plain value).
+        if format_spec == "":
+            return str(self)
+        return format(self.value, format_spec)
+
+    def __str__(self):
+        return str(self.boxed())
+
+    def __repr__(self):
+        return (
+            f"<bound {self._ftype.__name__} {self._name}={self.value!r}"
+            f" of {type(self._owner).__name__}>"
+        )
+
+
+class BoundBits:
+    """Live bits of a bound field — a view of a view.
+
+    Holds only the :class:`BoundField`; every operation re-derives the
+    current bits from the struct's slot at call time, so held handles never
+    go stale. Width-preserving mutation writes through; width-changing
+    mutation raises at write-back (the field's width is invariant).
+    Unhashable, like BitVector.
+    """
+
+    __slots__ = ("_field",)
+
+    def __init__(self, field):
+        object.__setattr__(self, "_field", field)
+
+    def _cur(self):
+        f = self._field
+        return f._ftype(f.value).bits
+
+    def _write(self, bits):
+        f = self._field
+        setattr(f._owner, f._name, f._ftype(bits=bits).value)
+
+    def _snapshot(self):
+        return self._cur()
+
+    # -- readers (dunders bypass __getattr__, so these are explicit) ---------
+
+    def __len__(self):
+        return len(self._cur())
+
+    def __iter__(self):
+        return iter(self._cur())
+
+    def __getitem__(self, index):
+        return self._cur()[index]
+
+    def __eq__(self, other):
+        if isinstance(other, BoundBits):
+            other = other._cur()
+        return self._cur() == other
+
+    __hash__ = None
+
+    def __str__(self):
+        return str(self._cur())
+
+    def __repr__(self):
+        f = self._field
+        return f"<bound bits {self._cur().to01()} of {f._name!r}>"
+
+    def __getattr__(self, name):
+        # Reader methods (to01, hex, to_bytes, count, ...) delegate to a
+        # fresh derivation; mutators are defined explicitly below so their
+        # results write back through the width-validating store.
+        return getattr(self._cur(), name)
+
+    # -- mutators: read-modify-write through the store ------------------------
+
+    def __setitem__(self, index, value):
+        b = self._cur()
+        b[index] = value
+        self._write(b)
+
+    def __delitem__(self, index):
+        b = self._cur()
+        del b[index]
+        self._write(b)  # width-changing: raises; struct untouched
+
+    def __iadd__(self, other):
+        b = self._cur()
+        b += other
+        self._write(b)  # concatenation grows: raises unless other is empty
+        return self
+
+    def append(self, value):
+        b = self._cur()
+        b.append(value)
+        self._write(b)
+
+    def extend(self, values):
+        b = self._cur()
+        b.extend(values)
+        self._write(b)
+
+    def insert(self, index, value):
+        b = self._cur()
+        b.insert(index, value)
+        self._write(b)
+
+    def pop(self, index=None, default=None):
+        # Mirrors the BitVector contract (None = last bit; negatives are
+        # out of bounds there), not list.pop's -1 convention.
+        b = self._cur()
+        value = b.pop(index, default)
+        self._write(b)
+        return value
+
+    def remove(self, value):
+        b = self._cur()
+        b.remove(value)
+        self._write(b)
+
+    def clear(self):
+        b = self._cur()
+        b.clear()
+        self._write(b)
+
+    def reverse(self):
+        b = self._cur()
+        b.reverse()
+        self._write(b)  # width-preserving: writes through
+
+
+class _SizedView:
+    """Lazy attribute proxy: each field access mints a fresh live handle
+    (nested-Struct fields return the child's own sizedview)."""
+
+    __slots__ = ("_owner",)
+
+    def __init__(self, owner):
+        object.__setattr__(self, "_owner", owner)
+
+    def __getattr__(self, name):
+        owner = self._owner
+        try:
+            ftype = type(owner)._bm_field_types[name]
+        except KeyError:
+            raise AttributeError(
+                f"{type(owner).__name__} has no field {name!r}"
+            ) from None
+        if isinstance(ftype, StructMeta):
+            return getattr(owner, name).sizedview
+        return BoundField(owner, name, ftype)
+
+    def __setattr__(self, name, value):
+        setattr(self._owner, name, _unwrap_bound(value))
+
+    def __dir__(self):
+        return list(type(self._owner)._bm_fields)
+
+    def __repr__(self):
+        return f"<sizedview of {self._owner!r}>"
 
 
 # --------------------------------------------------------------------------
@@ -536,7 +936,7 @@ class Array:
             )
         element = self.element
         if isinstance(element, StructMeta):
-            from_tuple = element._from_tuple
+            from_tuple = element._bm_from_tuple
             return [
                 from_tuple(t) for t in element.plan.iter_tuples(data, 0, self.count)
             ]

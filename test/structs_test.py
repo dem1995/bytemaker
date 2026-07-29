@@ -200,6 +200,171 @@ def test_narrowing_warning_opt_in():
         NarrowingConfig.warn = False
 
 
+# ----------------------------------------------------------------- sizedview
+def test_sizedview_boundfield_lvalue():
+    n = Nibbles(low=5, high=2)
+    f = n.sizedview.low
+    assert f.value == 5 and f.num_bits == 4
+    n.low = 9
+    assert f.value == 9  # live: struct -> handle
+    f.value = 200  # store narrows: 200 & 0xF
+    assert n.low == 8  # live: handle -> struct
+    f += 9  # RMW: read-promote, full-width compute, narrowing store
+    assert n.low == 1
+    n.sizedview.high += 200  # compound assignment through the view
+    assert n.high == (2 + 200) & 0xF
+    n.sizedview.low = UInt8(0x1F)  # boxed assignment: unwrap, narrow
+    assert n.low == 0xF
+
+
+def test_boundfield_promotion_and_display():
+    n = Nibbles(low=5, high=2)
+    f = n.sizedview.low
+    assert f + 3 == 8 and 3 + f == 8  # plain results, full width
+    assert f > 4 and f <= 5 and f != 4
+    assert f == 5 and f == UInt4(5)
+    assert f == n.sizedview.low  # fresh handles compare by value
+    with pytest.raises(TypeError):
+        {f: 1}  # unhashable: live value under a hash is the mutable-key trap
+    assert int(f) == 5 and float(f) == 5.0 and bool(f)
+    assert f"{f:02x}" == "05"  # a spec formats the value
+    assert f"{f}" == str(f)  # no spec = sized display, agrees with print
+    assert "UInt4" in str(f)
+    assert repr(f) == "<bound UInt4 low=5 of Nibbles>"
+    assert "low" in dir(n.sizedview) and "high" in dir(n.sizedview)
+    with pytest.raises(AttributeError):
+        n.sizedview.nope
+    with pytest.raises(AttributeError):
+        f.valeu = 3  # typo guard: only .value / .bits are assignable
+
+
+def test_boundfield_contested_operators_absent():
+    for dunder in (
+        "__index__",
+        "__and__",
+        "__or__",
+        "__xor__",
+        "__lshift__",
+        "__rshift__",
+        "__invert__",
+        "__iand__",
+        "__ior__",
+        "__ixor__",
+    ):
+        # Check the MRO's own dicts: plain hasattr() would false-positive on
+        # __or__ via type.__or__ (PEP 604 class-union), which binds to the
+        # class object, not to instances.
+        assert not any(
+            dunder in c.__dict__ for c in structs_mod.BoundField.__mro__
+        )
+    f = Nibbles(low=5, high=2).sizedview.low
+    with pytest.raises(TypeError):
+        f & 1  # two lawful meanings: name the plane instead
+    with pytest.raises(TypeError):
+        hex(f)  # handles aren't numbers; use f"{f:#x}" or hex(f.value)
+    assert f.value & 1 == 1  # the value-plane spelling
+
+
+def test_boundbits_live_and_width_guarded():
+    n = Nibbles(low=4, high=0)
+    f = n.sizedview.low
+    f.bits[2] = 1  # 0100 -> 0110, written through
+    assert n.low == 6
+    b = f.bits
+    n.low = 15
+    assert b.to01() == "1111"  # held handles never go stale
+    assert len(b) == 4 and b == UInt4(15).bits
+    with pytest.raises(ValueError):
+        b.append(1)  # width is invariant
+    assert n.low == 15  # failed mutation leaves the struct untouched
+    with pytest.raises(ValueError):
+        b.pop()
+    f.bits = "0101"  # width-strict decode + store
+    assert n.low == 5
+    with pytest.raises(ValueError):
+        f.bits = "01010"  # 5 bits into a 4-bit field
+    n.sizedview.high.bits = f.bits  # BoundBits accepted as a source
+    assert n.high == 5
+    b.reverse()  # width-preserving: writes through (0101 -> 1010)
+    assert n.low == 0b1010
+
+
+def test_boundfield_bit_indexing():
+    n = Nibbles(low=4, high=0)
+    f = n.sizedview.low
+    assert f[0] == 0 and f[1] == 1
+    f[0] = 1
+    assert n.low == 0b1100
+
+
+def test_sizedview_signed_field():
+    w = WarpDestination(0, 0, 0, -4, 0)
+    f = w.sizedview.x_offset
+    assert f.value == -4 and f < 0
+    f.value = 40000  # out of SInt16 range: wraps, C-style
+    assert w.x_offset == 40000 - 65536
+
+
+def test_sizedview_nested_struct():
+    o = Outer(head=1, inner=Inner(p=2, q=3), tail=4)
+    child = o.sizedview.inner  # nested field: the child's own sizedview
+    assert isinstance(child, type(o.inner.sizedview))
+    child.q.value = 70000  # narrows at the store (UInt16)
+    assert o.inner.q == 70000 & 0xFFFF
+    o.inner.p = 9
+    assert child.p.value == 9  # child view aliases the same instance
+
+
+def test_boundfield_boxed_detach_and_endian():
+    w = WarpDestination(1, 2, 3, -4, 5)
+    f = w.sizedview.x
+    snap = f.boxed()
+    assert snap.value == 2
+    assert snap.endianness == "little"  # record's declared endian
+    w.x = 7
+    assert snap.value == 2  # detached: survives later mutation
+    assert f.value == 7  # ...unlike the live handle
+
+
+def test_sizedview_float_field():
+    class PixelF(Struct, endian="little"):
+        x: UInt16
+        gamma: Float32
+
+    p = PixelF(x=3, gamma=1.5)
+    g = p.sizedview.gamma
+    assert g + 0.5 == 2.0  # same promotion path as int handles
+    g.value = 2.5
+    assert p.gamma == 2.5
+    assert g[0] == 0  # sign bit of the Float32 pattern
+    assert g.num_bits == 32
+
+
+def test_sizedview_pack_roundtrip():
+    n = Nibbles(low=1, high=2)
+    n.sizedview.low.bits[1] = 1  # 0001 -> 0101
+    n.sizedview.high += 1
+    assert n.low == 5 and n.high == 3
+    assert Nibbles.parse(n.pack()) == n
+
+
+# ------------------------------------------------------------ reserved names
+def test_reserved_field_names_guarded():
+    for bad in ("pack", "parse", "plan", "num_bits", "sizedview",
+                "detach_copy", "_bm_x"):
+        with pytest.raises(PlanCompileError, match="reserved"):
+            structs_mod.StructMeta(
+                "Bad", (Struct,), {"__annotations__": {bad: UInt8}}
+            )
+
+    class _Padded(Struct):  # leading underscore stays legal (padding fields)
+        _reserved: UInt3
+        flags: UInt5
+
+    p = _Padded(_reserved=0, flags=9)
+    assert p.flags == 9
+
+
 def test_eq_and_detach_copy():
     a = WarpDestination(1, 2, 3, -4, 5)
     b = WarpDestination(1, 2, 3, -4, 5)
