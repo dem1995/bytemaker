@@ -122,7 +122,7 @@ def to_bits_individual(unit: UnitType) -> BitVector:
     elif is_instance_of_union(unit, PyType):
         return pytype_to_bits(unit)
     else:
-        raise Exception(
+        raise TypeError(
             f"Cannot convert {unit} to bits because"
             f" the unit type is not a CType, YType, or PyType"
         )
@@ -145,7 +145,7 @@ def to_bytes_individual(
     elif is_instance_of_union(unit, PyType):
         return pytype_to_bytes(unit, endianness=endianness)
     else:
-        raise Exception(
+        raise TypeError(
             f"Cannot convert {unit} to bytes because"
             f" the unit type is not a CType, YType, or PyType"
         )
@@ -165,9 +165,9 @@ def from_bits_individual(unitbits: BitVector, unittype: type) -> PyType:
     size_in_bits = count_bits_in_unit_type(unittype)
 
     if len(unitbits) != size_in_bits:
-        raise Exception(
+        raise ValueError(
             f"Cannot convert {unitbits} to {unittype}"
-            f" because the number of bits in the bits object ({unitbits.num_bits})"
+            f" because the number of bits in the bits object ({len(unitbits)})"
             f" does not match the number of bits in the unit type ({size_in_bits})"
         )
     if is_subclass_of_union(unittype, CType):
@@ -177,7 +177,7 @@ def from_bits_individual(unitbits: BitVector, unittype: type) -> PyType:
     elif is_subclass_of_union(unittype, PyType):
         return bits_to_pytype(unitbits, unittype)
     else:
-        raise Exception(
+        raise TypeError(
             f"Cannot convert {unitbits} to {unittype}"
             f" because the unit type is not a CType, YType, or PyType"
         )
@@ -202,7 +202,7 @@ def from_bytes_individual(
 
     size_in_bits = count_bits_in_unit_type(unittype)
     if len(unitbytes) * 8 != size_in_bits:
-        raise Exception(
+        raise ValueError(
             f"Cannot convert {unitbytes} to {unittype}"
             f" because the number of bits in the bytes object ({len(unitbytes) * 8})"
             f" does not match the number of bits in the unit type ({size_in_bits})"
@@ -214,7 +214,7 @@ def from_bytes_individual(
     elif is_subclass_of_union(unittype, PyType):
         return bytes_to_pytype(unitbytes, unittype, endianness=endianness)
     else:
-        raise Exception(
+        raise TypeError(
             f"Cannot convert {unitbytes} to {unittype}"
             f" because the unit type is not a CType, YType, or PyType"
         )
@@ -279,7 +279,7 @@ def to_bits_aggregate(convertible_object: AggregateTypeByteConvertible) -> BitVe
         for unit in convertible_object:
             ret_bits.extend(to_bits_aggregate(unit))
     else:
-        raise Exception(
+        raise TypeError(
             f"Cannot convert {convertible_object} to bits because the unit type"
             f" is not a CType, YType, or PyType"
         )
@@ -316,9 +316,9 @@ def from_bits_aggregate(
         # print("unitbits type", type(unitbits))
         # print(unitbits)
         if len(unitbits) != size_in_bits:
-            raise Exception(
+            raise ValueError(
                 f"Cannot convert {unitbits} to {aggregate_type}"
-                f" because the number of bits in the bits object ({unitbits.num_bits})"
+                f" because the number of bits in the bits object ({len(unitbits)})"
                 f" does not match the number of bits in the unit type ({size_in_bits})"
             )
 
@@ -408,7 +408,7 @@ def from_bytes_aggregate(
 
         if not is_array:
             if len(bytes_obj) * 8 != size_in_bits:
-                raise Exception(
+                raise ValueError(
                     f"Cannot convert {bytes_obj} to {aggregate_type}"
                     f" because the # of bits in the bytes object ({len(bytes_obj) * 8})"
                     f" does not match the # of bits in the unit type ({size_in_bits})"

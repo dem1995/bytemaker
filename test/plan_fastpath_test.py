@@ -169,5 +169,5 @@ def test_from_bytes_is_array_returns_list():
 
 def test_parse_length_mismatch_raises():
     cls = make_dataclass("RecLen", [("a", UInt32)])
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         from_bytes_aggregate(b"\x00" * 3, cls, endianness="little")

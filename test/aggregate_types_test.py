@@ -152,6 +152,18 @@ def test_from_bytes_aggregate_field_type_assignment():
     assert result.a.value == 42
 
 
+def test_from_bits_length_mismatch_raises_valueerror():
+    """A wrong-length BitVector raises ValueError, not the base Exception, and the
+    error message builds cleanly. Regression: the message interpolated
+    ``unitbits.num_bits`` (BitVector has no such attribute), so constructing it
+    raised AttributeError before the intended error was ever raised."""
+    wrong = BitVector([1, 0, 1])  # 3 bits; neither UInt8 nor the aggregate fit
+    with pytest.raises(ValueError):
+        from_bits_individual(wrong, UInt8)
+    with pytest.raises(ValueError):
+        from_bits_aggregate(wrong, SingleFieldDataclass)
+
+
 @dataclass
 class TwoFieldDataclass:
     a: UInt16

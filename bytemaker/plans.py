@@ -417,7 +417,7 @@ class LegacyRecordPlan:
 
     def parse(self, data: bytes, endianness: Literal["big", "little"]):
         if len(data) * 8 != self.total * 8:
-            raise Exception(
+            raise ValueError(
                 f"Cannot convert {data!r} to {self.cls}"
                 f" because the number of bits in the bytes object"
                 f" ({len(data) * 8}) does not match the number of bits in the"
