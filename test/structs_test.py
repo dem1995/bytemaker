@@ -154,6 +154,52 @@ def test_narrowing_at_store():
         d.x = 1.5  # C-style int narrowing accepts ints only
 
 
+def test_field_store_accepts_boxed_int():
+    """Int.__index__ lets boxed values assign through the plain descriptors;
+    the value channel narrows regardless of what carries the value."""
+    n = Nibbles(low=1, high=2)
+    n.low = UInt4(9)
+    assert n.low == 9
+    n.high = UInt8(0x1F)  # wider box: unwrap, then narrow at the store
+    assert n.high == 0xF
+    w = WarpDestination(0, 0, 0, 0, 0)
+    w.x_offset = UInt16(0x8000)  # unsigned box into a signed field: C store
+    assert w.x_offset == -32768
+
+
+def test_narrowing_warning_opt_in():
+    """Silent C-style narrowing by default; NarrowingConfig.warn = True is the
+    -Wconversion analog (field descriptors and box value setters alike)."""
+    import warnings as pywarnings
+
+    from bytemaker.bittypes.bittype import NarrowingConfig, NarrowingWarning
+
+    n = Nibbles(low=1, high=2)
+    with pywarnings.catch_warnings():
+        pywarnings.simplefilter("error")  # default off: fully silent
+        n.low = 17
+    assert n.low == 1
+
+    NarrowingConfig.warn = True
+    try:
+        with pytest.warns(NarrowingWarning):
+            n.low = 17  # unsigned field store
+        with pytest.warns(NarrowingWarning):
+            Nibbles(low=1, high=99)  # __init__ narrows through descriptors
+        with pytest.warns(NarrowingWarning):
+            WarpDestination(0, 0, 0, 0, 0).x_offset = 0x8000  # signed field
+        with pytest.warns(NarrowingWarning):
+            UInt4(20)  # box value setter
+        with pytest.warns(NarrowingWarning):
+            SInt4(8)  # signed box wrap
+        with pywarnings.catch_warnings():
+            pywarnings.simplefilter("error")  # in-range stores stay silent
+            n.low = 5
+            UInt4(5)
+    finally:
+        NarrowingConfig.warn = False
+
+
 def test_eq_and_detach_copy():
     a = WarpDestination(1, 2, 3, -4, 5)
     b = WarpDestination(1, 2, 3, -4, 5)

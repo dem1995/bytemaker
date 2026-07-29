@@ -148,6 +148,43 @@ def test_str_endianess(bittype_class, input_value, expected_bits):
     assert bytes(bittype_instance) == reversed_chunks
 
 
+def test_str_codepoint_changes_longest_match():
+    """Substitutions must prefer the longest table entry (regression: the
+    alternation regex was built unsorted, so a shorter key like "A"
+    permanently shadowed a longer one like "AB" in both directions)."""
+    from bytemaker.utils import FrozenDict
+
+    class TableStr16(Str16):
+        _codepoint_changes = FrozenDict({"A": "1", "AB": "12"})
+
+    # decode side: raw "AB" must map through the longer key ("12", not "1B")
+    assert TableStr16(bits=BitVector(b"AB")).value == "12"
+
+    # encode side: reverse substitution must yield "AB", not "A" + stray "2"
+    assert bytes(TableStr16("12").bits) == b"AB"
+
+
+def test_int_index_protocol():
+    """__index__ makes boxes usable anywhere a plain int is: hex(), list
+    indexing, range(), and the Struct descriptors' operator.index() store."""
+    import operator
+
+    assert operator.index(UInt8(40)) == 40
+    assert hex(UInt8(40)) == "0x28"
+    assert [10, 20, 30][UInt8(1)] == 20
+    assert len(range(UInt8(3))) == 3
+    assert operator.index(SInt8(-3)) == -3
+
+
+def test_bittype_format_spec_formats_value():
+    """A format spec formats the value; no spec keeps the sized display."""
+    u = UInt8(40)
+    assert f"{u:02x}" == "28"
+    assert f"{u:d}" == "40"
+    assert f"{u}" == str(u)
+    assert f"{Float32(1.5):.1f}" == "1.5"
+
+
 @pytest.mark.parametrize(
     "bittype_class, input_value, expected_bits_length",
     [

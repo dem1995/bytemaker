@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import operator
+import os
 import struct
+import warnings
 from abc import ABC, ABCMeta, abstractmethod
 from typing import TYPE_CHECKING
 
@@ -20,6 +22,38 @@ from bytemaker.utils import classproperty
 
 T = TypeVar("T")
 S = TypeVar("S")
+
+
+class NarrowingWarning(UserWarning):
+    """A store's C-style narrowing actually changed the value.
+
+    The silent wrap/mask behavior is the deliberate default (it is what a C
+    assignment does); this warning is the opt-in analog of a C compiler's
+    ``-Wconversion``. Enable via :class:`NarrowingConfig` and escalate to an
+    error with the stdlib warnings filters if desired::
+
+        warnings.simplefilter("error", NarrowingWarning)
+    """
+
+
+class NarrowingConfig:
+    """Opt-in checked stores (the ``-Wconversion`` knob).
+
+    When ``warn`` is True, integer stores that change the assigned value —
+    Struct field descriptors and Int/UInt/SInt value setters — emit a
+    :class:`NarrowingWarning`. Default off (silent C semantics). Also
+    seedable via the ``BYTEMAKER_WARN_NARROWING`` environment variable.
+    """
+
+    warn: bool = bool(os.environ.get("BYTEMAKER_WARN_NARROWING"))
+
+
+def _warn_narrowing(original, stored, target):
+    warnings.warn(
+        f"narrowing store to {target}: {original!r} became {stored!r}",
+        NarrowingWarning,
+        stacklevel=3,
+    )
 
 
 if TYPE_CHECKING:
@@ -222,6 +256,16 @@ class BitType(ABC, Generic[T], metaclass=BitTypeMeta):
         return (
             f"{self.__class__.__name__}(bits={self.bits}, endianness={self.endianness})"
         )
+
+    def __format__(self, format_spec):
+        """
+        No spec formats the box for display (same as ``str``: the sized,
+        self-describing form). Any spec formats the *value*, so numeric specs
+        work exactly as on the plain value: ``f"{UInt6(40):02x}" == '28'``.
+        """
+        if format_spec == "":
+            return str(self)
+        return format(self.value, format_spec)
 
     def __eq__(self, other):
         """

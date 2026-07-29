@@ -51,6 +51,11 @@ import os
 import typing
 
 from bytemaker.bittypes import BitType, Float, Int, SInt, bytes_to_bittype
+from bytemaker.bittypes.bittype import (
+    NarrowingConfig,
+    NarrowingWarning,
+    _warn_narrowing,
+)
 from bytemaker.plans import Plan, PlanCompileError, compile_plan
 from bytemaker.typing_redirect import (
     Any,
@@ -100,6 +105,8 @@ __all__ = [
     "StructMeta",
     "Array",
     "DEBUG_VALIDATE",
+    "NarrowingConfig",
+    "NarrowingWarning",
     "u8",
     "u16",
     "u32",
@@ -151,7 +158,11 @@ class _UIntField:
         return self._slot.__get__(obj, objtype)
 
     def __set__(self, obj, value):
-        self._slot.__set__(obj, operator.index(value) & self._mask)
+        iv = operator.index(value)
+        v = iv & self._mask
+        if NarrowingConfig.warn and v != iv:
+            _warn_narrowing(iv, v, f"field {self._slot.__name__[4:]!r}")
+        self._slot.__set__(obj, v)
 
 
 class _SIntField:
@@ -168,9 +179,12 @@ class _SIntField:
         return self._slot.__get__(obj, objtype)
 
     def __set__(self, obj, value):
-        v = operator.index(value) & self._mask
+        iv = operator.index(value)
+        v = iv & self._mask
         if v >= self._sign_bit:
             v -= self._mask + 1
+        if NarrowingConfig.warn and v != iv:
+            _warn_narrowing(iv, v, f"field {self._slot.__name__[4:]!r}")
         self._slot.__set__(obj, v)
 
 

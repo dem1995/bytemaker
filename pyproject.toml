@@ -44,6 +44,10 @@ docs = [
 [tool.setuptools]
 packages = ["bytemaker", "bytemaker.bittypes", "bytemaker.bitvector", "bytemaker.conversions"]
 
+[tool.setuptools.package-data]
+bytemaker = ["py.typed"]
+"bytemaker.bitvector" = ["*.pyi"]
+
 [project.urls]
 "Homepage" = "https://github.com/dem1995/bytemaker"
 "PyPi Page" = "https://pypi.org/project/bytemaker/"

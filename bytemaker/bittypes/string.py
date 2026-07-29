@@ -124,10 +124,17 @@ class String(BitType[str]):
             ] == hash(cls.codepoint_changes):
                 return cls._codepoint_change_regex_cache[1]
             else:
+                # Longest alternative first: re alternation is leftmost-first,
+                # so "A|AB" would shadow "AB" entirely.
                 cls._codepoint_change_regex_cache = (
                     hash(cls.codepoint_changes),
                     re.compile(
-                        "|".join(re.escape(key) for key in cls.codepoint_changes.keys())
+                        "|".join(
+                            re.escape(key)
+                            for key in sorted(
+                                cls.codepoint_changes.keys(), key=len, reverse=True
+                            )
+                        )
                     ),
                 )
             return cls._codepoint_change_regex_cache[1]
@@ -143,11 +150,15 @@ class String(BitType[str]):
             ):
                 return cls._reverse_codepoint_changes_regex_cache[1]
             else:
+                # Longest alternative first — see _codepoint_change_regex.
                 cls._reverse_codepoint_changes_regex_cache = (
                     hash(cls.codepoint_changes),
                     re.compile(
                         "|".join(
-                            re.escape(key) for key in cls.codepoint_changes.values()
+                            re.escape(key)
+                            for key in sorted(
+                                cls.codepoint_changes.values(), key=len, reverse=True
+                            )
                         )
                     ),
                 )
