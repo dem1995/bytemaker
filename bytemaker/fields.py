@@ -1,0 +1,116 @@
+"""Checker-friendly Struct field aliases, for any width.
+
+``u8``/``s16``/``f32``-style names are ``Annotated[int, UInt8]`` (etc.) at
+runtime: the annotation tells a type checker the field holds a plain ``int``
+— which is what ``Struct`` fields hold — while the metadata carries the
+BitType for the plan compiler.
+
+Any integer width works, not just the pre-declared ones: this module
+resolves ``uN``/``sN`` lazily (PEP 562 module ``__getattr__``), so ::
+
+    from bytemaker.fields import u31, s5
+
+just works — canonical named classes (``UInt4``, ``SInt5``, …) are reused
+when they exist; other widths are minted via ``specialize`` and cached so
+repeated lookups agree. Float aliases are the fixed IEEE set (``f16`` /
+``f32`` / ``f64``): an arbitrary float width does not determine an
+exponent/mantissa split.
+
+The paired ``fields.pyi`` presents these to type checkers as descriptor
+types — reads are ``int``/``float``, writes (and the synthesized
+``__init__`` parameters, per dataclass_transform) accept anything the
+narrowing store accepts, including BitType boxes via ``__index__``.
+
+The aliases are absent on Python 3.8 without ``typing_extensions``
+(no ``Annotated``); the bare-class annotation spelling still works there.
+"""
+
+import re
+
+import bytemaker.bittypes as _bittypes
+from bytemaker.bittypes import SInt, UInt
+
+try:  # 3.9+ typing, else typing_extensions, else no Annotated aliases
+    from typing import Annotated
+except ImportError:  # pragma: no cover - version-dependent
+    try:
+        from typing_extensions import Annotated
+    except ImportError:
+        Annotated = None
+
+__all__ = [
+    "u8",
+    "u16",
+    "u32",
+    "u64",
+    "s8",
+    "s16",
+    "s32",
+    "s64",
+    "f16",
+    "f32",
+    "f64",
+]
+
+if Annotated is not None:
+    from bytemaker.bittypes import (
+        Float16,
+        Float32,
+        Float64,
+        SInt8,
+        SInt16,
+        SInt32,
+        SInt64,
+        UInt8,
+        UInt16,
+        UInt32,
+        UInt64,
+    )
+
+    u8 = Annotated[int, UInt8]
+    u16 = Annotated[int, UInt16]
+    u32 = Annotated[int, UInt32]
+    u64 = Annotated[int, UInt64]
+    s8 = Annotated[int, SInt8]
+    s16 = Annotated[int, SInt16]
+    s32 = Annotated[int, SInt32]
+    s64 = Annotated[int, SInt64]
+    f16 = Annotated[float, Float16]
+    f32 = Annotated[float, Float32]
+    f64 = Annotated[float, Float64]
+
+
+_ALIAS_PATTERN = re.compile(r"(u|s)([1-9][0-9]*)")
+_alias_cache = {}
+_BASE_OF = {"u": UInt, "s": SInt}
+
+
+def __getattr__(name):
+    match = _ALIAS_PATTERN.fullmatch(name)
+    if match is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    if Annotated is None:  # pragma: no cover - version-dependent
+        raise AttributeError(
+            f"{name}: field aliases need typing.Annotated (Python 3.9+, or"
+            f" typing_extensions on 3.8); annotate with the BitType class"
+            f" directly instead"
+        )
+    try:
+        return _alias_cache[name]
+    except KeyError:
+        pass
+    base = _BASE_OF[match.group(1)]
+    width = int(match.group(2))
+    # Reuse the canonical named class when one exists (identity matters for
+    # schema introspection); mint-and-cache other widths.
+    bittype = getattr(_bittypes, f"{base.__name__}{width}", None)
+    if bittype is None:
+        bittype = base.specialize(width, name_=f"{base.__name__}{width}")
+    alias = Annotated[int, bittype]
+    _alias_cache[name] = alias
+    return alias
+
+
+def __dir__():
+    lazy = [f"{prefix}{n}" for prefix in ("u", "s") for n in range(1, 65)]
+    return sorted(set(list(globals()) + __all__ + lazy))

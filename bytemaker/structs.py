@@ -980,33 +980,22 @@ class Array:
 
 
 # --------------------------------------------------------------------------
-# Checker-friendly field aliases: annotation says plain int/float, metadata
-# carries the BitType. (Absent only on 3.8 without typing_extensions.)
+# Checker-friendly field aliases now live in bytemaker.fields (which also
+# resolves arbitrary uN/sN widths lazily — e.g. ``from bytemaker.fields
+# import u31``); the common names are re-exported here for compatibility.
 # --------------------------------------------------------------------------
 
 if Annotated is not None:
-    from bytemaker.bittypes import (
-        Float16,
-        Float32,
-        Float64,
-        SInt8,
-        SInt16,
-        SInt32,
-        SInt64,
-        UInt8,
-        UInt16,
-        UInt32,
-        UInt64,
+    from bytemaker.fields import (  # noqa: F401
+        f16,
+        f32,
+        f64,
+        s8,
+        s16,
+        s32,
+        s64,
+        u8,
+        u16,
+        u32,
+        u64,
     )
-
-    u8 = Annotated[int, UInt8]
-    u16 = Annotated[int, UInt16]
-    u32 = Annotated[int, UInt32]
-    u64 = Annotated[int, UInt64]
-    s8 = Annotated[int, SInt8]
-    s16 = Annotated[int, SInt16]
-    s32 = Annotated[int, SInt32]
-    s64 = Annotated[int, SInt64]
-    f16 = Annotated[float, Float16]
-    f32 = Annotated[float, Float32]
-    f64 = Annotated[float, Float64]
