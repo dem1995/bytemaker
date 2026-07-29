@@ -13,6 +13,7 @@ from bytemaker.bittypes import (
     UInt8,
     UTF8String,
 )
+from bytemaker.bitvector import BitVector
 from bytemaker.plans import PlanCompileError
 from bytemaker.structs import Struct
 
@@ -57,6 +58,50 @@ def test_overflow_raises_and_truncate_clips_at_unit_boundary():
     assert t2.value == "éé"
 
 
+def test_truncate_clips_whole_table_tokens():
+    # Clipping "A[PK]B" one char at a time passes through "A[PK]" (fits)
+    # but also "A[PK" (unencodable) - truncation must skip past broken
+    # tokens rather than raising or returning oversized bytes.
+    TruncT = String.of(2, encoding=MON_TABLE, truncate=True, name="TruncT")
+    t = TruncT("A[PK]B")
+    assert t.value == "A[PK]" and bytes(t.bits) == b"\x80\xe1"
+    TruncT1 = String.of(1, encoding=MON_TABLE, truncate=True, name="TruncT1")
+    assert TruncT1("A[PK]").value == "A"  # clips past the broken "[PK" clip
+    Long1 = String.of(
+        1, encoding={b"\xe1\xe2": "[LONG]"}, truncate=True, name="Long1"
+    )
+    assert Long1("[LONG]").value == ""  # sole token wider than the field
+
+
+def test_pad_invalid_in_codec_strips_before_decode():
+    # 0xFF is not legal UTF-8 anywhere: decode must strip the pad region
+    # at the byte layer first or the codec would raise on the padding.
+    PadFF = UTF8String.of(4, pad=0xFF, name="PadFF")
+    s = PadFF("ab")
+    assert bytes(s.bits) == b"ab\xff\xff"
+    assert s.value == "ab"
+
+
+def test_encode_decode_callable_pair_codec():
+    Pair4 = String.of(
+        4,
+        encoding=(lambda v: v.upper().encode("ascii"),
+                  lambda b: b.decode("ascii").lower()),
+        name="Pair4",
+    )
+    p = Pair4("hi")
+    assert bytes(p.bits) == b"HI\x00\x00"
+    assert p.value == "hi"
+
+    class Tagged(Struct, endian="big"):
+        tag: Pair4
+        n: UInt8
+
+    t = Tagged(tag="ab", n=3)
+    assert t.pack() == b"AB\x00\x00\x03"
+    assert Tagged.parse(t.pack()).tag == "ab"
+
+
 def test_pad_none_requires_exact_width():
     Exact2 = UTF8String.of(2, pad=None, name="Exact2")
     assert Exact2("ab").value == "ab"
@@ -65,6 +110,7 @@ def test_pad_none_requires_exact_width():
 
 
 def test_table_string_longest_match_and_errors():
+    assert issubclass(MonName, TableString)  # mapping encodings mint these
     m = MonName("A[PK]B")
     assert bytes(m.bits) == b"\x80\xe1\x81\x50"
     assert m.value == "A[PK]B"
@@ -73,8 +119,7 @@ def test_table_string_longest_match_and_errors():
     Lenient = String.of(
         2, encoding=MON_TABLE, errors="replace", name="Lenient"
     )
-    v = Lenient(bits=__import__("bytemaker.bitvector", fromlist=["BitVector"])
-                .BitVector(b"\x80\x07"))
+    v = Lenient(bits=BitVector(b"\x80\x07"))
     assert v.value == "A�"  # unmapped byte replaced, position advanced
 
 

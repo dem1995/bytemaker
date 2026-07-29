@@ -252,10 +252,18 @@ class String(BitType[str]):
                     f" the field holds {nbytes} (set truncate=True to clip)"
                 )
             # Clip whole characters until it fits: correct at code-unit
-            # boundaries for ANY codec, including multi-byte tables.
-            while substituted and len(raw) > nbytes:
+            # boundaries for ANY codec, including multi-byte tables. A clip
+            # can land mid-token for table codecs ("A[PK]" -> "A[PK"), where
+            # encoding raises: keep clipping past the broken token.
+            while len(raw) > nbytes:
+                if not substituted:
+                    raw = b""
+                    break
                 substituted = substituted[:-1]
-                raw = bytes(cls.encoding(substituted))
+                try:
+                    raw = bytes(cls.encoding(substituted))
+                except ValueError:
+                    pass
         if len(raw) < nbytes:
             if cls.pad is None:
                 raise ValueError(
@@ -463,34 +471,6 @@ class Str8(UTF8String):
     _num_bits = 8
 
 
-class Str9(UTF8String):
-    _num_bits = 9
-
-
-class Str10(UTF8String):
-    _num_bits = 10
-
-
-class Str11(UTF8String):
-    _num_bits = 11
-
-
-class Str12(UTF8String):
-    _num_bits = 12
-
-
-class Str13(UTF8String):
-    _num_bits = 13
-
-
-class Str14(UTF8String):
-    _num_bits = 14
-
-
-class Str15(UTF8String):
-    _num_bits = 15
-
-
 class Str16(UTF8String):
     _num_bits = 16
 
@@ -521,13 +501,6 @@ __all__ = [
     "TableString",
     "UTF8String",
     "Str8",
-    "Str9",
-    "Str10",
-    "Str11",
-    "Str12",
-    "Str13",
-    "Str14",
-    "Str15",
     "Str16",
     "Str32",
     "Str64",

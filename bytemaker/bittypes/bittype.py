@@ -223,13 +223,16 @@ class BitType(ABC, Generic[T], metaclass=BitTypeMeta):
 
     @bits.setter
     def bits(self, bits: BitVector):
-        if len(bits) != self.num_bits:
-            raise ValueError(f"Expected {self.num_bits} bits, got {len(bits)}")
-
         # Assignment snapshots into width-locked storage; the handout above
         # is live. (A caller's vector never becomes a hidden alias of the
         # box, and no aliased mutation can change the box's width.)
-        self._bits = FixedLengthBitVector(bits)
+        # Validate the *constructed* width, not len(source): for byte
+        # sources len() counts bytes, for "0x.." strings it counts
+        # characters — both unrelated to the bit width they construct.
+        new = FixedLengthBitVector(bits)
+        if len(new) != self.num_bits:
+            raise ValueError(f"Expected {self.num_bits} bits, got {len(new)}")
+        self._bits = new
 
     def __str__(self):
         """

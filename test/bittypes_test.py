@@ -279,6 +279,23 @@ def test_bittype_bits_live_and_width_locked():
         u.bits[0:4] = "00000"  # length-changing slice write: refused
 
 
+def test_bits_assignment_from_byte_sources():
+    """Byte sources measure by constructed bit width (not len(source)), and
+    are copied - never aliased, never read-only - whatever their type."""
+    u = UInt16(0)
+    u.bits = b"\x12\x34"  # 2 bytes -> 16 bits: accepted
+    assert u.value == 0x1234
+    with pytest.raises(ValueError):
+        u.bits = b"\x12"  # 8 bits into a 16-bit box
+
+    ba = bytearray(b"\xf0\x0f")
+    u.bits = ba  # bytearray zero-copy imports live in BitVector...
+    ba[0] = 0x00  # ...so assignment must have copied it
+    assert u.value == 0xF00F
+    u.bits[0] = 0  # and the copied storage stays writable
+    assert len(u.bits) == 16
+
+
 def test_bittype_Bits_cast_protocol():
     """BitVector(bittype) works via __Bits__; the cast is an independent
     copy, while the protocol result itself is live and width-locked."""
