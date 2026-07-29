@@ -299,97 +299,143 @@ class Int(BitType[int]):
             else:
                 raise ValueError(f"Unsupported format: {rep_format}")
 
-    # Integer value magic methods
-    def __add__(self: IntSelf, other: Any) -> IntSelf:
-        return self._binary_value_op(other, operator.add)
+    # Promoted operators (C integer promotion). Binary ops compute on plain
+    # values at full width and return plain int - no wrap-at-operator, which
+    # is a behavior C does not have (C never wraps mid-expression; narrowing
+    # happens only at stores/casts). The cast spelling is the constructor:
+    # UInt8(a + b) wraps exactly like (uint8_t)(a + b). The bitwise family
+    # promotes too - in C even ~uint8_t is an int. Compound assignment
+    # narrows back into self's width, like C's a += b.
 
-    def __radd__(self: IntSelf, other: Any) -> IntSelf:
-        return self._binary_value_op(other, lambda x, y: operator.add(y, x))
+    def __add__(self, other):
+        return self._promoted_value_op(other, operator.add)
 
-    def __sub__(self: IntSelf, other: Any) -> IntSelf:
-        return self._binary_value_op(other, operator.sub)
+    def __radd__(self, other):
+        return self._promoted_value_op(other, lambda x, y: y + x)
 
-    def __rsub__(self: IntSelf, other: Any) -> IntSelf:
-        return self._binary_value_op(other, lambda x, y: operator.sub(y, x))
+    def __sub__(self, other):
+        return self._promoted_value_op(other, operator.sub)
 
-    def __mul__(self: IntSelf, other: Any) -> IntSelf:
-        return self._binary_value_op(other, operator.mul)
+    def __rsub__(self, other):
+        return self._promoted_value_op(other, lambda x, y: y - x)
 
-    def __rmul__(self: IntSelf, other: Any) -> IntSelf:
-        return self._binary_value_op(other, lambda x, y: operator.mul(y, x))
+    def __mul__(self, other):
+        return self._promoted_value_op(other, operator.mul)
 
-    def __truediv__(self: IntSelf, other: Any) -> IntSelf:
-        return self._binary_value_op(other, operator.truediv)
+    def __rmul__(self, other):
+        return self._promoted_value_op(other, lambda x, y: y * x)
 
-    def __rtruediv__(self: IntSelf, other: Any) -> IntSelf:
-        return self._binary_value_op(other, lambda x, y: operator.truediv(y, x))
+    def __truediv__(self, other):
+        return self._promoted_value_op(other, operator.truediv)
 
-    def __floordiv__(self: IntSelf, other: Any) -> IntSelf:
-        return self._binary_value_op(other, operator.floordiv)
+    def __rtruediv__(self, other):
+        return self._promoted_value_op(other, lambda x, y: y / x)
 
-    def __rfloordiv__(self: IntSelf, other: Any) -> IntSelf:
-        return self._binary_value_op(other, lambda x, y: operator.floordiv(y, x))
+    def __floordiv__(self, other):
+        return self._promoted_value_op(other, operator.floordiv)
 
-    def __mod__(self: IntSelf, other: Any) -> IntSelf:
-        return self._binary_value_op(other, operator.mod)
+    def __rfloordiv__(self, other):
+        return self._promoted_value_op(other, lambda x, y: y // x)
 
-    def __rmod__(self: IntSelf, other: Any) -> IntSelf:
-        return self._binary_value_op(other, lambda x, y: operator.mod(y, x))
+    def __mod__(self, other):
+        return self._promoted_value_op(other, operator.mod)
 
-    def __pow__(self: IntSelf, other: Any) -> IntSelf:
-        return self._binary_value_op(other, operator.pow)
+    def __rmod__(self, other):
+        return self._promoted_value_op(other, lambda x, y: y % x)
 
-    def __rpow__(self: IntSelf, other: Any) -> IntSelf:
-        return self._binary_value_op(other, lambda x, y: operator.pow(y, x))
+    def __pow__(self, other):
+        return self._promoted_value_op(other, operator.pow)
 
-    # Integer bits magic methods
-    def __lshift__(self: IntSelf, other: Any) -> IntSelf:
-        return self._binary_bits_op(other, operator.lshift)
+    def __rpow__(self, other):
+        return self._promoted_value_op(other, lambda x, y: y**x)
 
-    def __rlshift__(self: IntSelf, other: Any) -> IntSelf:
-        return self._binary_bits_op(other, lambda x, y: operator.lshift(y, x))
+    def __and__(self, other):
+        return self._promoted_value_op(other, operator.and_)
 
-    def __rshift__(self: IntSelf, other: Any) -> IntSelf:
-        return self._binary_bits_op(other, operator.rshift)
+    def __rand__(self, other):
+        return self._promoted_value_op(other, lambda x, y: y & x)
 
-    def __and__(self: IntSelf, other: Any) -> IntSelf:
-        return self._binary_bits_op(other, operator.and_)
+    def __or__(self, other):
+        return self._promoted_value_op(other, operator.or_)
 
-    # def __add__(self: IntSelf, other: Any) -> IntSelf:
-    #     return self._binary_value_op(other, operator.add)
+    def __ror__(self, other):
+        return self._promoted_value_op(other, lambda x, y: y | x)
 
-    # def __mul__(self: IntSelf, other: Any) -> IntSelf:
-    #     return self._binary_value_op(other, operator.mul)
+    def __xor__(self, other):
+        return self._promoted_value_op(other, operator.xor)
 
-    # def __sub__(self: IntSelf, other: Any) -> IntSelf:
-    #     return self._binary_value_op(other, operator.sub)
+    def __rxor__(self, other):
+        return self._promoted_value_op(other, lambda x, y: y ^ x)
 
-    # def __truediv__(self: IntSelf, other: Any) -> IntSelf:
-    #     return self._binary_value_op(other, operator.truediv)
+    def __lshift__(self, other):
+        return self._promoted_value_op(other, operator.lshift)
 
-    # def __floordiv__(self: IntSelf, other: Any) -> IntSelf:
-    #     return self._binary_value_op(other, operator.floordiv)
+    def __rlshift__(self, other):
+        return self._promoted_value_op(other, lambda x, y: y << x)
 
-    # def __mod__(self: IntSelf, other: Any) -> IntSelf:
-    #     return self._binary_value_op(other, operator.mod)
+    def __rshift__(self, other):
+        return self._promoted_value_op(other, operator.rshift)
 
-    # def __pow__(self: IntSelf, other: Any) -> IntSelf:
-    #     return self._binary_value_op(other, operator.pow)
+    def __rrshift__(self, other):
+        return self._promoted_value_op(other, lambda x, y: y >> x)
 
-    # def __lshift__(self: IntSelf, other: Any) -> IntSelf:
-    #     return self._binary_bits_op(other, operator.lshift)
+    def __invert__(self):
+        # The classic C gotcha, faithfully: ~ promotes, so the result is
+        # plain -(value + 1). The width-preserving spelling is ~self.bits.
+        return ~self.value
 
-    # def __rshift__(self: IntSelf, other: Any) -> IntSelf:
-    #     return self._binary_bits_op(other, operator.rshift)
+    # Ordering comparisons (value-based, like __eq__; new in the promotion
+    # model - they previously did not exist at all).
 
-    # def __and__(self: IntSelf, other: Any) -> IntSelf:
-    #     return self._binary_bits_op(other, operator.and_)
+    def __lt__(self, other):
+        return self._promoted_value_op(other, operator.lt)
 
-    # def __or__(self: IntSelf, other: Any) -> IntSelf:
-    #     return self._binary_bits_op(other, operator.or_)
+    def __le__(self, other):
+        return self._promoted_value_op(other, operator.le)
 
-    # def __xor__(self: IntSelf, other: Any) -> IntSelf:
-    #     return self._binary_bits_op(other, operator.xor)
+    def __gt__(self, other):
+        return self._promoted_value_op(other, operator.gt)
+
+    def __ge__(self, other):
+        return self._promoted_value_op(other, operator.ge)
+
+    # Compound assignment: read-promote, compute full-width, narrowing store.
+
+    def __iadd__(self, other):
+        return self._inplace_value_op(other, operator.add)
+
+    def __isub__(self, other):
+        return self._inplace_value_op(other, operator.sub)
+
+    def __imul__(self, other):
+        return self._inplace_value_op(other, operator.mul)
+
+    def __itruediv__(self, other):
+        return self._inplace_value_op(other, operator.truediv)
+
+    def __ifloordiv__(self, other):
+        return self._inplace_value_op(other, operator.floordiv)
+
+    def __imod__(self, other):
+        return self._inplace_value_op(other, operator.mod)
+
+    def __ipow__(self, other):
+        return self._inplace_value_op(other, operator.pow)
+
+    def __iand__(self, other):
+        return self._inplace_value_op(other, operator.and_)
+
+    def __ior__(self, other):
+        return self._inplace_value_op(other, operator.or_)
+
+    def __ixor__(self, other):
+        return self._inplace_value_op(other, operator.xor)
+
+    def __ilshift__(self, other):
+        return self._inplace_value_op(other, operator.lshift)
+
+    def __irshift__(self, other):
+        return self._inplace_value_op(other, operator.rshift)
 
 
 class SignedConfig:

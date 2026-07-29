@@ -25,6 +25,28 @@ For faster, C-backed bit manipulation, install with the optional [bitarray](http
 The main goal of the project is to ease development of projects working with compiled code (e.g. ROM hacking). As such, streaming features are currently deemphasized, although I may implement them at some later date.
 
 ## Changelog
+### Version 0.13.0 (unreleased)
+#### Breaking changes
+- **BitType arithmetic now follows C integer promotion.** Binary operators on `Int` and `Float` boxes compute on plain values at full width and return **plain** `int`/`float` — no more wrap-at-operator (`UInt6(40) + 40` is `80`, not `UInt6(16)`; `Float16` arithmetic no longer re-encodes mid-expression). C never wraps mid-expression; narrowing happens only at stores and casts. The cast spelling is the constructor: `UInt8(a + b)` wraps exactly like `(uint8_t)(a + b)`. The bitwise family and shifts promote too (in C, even `~uint8_t` is an `int`); the width-preserving bit-plane spelling is on `.bits`. Compound assignment (`u += 1`) computes full-width and narrows back into the box's own width, preserving its type — exactly C's `a += b`. Floats refuse bitwise operators (as in C). Division on boxes now works (previously `TypeError`).
+- **Bits handles are live and width-locked.** `bittype.bits` hands out live storage: index and length-preserving slice writes mutate the box in place; length-changing mutation (`append`, `del`, `+=`, resizing slice writes) raises `ValueError` instead of silently corrupting the box's width. Assigning `bittype.bits = bv` snapshots `bv` into locked storage (the caller's vector never becomes a hidden alias). Struct-packed BitTypes previously had silently *read-only* bits storage on the bitarray backend; writes now work for every box.
+- Aggregate (de)serialization raises `ValueError`/`TypeError` instead of bare `Exception` for size/length mismatches and unsupported unit types.
+- `Struct` field names that would shadow the Struct API (`pack`, `plan`, the `_bm_` prefix, …) are rejected at class definition with `PlanCompileError`; previously they silently broke serialization at use time. Leading-underscore padding fields (`_reserved`) remain legal.
+- `Buffer.value` assignment now length-validates (previously it bypassed validation entirely).
+
+#### Major changes
+- **`Struct.sizedview`** — a live, width-carrying view of a record's fields. `t.sizedview.field` returns a `BoundField` handle with C lvalue semantics: reads promote to plain values, stores narrow, `f.bits` is a live write-through bits channel with width guards, `f.boxed()` detaches a snapshot. Handles compare by value and are unhashable; `__index__` and the bitwise operators are deliberately absent on handles (name the plane: `f.value & m` or `f.bits & bv`).
+- New ordering comparisons (`<`, `<=`, `>`, `>=`) on `Int` and `Float` boxes (value-based, like `==`); previously they did not exist.
+- `Int.__index__` — boxes work anywhere a plain int does (`hex()`, list indexing, `range()`), including assignment into `Struct` fields, which unwraps and narrows at the store.
+- `BitType.__format__` — a format spec formats the value (`f"{UInt6(40):02x}"` → `'28'`); no spec keeps the sized display.
+- `BitType.__Bits__` — `BitVector(bittype)` and every `BitsConstructible` site now accept boxes. The protocol result is live and width-locked; `BitVector(...)` casts are independent copies.
+- **Opt-in checked stores**: `NarrowingConfig.warn = True` (or `BYTEMAKER_WARN_NARROWING`) emits `NarrowingWarning` whenever an integer store actually changes the assigned value — the `-Wconversion` analog. Default remains silent C-style narrowing.
+- `FixedLengthBitVector` — a `BitVector` whose length is invariant (backs BitType storage; usable directly).
+- The package now ships type information (`py.typed`; `bitvector.pyi` was previously missing from wheels).
+
+#### Bugfixes
+- `String.codepoint_changes` substitution regexes now match longest-first in both directions; previously a shorter table key (`"A"`) permanently shadowed longer ones (`"AB"`), silently corrupting multi-character table entries.
+- Two aggregate error messages referenced a nonexistent `BitVector.num_bits` attribute, raising `AttributeError` before the intended error.
+
 ### Version 0.11.0
 (11 June 2026)
 #### Major changes

@@ -256,48 +256,137 @@ class Float(BitType[float]):
 
         return _Float
 
-    # Value operations
-    def __add__(self: FloatSelf, other: Any) -> FloatSelf:
-        return self._binary_value_op(other, operator.add)
+    # Promoted operators (D5): arithmetic computes on plain values and
+    # returns plain float - previously each op re-encoded the result to this
+    # type's width mid-expression, silently losing precision at the operator
+    # (the float form of wrap-at-operator). The narrowing cast spelling is
+    # the constructor: Float16(a + b). Compound assignment narrows back into
+    # self, like C's a += b.
 
-    def __radd__(self: FloatSelf, other: Any) -> FloatSelf:
-        return self._binary_value_op(other, lambda x, y: y + x)
+    def __add__(self, other):
+        return self._promoted_value_op(other, operator.add)
 
-    def __sub__(self: FloatSelf, other: Any) -> FloatSelf:
-        return self._binary_value_op(other, operator.sub)
+    def __radd__(self, other):
+        return self._promoted_value_op(other, lambda x, y: y + x)
 
-    def __rsub__(self: FloatSelf, other: Any) -> FloatSelf:
-        return self._binary_value_op(other, lambda x, y: y - x)
+    def __sub__(self, other):
+        return self._promoted_value_op(other, operator.sub)
 
-    def __mul__(self: FloatSelf, other: Any) -> FloatSelf:
-        return self._binary_value_op(other, operator.mul)
+    def __rsub__(self, other):
+        return self._promoted_value_op(other, lambda x, y: y - x)
 
-    def __rmul__(self: FloatSelf, other: Any) -> FloatSelf:
-        return self._binary_value_op(other, lambda x, y: y * x)
+    def __mul__(self, other):
+        return self._promoted_value_op(other, operator.mul)
 
-    def __truediv__(self: FloatSelf, other: Any) -> FloatSelf:
-        return self._binary_value_op(other, operator.truediv)
+    def __rmul__(self, other):
+        return self._promoted_value_op(other, lambda x, y: y * x)
 
-    def __rtruediv__(self: FloatSelf, other: Any) -> FloatSelf:
-        return self._binary_value_op(other, lambda x, y: y / x)
+    def __truediv__(self, other):
+        return self._promoted_value_op(other, operator.truediv)
 
-    def __floordiv__(self: FloatSelf, other: Any) -> FloatSelf:
-        return self._binary_value_op(other, operator.floordiv)
+    def __rtruediv__(self, other):
+        return self._promoted_value_op(other, lambda x, y: y / x)
 
-    def __rfloordiv__(self: FloatSelf, other: Any) -> FloatSelf:
-        return self._binary_value_op(other, lambda x, y: y // x)
+    def __floordiv__(self, other):
+        return self._promoted_value_op(other, operator.floordiv)
 
-    def __mod__(self: FloatSelf, other: Any) -> FloatSelf:
-        return self._binary_value_op(other, operator.mod)
+    def __rfloordiv__(self, other):
+        return self._promoted_value_op(other, lambda x, y: y // x)
 
-    def __rmod__(self: FloatSelf, other: Any) -> FloatSelf:
-        return self._binary_value_op(other, lambda x, y: y % x)
+    def __mod__(self, other):
+        return self._promoted_value_op(other, operator.mod)
 
-    def __pow__(self: FloatSelf, other: Any) -> FloatSelf:
-        return self._binary_value_op(other, operator.pow)
+    def __rmod__(self, other):
+        return self._promoted_value_op(other, lambda x, y: y % x)
 
-    def __rpow__(self: FloatSelf, other: Any) -> FloatSelf:
-        return self._binary_value_op(other, lambda x, y: y**x)
+    def __pow__(self, other):
+        return self._promoted_value_op(other, operator.pow)
+
+    def __rpow__(self, other):
+        return self._promoted_value_op(other, lambda x, y: y**x)
+
+    def __lt__(self, other):
+        return self._promoted_value_op(other, operator.lt)
+
+    def __le__(self, other):
+        return self._promoted_value_op(other, operator.le)
+
+    def __gt__(self, other):
+        return self._promoted_value_op(other, operator.gt)
+
+    def __ge__(self, other):
+        return self._promoted_value_op(other, operator.ge)
+
+    def __iadd__(self, other):
+        return self._inplace_value_op(other, operator.add)
+
+    def __isub__(self, other):
+        return self._inplace_value_op(other, operator.sub)
+
+    def __imul__(self, other):
+        return self._inplace_value_op(other, operator.mul)
+
+    def __itruediv__(self, other):
+        return self._inplace_value_op(other, operator.truediv)
+
+    def __ifloordiv__(self, other):
+        return self._inplace_value_op(other, operator.floordiv)
+
+    def __imod__(self, other):
+        return self._inplace_value_op(other, operator.mod)
+
+    def __ipow__(self, other):
+        return self._inplace_value_op(other, operator.pow)
+
+    def __neg__(self):
+        return -self.value
+
+    def __pos__(self):
+        return +self.value
+
+    def __abs__(self):
+        return abs(self.value)
+
+    # Floats have no value-plane bitwise meaning (same as C, where bitwise
+    # operators reject floating operands). BitType's inherited elementwise
+    # operators would silently bit-twiddle instead, so they are overridden
+    # to refuse; the bit-plane spelling is explicit: f.bits & other.
+
+    def __and__(self, other):
+        return NotImplemented
+
+    def __rand__(self, other):
+        return NotImplemented
+
+    def __or__(self, other):
+        return NotImplemented
+
+    def __ror__(self, other):
+        return NotImplemented
+
+    def __xor__(self, other):
+        return NotImplemented
+
+    def __rxor__(self, other):
+        return NotImplemented
+
+    def __lshift__(self, other):
+        return NotImplemented
+
+    def __rlshift__(self, other):
+        return NotImplemented
+
+    def __rshift__(self, other):
+        return NotImplemented
+
+    def __rrshift__(self, other):
+        return NotImplemented
+
+    def __invert__(self):
+        raise TypeError(
+            f"bad operand type for unary ~: {type(self).__name__!r}"
+            f" (the bit-plane spelling is ~self.bits)"
+        )
 
 
 Float.base_bit_type = Float

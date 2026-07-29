@@ -408,6 +408,39 @@ class BitType(ABC, Generic[T], metaclass=BitTypeMeta):
             except TypeError:
                 return NotImplemented
 
+    def _promoted_value_op(self, other, operation):
+        """
+        C-promotion binary op: computes on plain values at full width and
+        returns the **plain** result — no re-boxing, no wrap-at-operator
+        (C never wraps mid-expression; integer promotions convert operands
+        to int first). Width re-attaches only at stores; the narrowing cast
+        spelling is the constructor: ``UInt8(a + b)`` == ``(uint8_t)(a+b)``.
+        Used by the numeric BitTypes (Int, Float).
+        """
+        if isinstance(other, BitType):
+            other = other.value
+        try:
+            return operation(self.value, other)
+        except TypeError:
+            return NotImplemented
+
+    def _inplace_value_op(self, other, operation):
+        """
+        C compound assignment: compute at full width, then convert to this
+        box's type at the store — the value setter is the narrowing cast, so
+        ``u += 1`` keeps ``u``'s type and wraps at *its* width (and, like
+        C's float-to-int conversion, non-integral results truncate toward
+        zero via ``py_type``).
+        """
+        if isinstance(other, BitType):
+            other = other.value
+        try:
+            result = operation(self.value, other)
+        except TypeError:
+            return NotImplemented
+        self.value = self.py_type(result)
+        return self
+
     def _binary_bits_op(
         self: BitSelf, other: Any, operation: Callable[[BitSelf, Any], BitSelf]
     ):

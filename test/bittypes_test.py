@@ -185,6 +185,74 @@ def test_bittype_format_spec_formats_value():
     assert f"{Float32(1.5):.1f}" == "1.5"
 
 
+def test_int_promotion_c_semantics():
+    """D5: binary ops promote to plain int at full width - no
+    wrap-at-operator (C never wraps mid-expression; narrowing happens only
+    at stores/casts)."""
+    r = UInt8(200) + 100
+    assert r == 300 and type(r) is int  # previously UInt8(44), silently
+    assert 100 + UInt8(200) == 300  # reflected
+    assert UInt8(200) + UInt8(100) == 300  # box + box
+    assert SInt8(-3) + UInt8(40) == 37  # no signed/unsigned coercion trap
+    assert UInt8(40) / 7 == 40 / 7  # previously TypeError (py_type check)
+    assert type(UInt8(40) / 7) is float
+    assert UInt8(UInt8(255) + 1) == 0  # the C cast spelling wraps
+    with pytest.raises(TypeError):
+        UInt8(1) + "x"
+
+
+def test_int_bitwise_promotes():
+    u = UInt8(40)
+    assert u & 0xFF == 40 and type(u & 0xFF) is int
+    assert u | 0x80 == 168
+    assert u ^ 0xFF == 215
+    assert u << 8 == 40 << 8  # no width loss at the operator
+    assert 1 << UInt8(3) == 8  # reflected shift
+    assert ~UInt8(0) == -1  # the C gotcha, faithfully; ~u.bits is bit-plane
+
+
+def test_int_ordering_comparisons():
+    """New in D5 - ordering previously did not exist on any BitType."""
+    assert UInt8(40) > 3 and UInt8(40) >= 40 and UInt8(40) <= 40
+    assert SInt8(-3) < 0 and SInt8(-3) < UInt8(1)
+    assert sorted([UInt8(3), UInt8(1), UInt8(2)]) == [1, 2, 3]
+    with pytest.raises(TypeError):
+        UInt8(1) < "x"
+
+
+def test_int_compound_assignment_narrows_in_place():
+    """C compound assignment: full-width compute, narrow at the store,
+    type preserved."""
+    u = UInt8(255)
+    u += 1
+    assert isinstance(u, UInt8) and u.value == 0
+    u += 10
+    u <<= 4  # 10 << 4 = 160
+    assert u.value == 160
+    u //= 3
+    assert u.value == 53
+    u /= 2  # float result: converts at the store, C-style (truncates)
+    assert isinstance(u, UInt8) and u.value == 26
+    s = SInt8(127)
+    s += 1
+    assert s.value == -128  # two's-complement wrap at the store
+
+
+def test_float_promotion_and_bitwise_refusal():
+    f = Float32(1.5)
+    assert f + 0.5 == 2.0 and type(f + 0.5) is float
+    assert 0.5 + f == 2.0
+    assert f > 1 and f <= 1.5
+    f2 = Float32(1.5)
+    f2 += 0.25
+    assert isinstance(f2, Float32) and f2.value == 1.75
+    with pytest.raises(TypeError):
+        f & 1  # no value-plane bitwise on floats (as in C)
+    with pytest.raises(TypeError):
+        ~f
+    assert -f == -1.5 and abs(Float32(-2.0)) == 2.0
+
+
 def test_bittype_bits_live_and_width_locked():
     """Bits handles are live; width is invariant; width-preserving mutation
     writes through; width-changing mutation raises. Assignment snapshots."""
