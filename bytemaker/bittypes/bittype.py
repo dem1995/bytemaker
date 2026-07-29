@@ -7,7 +7,7 @@ import warnings
 from abc import ABC, ABCMeta, abstractmethod
 from typing import TYPE_CHECKING
 
-from bytemaker.bitvector import BitVector
+from bytemaker.bitvector import BitVector, FixedLengthBitVector
 from bytemaker.typing_redirect import (
     Any,
     Callable,
@@ -211,6 +211,11 @@ class BitType(ABC, Generic[T], metaclass=BitTypeMeta):
         Getter/setter for the sequence of bits
         the BitType uses to represent its value.
 
+        The handout is **live and width-locked**: index and
+        length-preserving slice writes mutate this BitType in place;
+        length-changing mutation raises ValueError. Take ``BitVector(bits)``
+        for a resizable snapshot.
+
         Returns:
             BitVector: The sequence of bits the BitType uses to represent its value.
         """
@@ -221,12 +226,10 @@ class BitType(ABC, Generic[T], metaclass=BitTypeMeta):
         if len(bits) != self.num_bits:
             raise ValueError(f"Expected {self.num_bits} bits, got {len(bits)}")
 
-        # if self._endianness != bits.endianness:
-        #     raise ValueError(
-        #         f"Endianness mismatch:"
-        #         f" expected {self._endianness}, got {bits.endianness}")
-
-        self._bits = bits
+        # Assignment snapshots into width-locked storage; the handout above
+        # is live. (A caller's vector never becomes a hidden alias of the
+        # box, and no aliased mutation can change the box's width.)
+        self._bits = FixedLengthBitVector(bits)
 
     def __str__(self):
         """
@@ -266,6 +269,18 @@ class BitType(ABC, Generic[T], metaclass=BitTypeMeta):
         if format_spec == "":
             return str(self)
         return format(self.value, format_spec)
+
+    def __Bits__(self) -> BitVector:
+        """
+        BitsCastable protocol hook: makes ``BitVector(bittype)`` (and every
+        BitsConstructible site) accept boxes.
+
+        Returns the internal bits **live and width-locked** — consistent
+        with the live ``.bits`` policy, and safe because ``BitVector(...)``
+        copy-constructs from the result. Construct a ``BitVector`` when you
+        need an independent, resizable snapshot.
+        """
+        return self._bits
 
     def __eq__(self, other):
         """
@@ -538,7 +553,9 @@ class StructPackedBitType(BitType[T]):
                     value = ((value + (1 << (n - 1))) % (1 << n)) - (1 << (n - 1))
                 else:
                     value &= (1 << n) - 1
-            self._bits = BitVector(struct.pack(self.packing_format, value))
+            self._bits = FixedLengthBitVector(
+                struct.pack(self.packing_format, value)
+            )
         else:
             # ``super().value = value`` does not work: super() proxies do not
             # support attribute assignment, so it raised AttributeError

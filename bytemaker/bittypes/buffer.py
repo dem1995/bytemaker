@@ -52,7 +52,9 @@ class Buffer(BitType[BitVector]):
 
     @value.setter
     def value(self, value):
-        self._bits = BitVector(value)
+        # Route through the bits setter: length-validates and stores into
+        # width-locked storage (previously this bypassed both).
+        self.bits = BitVector(value)
 
     @classmethod
     def specialize(cls: Type[BufferSelf], num_bits_: int, name_: Optional[str] = None):

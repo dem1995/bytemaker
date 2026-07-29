@@ -65,9 +65,12 @@ class BitsCastable(Protocol):
        prioritized when BitVectorSubtype(object) is called
        over any other possible behavior.
 
-    __Bits__ returns a BitVector representation of the object
-        that should not be a shallow copy (unless you want)
-        the cast object to share memory with the original object).
+    __Bits__ returns a BitVector representation of the object.
+        Constructors copy-construct from the result, so casts made via
+        BitVector(...) are always independent; whether __Bits__ itself
+        returns a copy or a live view is the implementor's ownership choice.
+        (BitType returns its internal bits live and width-locked, per the
+        live-.bits policy; construct a BitVector for a snapshot.)
     """
 
     def __Bits__(

@@ -185,6 +185,48 @@ def test_bittype_format_spec_formats_value():
     assert f"{Float32(1.5):.1f}" == "1.5"
 
 
+def test_bittype_bits_live_and_width_locked():
+    """Bits handles are live; width is invariant; width-preserving mutation
+    writes through; width-changing mutation raises. Assignment snapshots."""
+    u = UInt8(40)  # 00101000
+    b = u.bits
+    b[3] = 1  # live handout: 00111000
+    assert u.value == 56
+    with pytest.raises(ValueError):
+        b.append(1)  # width-changing: raises instead of corrupting
+    with pytest.raises(ValueError):
+        del b[0]
+    with pytest.raises(ValueError):
+        b += BitVector("1")
+    assert u.value == 56 and len(u.bits) == 8  # box untouched by failures
+
+    src = BitVector("11110000")
+    u.bits = src  # assignment snapshots into locked storage...
+    src.append(1)  # ...so the caller's vector is no hidden alias
+    assert len(u.bits) == 8 and u.value == 0xF0
+
+    u.bits[0:4] = "0000"  # length-preserving slice write: goes through
+    assert u.value == 0
+    with pytest.raises(ValueError):
+        u.bits[0:4] = "00000"  # length-changing slice write: refused
+
+
+def test_bittype_Bits_cast_protocol():
+    """BitVector(bittype) works via __Bits__; the cast is an independent
+    copy, while the protocol result itself is live and width-locked."""
+    u = UInt8(40)
+    bv = BitVector(u)
+    assert bv == u.bits and bv is not u.bits
+    bv.append(1)  # resizable copy: box unaffected
+    assert len(bv) == 9 and len(u.bits) == 8
+
+    live = u.__Bits__()
+    live[3] = 1  # live view: mutates the box
+    assert u.value == 56
+    with pytest.raises(ValueError):
+        live.append(1)  # and width-locked
+
+
 @pytest.mark.parametrize(
     "bittype_class, input_value, expected_bits_length",
     [
