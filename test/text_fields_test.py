@@ -20,11 +20,11 @@ from bytemaker.structs import Struct
 # code, and a terminator/pad byte that is NOT valid text.
 MON_TABLE = {0x80: "A", 0x81: "B", 0x82: "C", 0xE1: "[PK]", 0x00: " "}
 MonName = String.of(
-    4, encoding=MON_TABLE, pad=0x50, terminator=0x50, name="MonName"
+    nbytes=4, encoding=MON_TABLE, pad=0x50, terminator=0x50, name="MonName"
 )
-Ascii6 = UTF8String.of(6, name="Ascii6")
-SJis6 = String.of(6, encoding="shift-jis", name="SJis6")
-Buf2 = Buffer.of(2, name="Buf2")
+Ascii6 = UTF8String.of(nbytes=6, name="Ascii6")
+SJis6 = String.of(nbytes=6, encoding="shift-jis", name="SJis6")
+Buf2 = Buffer.of(nbytes=2, name="Buf2")
 
 
 class Monster(Struct, endian="little"):
@@ -50,7 +50,7 @@ def test_standalone_box_pads_and_strips():
 def test_overflow_raises_and_truncate_clips_at_unit_boundary():
     with pytest.raises(ValueError):
         Ascii6("toolongvalue")
-    Trunc4 = UTF8String.of(4, truncate=True, name="Trunc4")
+    Trunc4 = UTF8String.of(nbytes=4, truncate=True, name="Trunc4")
     t = Trunc4("aaé!")  # 'aaé!' is 5 UTF-8 bytes; clipping must not split é
     assert t.value == "aaé"
     assert bytes(t.bits) == "aaé".encode()  # exactly fills the 4 bytes
@@ -62,13 +62,13 @@ def test_truncate_clips_whole_table_tokens():
     # Clipping "A[PK]B" one char at a time passes through "A[PK]" (fits)
     # but also "A[PK" (unencodable) - truncation must skip past broken
     # tokens rather than raising or returning oversized bytes.
-    TruncT = String.of(2, encoding=MON_TABLE, truncate=True, name="TruncT")
+    TruncT = String.of(nbytes=2, encoding=MON_TABLE, truncate=True, name="TruncT")
     t = TruncT("A[PK]B")
     assert t.value == "A[PK]" and bytes(t.bits) == b"\x80\xe1"
-    TruncT1 = String.of(1, encoding=MON_TABLE, truncate=True, name="TruncT1")
+    TruncT1 = String.of(nbytes=1, encoding=MON_TABLE, truncate=True, name="TruncT1")
     assert TruncT1("A[PK]").value == "A"  # clips past the broken "[PK" clip
     Long1 = String.of(
-        1, encoding={b"\xe1\xe2": "[LONG]"}, truncate=True, name="Long1"
+        nbytes=1, encoding={b"\xe1\xe2": "[LONG]"}, truncate=True, name="Long1"
     )
     assert Long1("[LONG]").value == ""  # sole token wider than the field
 
@@ -76,7 +76,7 @@ def test_truncate_clips_whole_table_tokens():
 def test_pad_invalid_in_codec_strips_before_decode():
     # 0xFF is not legal UTF-8 anywhere: decode must strip the pad region
     # at the byte layer first or the codec would raise on the padding.
-    PadFF = UTF8String.of(4, pad=0xFF, name="PadFF")
+    PadFF = UTF8String.of(nbytes=4, pad=0xFF, name="PadFF")
     s = PadFF("ab")
     assert bytes(s.bits) == b"ab\xff\xff"
     assert s.value == "ab"
@@ -84,7 +84,7 @@ def test_pad_invalid_in_codec_strips_before_decode():
 
 def test_encode_decode_callable_pair_codec():
     Pair4 = String.of(
-        4,
+        nbytes=4,
         encoding=(lambda v: v.upper().encode("ascii"),
                   lambda b: b.decode("ascii").lower()),
         name="Pair4",
@@ -103,7 +103,7 @@ def test_encode_decode_callable_pair_codec():
 
 
 def test_pad_none_requires_exact_width():
-    Exact2 = UTF8String.of(2, pad=None, name="Exact2")
+    Exact2 = UTF8String.of(nbytes=2, pad=None, name="Exact2")
     assert Exact2("ab").value == "ab"
     with pytest.raises(ValueError):
         Exact2("a")
@@ -117,7 +117,7 @@ def test_table_string_longest_match_and_errors():
     with pytest.raises(ValueError):
         MonName("Z")  # no table entry encodes 'Z'
     Lenient = String.of(
-        2, encoding=MON_TABLE, errors="replace", name="Lenient"
+        nbytes=2, encoding=MON_TABLE, errors="replace", name="Lenient"
     )
     v = Lenient(bits=BitVector(b"\x80\x07"))
     assert v.value == "A�"  # unmapped byte replaced, position advanced
@@ -196,7 +196,7 @@ def test_of_size_spellings_chars_vs_nbytes():
     assert Uni3.num_bits == 24 and Uni3.bytes_per_char == 1
     # exactly one size spelling
     with pytest.raises(TypeError):
-        String.of(4, chars=4, encoding=MON_TABLE)
+        String.of(nbytes=4, chars=4, encoding=MON_TABLE)
     with pytest.raises(TypeError):
         String.of(encoding=MON_TABLE)
     # control codes make character count undefined - the error names one
@@ -220,14 +220,14 @@ def test_utf16_chars_sizing_and_unit_strip():
 
 def test_buffer_of_is_byte_counted():
     assert Buf2.num_bits == 16
-    B4 = Buffer.of(4)
+    B4 = Buffer.of(nbytes=4)
     assert B4.num_bits == 32 and B4.__name__ == "Bufferx4"
     with pytest.raises(ValueError):
-        Buffer.of(0)
+        Buffer.of(nbytes=0)
 
 
 def test_sub_byte_text_width_rejected_in_struct():
-    Odd = String.of(1, encoding="ascii", name="Odd1")
+    Odd = String.of(nbytes=1, encoding="ascii", name="Odd1")
     Odd._num_bits = 12  # force a non-byte width
 
     with pytest.raises(PlanCompileError):

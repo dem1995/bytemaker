@@ -348,8 +348,8 @@ class String(BitType[str]):
     @classmethod
     def of(
         cls,
-        nbytes: Optional[int] = None,
         *,
+        nbytes: Optional[int] = None,
         chars: Optional[int] = None,
         bytes_per_char: Optional[int] = None,
         encoding=None,
@@ -362,11 +362,11 @@ class String(BitType[str]):
     ):
         """Mint a fixed-size text field type.
 
-        Size the field with exactly one of:
+        Size the field with exactly one of (both keyword-only, so every
+        declaration names its unit):
 
-        * ``nbytes`` — wire bytes, the C ``char name[N]`` count (usually
-          positional: ``String.of(4, ...)``); multi-byte codecs fit fewer
-          characters.
+        * ``nbytes`` — wire bytes, the C ``char name[N]`` count; multi-byte
+          codecs fit fewer characters.
         * ``chars`` — character count: sugar for ``chars * bytes_per_char``
           wire bytes, so it needs a fixed, known bytes-per-char. That is
           derived for mapping codecs (defined iff every key is one wire-unit
@@ -394,7 +394,7 @@ class String(BitType[str]):
         if (nbytes is None) == (chars is None):
             raise TypeError(
                 f"{cls.__name__}.of(): size the field with exactly one of"
-                f" nbytes (wire bytes, the C char name[N] count) or chars="
+                f" nbytes= (wire bytes, the C char name[N] count) or chars="
             )
         if bytes_per_char is not None and (
             not isinstance(bytes_per_char, int) or bytes_per_char < 1
@@ -416,8 +416,8 @@ class String(BitType[str]):
                 raise TypeError(
                     f"{cls.__name__}.of(): chars= needs a fixed"
                     f" bytes-per-char, which this codec does not"
-                    f" declare{detail}; size the field in bytes (nbytes) or"
-                    f" pass bytes_per_char="
+                    f" declare{detail}; size the field in bytes (nbytes=)"
+                    f" or pass bytes_per_char="
                 )
             nbytes = chars * bpc
         if not isinstance(nbytes, int) or nbytes < 1:

@@ -80,13 +80,15 @@ class Buffer(BitType[BitVector]):
 
     @classmethod
     def of(
-        cls: Type[BufferSelf], nbytes: int, *, name: Optional[str] = None
+        cls: Type[BufferSelf], *, nbytes: int, name: Optional[str] = None
     ) -> Type[BufferSelf]:
         """Mint a Buffer type sized in **bytes** — the C ``uint8_t buf[N]``
         count, and the Struct-field door (Struct byte fields hold plain
         ``bytes`` and need whole-byte widths anyway). ``specialize`` is the
         bit-counted box door; sub-byte Buffers stay legal standalone and in
-        legacy aggregates."""
+        legacy aggregates. ``nbytes`` is keyword-only so the declaration
+        names its unit — this class's history includes a ``Buffer16`` that
+        read as 16 bytes but meant 16 bits."""
         if not isinstance(nbytes, int) or nbytes < 1:
             raise ValueError(
                 f"{cls.__name__}.of(): nbytes must be a positive int,"
