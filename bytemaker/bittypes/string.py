@@ -350,7 +350,7 @@ class String(BitType[str]):
         cls,
         *,
         nbytes: Optional[int] = None,
-        chars: Optional[int] = None,
+        nchars: Optional[int] = None,
         bytes_per_char: Optional[int] = None,
         encoding=None,
         pad: Optional[int] = 0x00,
@@ -367,13 +367,13 @@ class String(BitType[str]):
 
         * ``nbytes`` — wire bytes, the C ``char name[N]`` count; multi-byte
           codecs fit fewer characters.
-        * ``chars`` — character count: sugar for ``chars * bytes_per_char``
+        * ``nchars`` — character count: sugar for ``nchars * bytes_per_char``
           wire bytes, so it needs a fixed, known bytes-per-char. That is
           derived for mapping codecs (defined iff every key is one wire-unit
           length and every value one character) and taken from
           ``bytes_per_char=`` (or an inherited class attribute) otherwise.
           Codecs without one — UTF-8, Shift-JIS, tables with control codes
-          like ``"[PK]"`` — refuse ``chars=`` at mint time: size those in
+          like ``"[PK]"`` — refuse ``nchars=`` at mint time: size those in
           bytes, which is the only quantity they fix.
 
         The wire contract is always bytes; ``bytes_per_char`` is sizing
@@ -391,10 +391,10 @@ class String(BitType[str]):
         Note (PEP 563): under ``from __future__ import annotations``, field
         types must be bound to module-level names for annotation resolution.
         """
-        if (nbytes is None) == (chars is None):
+        if (nbytes is None) == (nchars is None):
             raise TypeError(
                 f"{cls.__name__}.of(): size the field with exactly one of"
-                f" nbytes= (wire bytes, the C char name[N] count) or chars="
+                f" nbytes= (wire bytes, the C char name[N] count) or nchars="
             )
         if bytes_per_char is not None and (
             not isinstance(bytes_per_char, int) or bytes_per_char < 1
@@ -410,16 +410,16 @@ class String(BitType[str]):
                 bpc, bpc_reason = _table_bytes_per_char(encoding)
             elif encoding is None:
                 bpc = cls.bytes_per_char
-        if chars is not None:
+        if nchars is not None:
             if bpc is None:
                 detail = f" ({bpc_reason})" if bpc_reason else ""
                 raise TypeError(
-                    f"{cls.__name__}.of(): chars= needs a fixed"
+                    f"{cls.__name__}.of(): nchars= needs a fixed"
                     f" bytes-per-char, which this codec does not"
                     f" declare{detail}; size the field in bytes (nbytes=)"
                     f" or pass bytes_per_char="
                 )
-            nbytes = chars * bpc
+            nbytes = nchars * bpc
         if not isinstance(nbytes, int) or nbytes < 1:
             raise ValueError(
                 f"{cls.__name__}.of(): field size must be a positive int,"

@@ -190,26 +190,26 @@ def test_sizedview_on_text_field():
     assert snap.value == "C[PK]" and f.value == "A"  # detached vs live
 
 
-def test_of_size_spellings_chars_vs_nbytes():
-    # chars= derives bytes-per-char for uniform single-byte tables
-    Uni3 = String.of(chars=3, encoding={0x80: "A", 0x81: "B"}, name="Uni3")
+def test_of_size_spellings_nchars_vs_nbytes():
+    # nchars= derives bytes-per-char for uniform single-byte tables
+    Uni3 = String.of(nchars=3, encoding={0x80: "A", 0x81: "B"}, name="Uni3")
     assert Uni3.num_bits == 24 and Uni3.bytes_per_char == 1
     # exactly one size spelling
     with pytest.raises(TypeError):
-        String.of(nbytes=4, chars=4, encoding=MON_TABLE)
+        String.of(nbytes=4, nchars=4, encoding=MON_TABLE)
     with pytest.raises(TypeError):
         String.of(encoding=MON_TABLE)
     # control codes make character count undefined - the error names one
     with pytest.raises(TypeError, match=r"\[PK\]"):
-        String.of(chars=4, encoding=MON_TABLE)
+        String.of(nchars=4, encoding=MON_TABLE)
     # variable-width codecs declare no bytes-per-char
     with pytest.raises(TypeError, match="bytes-per-char"):
-        UTF8String.of(chars=4)
+        UTF8String.of(nchars=4)
 
 
-def test_utf16_chars_sizing_and_unit_strip():
+def test_utf16_nchars_sizing_and_unit_strip():
     U16 = String.of(
-        chars=3, encoding="utf-16-le", bytes_per_char=2, name="U16"
+        nchars=3, encoding="utf-16-le", bytes_per_char=2, name="U16"
     )
     assert U16.num_bits == 48
     s = U16("ab")  # 4 content bytes + one 0x00 0x00 pad unit
