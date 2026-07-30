@@ -620,4 +620,6 @@ def bytes_to_bittype(
     """
     if endianness == "little":
         unitbytes = unitbytes[::-1]
-    return unittype(bits=BitVector(unitbytes))
+    # bytes go straight to the bits setter, which snapshots into locked
+    # storage; a BitVector(...) wrap here would just be a second copy.
+    return unittype(bits=unitbytes)

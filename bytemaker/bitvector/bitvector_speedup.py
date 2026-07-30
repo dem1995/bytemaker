@@ -248,8 +248,12 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
         If `buffer` is set, the BitVector's bits are read from the provided
             object. The buffer object must support the buffer protocol
             (https://docs.python.org/3/c-api/buffer.html).
+            (`buffer=` is *may-share*: this pure-Python backend copies;
+            the bitarray backend genuinely shares memory.)
 
-        Otherwise, `source` determines the BitVector's bits.
+        Otherwise, `source` determines the BitVector's bits. Byte-like
+        sources (`bytes`, `bytearray`, `memoryview`) are always **copied**
+        into an independent, writable, resizable vector (13 #16 ruling).
         * If `source` is None, the BitVector is empty.
         * If `source` is a str, the bits are obtained by prefix-determined\
            classmethods that allow `source` to be interspersed with "_", "-",\
@@ -282,10 +286,17 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
         source_type = type(source)
         if source_type is str:
             return cls._from_str(source)
-        if source_type is bytes or source_type is bytearray:
+        if (
+            source_type is bytes
+            or source_type is bytearray
+            or source_type is memoryview
+        ):
             self: Self = super().__new__(cls)
-            self._buf = bytearray(source)
-            self._len = 8 * len(source)
+            # bytes() first for memoryview: len() counts elements, not
+            # bytes, for non-'B'-format views.
+            raw = bytes(source) if source_type is memoryview else source
+            self._buf = bytearray(raw)
+            self._len = 8 * len(raw)
             return self
         if source_type is int:
             return cls.fromsize(source)
@@ -613,7 +624,8 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
         """
         if isinstance(encoding, str):
             char_array_as_bytes: bytes = char_array.encode(encoding)
-            retval = cls(buffer=char_array_as_bytes)
+            # Source-form, not buffer=: uniform copy semantics (13 #16).
+            retval = cls(char_array_as_bytes)
             logger.debug("using standard encoding...")
             logger.debug("retval %s", retval)
             return retval

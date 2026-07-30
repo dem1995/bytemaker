@@ -172,6 +172,10 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
         If `buffer` is set, the BitVector's bits are read from the provided
             object. The buffer object must support the buffer protocol
             (https://docs.python.org/3/c-api/buffer.html).
+            (`buffer=` is *may-share*: this reference backend copies; the
+            bitarray backend genuinely shares memory.) Byte-like `source`
+            values (`bytes`, `bytearray`, `memoryview`) are always
+            **copied** (13 #16 ruling).
 
         Otherwise, `source` determines the BitVector's bits.
         * If `source` is  None, the BitVector is empty.
@@ -237,8 +241,8 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
             self: Self = cls.fromsize(source)
             return self
 
-        if isinstance(source, (bytes, bytearray)):
-            self: Self = cls(buffer=source)
+        if isinstance(source, (bytes, bytearray, memoryview)):
+            self: Self = cls(buffer=source)  # this backend's buffer= copies
             return self
 
         if isinstance(source, Iterable):
@@ -457,7 +461,8 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
         if isinstance(encoding, str):
             char_array_as_bytes: bytes = char_array.encode(encoding)
 
-            retval = cls(buffer=char_array_as_bytes)
+            # Source-form, not buffer=: uniform copy semantics (13 #16).
+            retval = cls(char_array_as_bytes)
 
             logger.debug("using standard encoding...")
             logger.debug(f"retval {retval}")

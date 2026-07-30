@@ -122,8 +122,17 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
         If `buffer` is set, the BitVector bit memory is shared with provided
             object. The buffer object must support the buffer protocol
             (https://docs.python.org/3/c-api/buffer.html).
+            `buffer=` is the ONLY sharing spelling, and it is *may-share*:
+            this backend genuinely shares (an immutable source gives a
+            read-only vector; a mutable one a live two-way view that also
+            resize-locks the source while the vector lives; either way the
+            vector itself cannot be resized), while the pure-Python
+            backends copy. Do not rely on independence through buffer=.
 
-        Otherwise, `source` determines the BitVector's bits.
+        Otherwise, `source` determines the BitVector's bits. Byte-like
+        sources (`bytes`, `bytearray`, `memoryview`) are always **copied**
+        into an independent, writable, resizable vector — on every backend
+        (13 #16 ruling; matches bitarray's own positional-source behavior).
         * If `source` is  None, the BitVector is empty.
         * If `source` is a str, the bits are obtained by prefix-determined classmethod\
            that allow `source` to be interspersed with "_", "-", " ", or ":" characters.
@@ -171,11 +180,19 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
         # protocol's documented priority while skipping the (very slow,
         # pre-3.12) runtime-protocol isinstance cost.
         source_type = type(source)
-        if source_type is bytes or source_type is bytearray:
-            self: Self = super().__new__(
-                cls,
-                buffer=memoryview(source),  # type: ignore[reportCallIssue]
-            )
+        if (
+            source_type is bytes
+            or source_type is bytearray
+            or source_type is memoryview
+        ):
+            # Source-form byte-likes are COPIED (13 #16 ruling): a buffer
+            # import would make the vector read-only (bytes) or a live,
+            # resize-locking alias of the caller's object (bytearray) —
+            # and either way non-resizable. Sharing is buffer='s job.
+            # Unbound frombytes call: FixedLengthBitVector overrides the
+            # method to raise, but must still construct from bytes.
+            self: Self = super().__new__(cls, [])
+            bitarray.frombytes(self, source)
             return self
 
         # Copy constructor
@@ -211,7 +228,9 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
             return self
 
         if isinstance(source, (bytes, bytearray)):
-            self: Self = cls(buffer=source)
+            # Subclasses of the builtins take the copying byte-source path
+            # too (buffer= would zero-copy import; see 13 #16).
+            self: Self = cls(bytes(source))
             return self
 
         if isinstance(source, Iterable):
@@ -444,7 +463,9 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
         if isinstance(encoding, str):
             char_array_as_bytes: bytes = char_array.encode(encoding)
 
-            retval = cls(buffer=char_array_as_bytes)
+            # Source-form (copies): buffer= would hand back a read-only,
+            # non-resizable vector on this backend (13 #16).
+            retval = cls(char_array_as_bytes)
 
             logger.debug("using standard encoding...")
             logger.debug(f"retval {retval}")

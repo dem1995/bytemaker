@@ -53,7 +53,6 @@ import typing
 from bytemaker.bittypes import (
     BitType,
     Buffer,
-    Float,
     Int,
     SInt,
     String,
@@ -64,11 +63,9 @@ from bytemaker.bittypes.bittype import (
     NarrowingWarning,
     _warn_narrowing,
 )
-from bytemaker.bitvector import BitVector
 from bytemaker.plans import Plan, PlanCompileError, compile_plan
 from bytemaker.typing_redirect import (
     Any,
-    Callable,
     ClassVar,
     Dict,
     List,
@@ -627,8 +624,8 @@ class BoundField:
     def bits(self, new):
         if isinstance(new, BoundBits):
             new = new._snapshot()
-        elif not isinstance(new, BitVector):
-            new = BitVector(new)
+        # Any other BitsConstructible goes straight through: the box's
+        # bits setter snapshots and length-validates whatever it gets.
         setattr(self._owner, self._name, self._ftype(bits=new).value)
 
     @property

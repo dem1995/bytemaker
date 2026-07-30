@@ -23,18 +23,12 @@ class FixedLengthBitVector(BitVector):
     ``+=``, ``*=``, and length-changing slice assignment raise
     :class:`ValueError`. Make a resizable copy with ``BitVector(b)``.
 
-    Storage is guaranteed *writable and unaliased*: the bitarray backend
-    zero-copy imports ``bytes`` buffers read-only (which would make the
-    live ``.bits[i] = x`` write-through silently impossible for byte-built
-    boxes) and ``bytearray`` buffers as live aliases (which would let a
-    caller's later mutation reach inside a box), so byte sources are
-    copied into a fresh ``bytearray`` here.
+    Storage is *writable and unaliased* on every backend because the base
+    constructor copies all source-form inputs, byte-likes included (the
+    13 #16 ruling; this class used to copy byte sources itself to shield
+    boxes from the bitarray backend's zero-copy import). The parity suite
+    pins that guarantee at the ``BitVector`` level.
     """
-
-    def __new__(cls, source=None, *args, **kwargs):
-        if isinstance(source, (bytes, bytearray)):
-            source = bytearray(source)
-        return super().__new__(cls, source, *args, **kwargs)
 
     def _length_violation(self):
         return ValueError(

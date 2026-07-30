@@ -333,7 +333,7 @@ class String(BitType[str]):
         if self.num_bits % 8:
             self.bits = self.encoding(self._substitute_reverse(value))
         else:
-            self.bits = BitVector(self._encode_padded(value))
+            self.bits = self._encode_padded(value)
 
     @classmethod
     def specialize(cls, num_bits_: int, name_: Optional[str] = None):

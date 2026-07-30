@@ -292,10 +292,10 @@ def test_bits_assignment_from_byte_sources():
         u.bits = b"\x12"  # 8 bits into a 16-bit box
 
     ba = bytearray(b"\xf0\x0f")
-    u.bits = ba  # bytearray zero-copy imports live in BitVector...
-    ba[0] = 0x00  # ...so assignment must have copied it
+    u.bits = ba  # snapshot-on-assign: box storage never aliases a caller
+    ba[0] = 0x00
     assert u.value == 0xF00F
-    u.bits[0] = 0  # and the copied storage stays writable
+    u.bits[0] = 0  # and the storage stays writable
     assert len(u.bits) == 16
 
 

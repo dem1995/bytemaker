@@ -60,7 +60,13 @@ class BitsCastable(Protocol):
     def __Bits__(self) -> BitVector: ...
 
 BitsConstructible = Union[
-    "BitVector", bytes, str, Iterable[_LaxLiteral01], BitsCastable
+    "BitVector",
+    bytes,
+    bytearray,
+    memoryview,
+    str,
+    Iterable[_LaxLiteral01],
+    BitsCastable,
 ]
 
 class BitVector(MutableSequence[Literal[0, 1]], BitsCastable):

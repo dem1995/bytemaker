@@ -54,14 +54,23 @@ def _random_bit_value(rng):
 
 def _random_constructible(rng, length):
     s01 = _random01(rng, length)
-    form = rng.randrange(4)
+    form = rng.randrange(7)
     if form == 0:
         return s01
     if form == 1:
         return [int(c) for c in s01]
     if form == 2:
         return SameImplBV(s01)
-    return bytes(int(c) for c in s01)  # iterable of 0/1 byte values
+    if form == 3:
+        return bytes(int(c) for c in s01)  # byte source; bytes happen to be 0/1
+    # Byte-family sources with arbitrary content (13 #16: copied byte
+    # sources, 8 bits per byte — memoryview included).
+    raw = bytes(rng.randrange(256) for _ in range(max(1, length // 8)))
+    if form == 4:
+        return raw
+    if form == 5:
+        return bytearray(raw)
+    return memoryview(raw)
 
 
 def _resolve(value, cls):

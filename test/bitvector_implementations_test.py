@@ -71,6 +71,86 @@ def test_construction_from_buffer_kwarg(BitVector):
     assert BitVector(buffer=memoryview(b"\x0f")).to01() == "00001111"
 
 
+@pytest.mark.parametrize(
+    "make_source",
+    [
+        pytest.param(bytes, id="bytes"),
+        pytest.param(bytearray, id="bytearray"),
+        pytest.param(lambda b: memoryview(b), id="memoryview-ro"),
+        pytest.param(lambda b: memoryview(bytearray(b)), id="memoryview-rw"),
+    ],
+)
+def test_byte_sources_copy_writable_resizable(BitVector, make_source):
+    """13 #16 ruling: source-form byte-likes are COPIED on every backend.
+    The result is independent, writable, and resizable (the bitarray
+    backend used to zero-copy import: read-only for bytes, a live
+    resize-locking alias for bytearray, non-resizable either way)."""
+    src = make_source(b"\x0f\xf0")
+    v = BitVector(src)
+    assert v.to01() == "0000111111110000"
+    v[0] = 1  # writable
+    v.append(1)  # resizable
+    del v[-1]
+    assert bytes(src) == b"\x0f\xf0"  # vector mutation never reaches the source
+
+
+def test_bytearray_source_fully_independent(BitVector):
+    ba = bytearray(b"\x0f")
+    v = BitVector(ba)
+    ba[0] = 0xF0  # caller mutation does not reach the vector...
+    assert v.to01() == "00001111"
+    v[0] = 1  # ...vector mutation does not reach the caller...
+    assert ba == bytearray(b"\xf0")
+    ba.append(0)  # ...and the caller's object is not resize-locked
+
+
+def test_memoryview_is_a_byte_source(BitVector):
+    # Previously fell through to the iterable-of-ints branch: each BYTE
+    # was consumed as one BIT (and bytes > 1 raised).
+    assert BitVector(memoryview(b"\x00\x01")) == BitVector(b"\x00\x01")
+    assert len(BitVector(memoryview(b"\x00\x01"))) == 16
+
+
+def test_byte_producers_return_normal_vectors(BitVector):
+    """from_bytes/from_chararray used to hand out read-only, non-resizable
+    vectors on the bitarray backend via internal buffer= construction."""
+    v = BitVector.from_bytes(b"\x01\x02")
+    v[0] = 1
+    v.append(1)
+    w = BitVector.from_chararray("AB")
+    w[0] = 1
+    w.append(1)
+
+
+def test_buffer_kwarg_may_share(BitVector):
+    """buffer= is the one explicit sharing door, with MAY-share semantics:
+    the bitarray backend genuinely shares (the sole documented divergence);
+    the pure backends copy. Never rely on independence through buffer=."""
+    ba = bytearray(b"\x00")
+    v = BitVector(buffer=ba)
+    ba[0] = 0xFF
+    shares = v.to01() == "11111111"
+    if BitVector.__module__.endswith("with_bitarray_speedup"):
+        assert shares
+    else:
+        assert not shares
+
+
+def test_fixed_length_bitvector_byte_construction():
+    """Selected-backend guard for the unbound-frombytes subtlety: the
+    length-locked subclass overrides frombytes to raise, yet must still
+    construct from byte sources (and stay writable but not resizable)."""
+    from bytemaker.bitvector import FixedLengthBitVector
+
+    f = FixedLengthBitVector(b"\x12\x34")
+    assert len(f) == 16
+    f[0] = 1  # writable storage
+    with pytest.raises(ValueError):
+        f.append(1)  # still length-locked
+    with pytest.raises(ValueError):
+        f.frombytes(b"\x01")  # the bound method still refuses
+
+
 def test_fromsize_negative_is_empty(BitVector):
     assert BitVector(-3).to01() == ""
 
