@@ -19,6 +19,27 @@ else:
         StrSelf = TypeVar("StrSelf", bound="String")
 
 
+def _table_bytes_per_char(table) -> "Tuple[Optional[int], Optional[str]]":
+    """``(bytes_per_char, reason_if_undefined)`` for a ``.tbl`` mapping.
+
+    Character count is well-defined only when every key is one wire-unit
+    length and every value is a single character; control codes (``"[PK]"``)
+    or mixed key widths make it undefined."""
+    if not table:
+        return None, "the table is empty"
+    key_lens = set()
+    for k, v in table.items():
+        kb = bytes((k,)) if isinstance(k, int) else bytes(k)
+        key_lens.add(len(kb))
+        if not (isinstance(v, str) and len(v) == 1):
+            return None, (
+                f"{kb!r} maps to {v!r} (one wire unit, not one character)"
+            )
+    if len(key_lens) > 1:
+        return None, f"keys have mixed byte lengths {sorted(key_lens)}"
+    return key_lens.pop(), None
+
+
 class String(BitType[str]):
     py_type = str
 
@@ -37,6 +58,11 @@ class String(BitType[str]):
     strip: bool = True
     errors: str = "strict"
     truncate: bool = False
+    #: Fixed wire bytes per character, when the codec has one (single-byte
+    #: tables derive 1; pass explicitly for e.g. UTF-16). Sizing metadata
+    #: only — the wire contract stays bytes — but when known, terminator/pad
+    #: handling works on whole character units.
+    bytes_per_char: Optional[int] = None
 
     _codepoint_changes: Optional[
         HashableMapping[BitVector, BitVector] | HashableMapping[str, str]
@@ -278,14 +304,22 @@ class String(BitType[str]):
     def _decode_wire(cls, raw) -> str:
         """Decode wire bytes: cut at the terminator, strip trailing pad —
         both at the byte layer, *before* decoding — then decode and
-        substitute."""
+        substitute. Cut and strip work in whole character units when
+        ``bytes_per_char`` is known (a NUL-padded UTF-16 field must strip
+        ``b"\\x00\\x00"`` pairs; byte-wise stripping would eat the high
+        byte of a final ``"b"`` and split the code unit)."""
         raw = bytes(raw)
+        unit = cls.bytes_per_char or 1
         if cls.terminator is not None:
-            cut = raw.find(bytes((cls.terminator,)))
-            if cut >= 0:
-                raw = raw[:cut]
+            term = bytes((cls.terminator,)) * unit
+            for pos in range(0, len(raw) - unit + 1, unit):
+                if raw[pos : pos + unit] == term:
+                    raw = raw[:pos]
+                    break
         if cls.strip and cls.pad is not None:
-            raw = raw.rstrip(bytes((cls.pad,)))
+            pad_unit = bytes((cls.pad,)) * unit
+            while raw.endswith(pad_unit):
+                raw = raw[:-unit]
         return cls._substitute_forward(cls.decoding(BitVector(raw)))
 
     @property
@@ -314,8 +348,10 @@ class String(BitType[str]):
     @classmethod
     def of(
         cls,
-        chars: int,
+        nbytes: Optional[int] = None,
         *,
+        chars: Optional[int] = None,
+        bytes_per_char: Optional[int] = None,
         encoding=None,
         pad: Optional[int] = 0x00,
         terminator: Optional[int] = None,
@@ -326,25 +362,79 @@ class String(BitType[str]):
     ):
         """Mint a fixed-size text field type.
 
-        ``chars`` is the field size in **bytes** (the C ``char name[N]``
-        count; multi-byte codecs fit fewer characters). ``encoding`` may be
-        a Python codec name (``"ascii"``, ``"shift-jis"``, …), a
-        ``.tbl``-style mapping (``{0x80: "A", 0xE1: "[PK]", …}`` — see
-        :class:`TableString`), an ``(encode, decode)`` callable pair
-        (``str -> bytes``, ``bytes -> str``), or None to inherit ``cls``'s
-        codec (call it on a concrete class such as ``UTF8String``).
+        Size the field with exactly one of:
+
+        * ``nbytes`` — wire bytes, the C ``char name[N]`` count (usually
+          positional: ``String.of(4, ...)``); multi-byte codecs fit fewer
+          characters.
+        * ``chars`` — character count: sugar for ``chars * bytes_per_char``
+          wire bytes, so it needs a fixed, known bytes-per-char. That is
+          derived for mapping codecs (defined iff every key is one wire-unit
+          length and every value one character) and taken from
+          ``bytes_per_char=`` (or an inherited class attribute) otherwise.
+          Codecs without one — UTF-8, Shift-JIS, tables with control codes
+          like ``"[PK]"`` — refuse ``chars=`` at mint time: size those in
+          bytes, which is the only quantity they fix.
+
+        The wire contract is always bytes; ``bytes_per_char`` is sizing
+        metadata, never a safety invariant (the store-time length check is
+        byte-based regardless). When known it also makes decode-side
+        terminator/pad handling work on whole character units.
+
+        ``encoding`` may be a Python codec name (``"ascii"``,
+        ``"shift-jis"``, …), a ``.tbl``-style mapping (``{0x80: "A",
+        0xE1: "[PK]", …}`` — see :class:`TableString`), an
+        ``(encode, decode)`` callable pair (``str -> bytes``,
+        ``bytes -> str``), or None to inherit ``cls``'s codec (call it on a
+        concrete class such as ``UTF8String``).
 
         Note (PEP 563): under ``from __future__ import annotations``, field
         types must be bound to module-level names for annotation resolution.
         """
+        if (nbytes is None) == (chars is None):
+            raise TypeError(
+                f"{cls.__name__}.of(): size the field with exactly one of"
+                f" nbytes (wire bytes, the C char name[N] count) or chars="
+            )
+        if bytes_per_char is not None and (
+            not isinstance(bytes_per_char, int) or bytes_per_char < 1
+        ):
+            raise ValueError(
+                f"{cls.__name__}.of(): bytes_per_char must be a positive"
+                f" int, got {bytes_per_char!r}"
+            )
+        bpc = bytes_per_char
+        bpc_reason = None
+        if bpc is None:
+            if isinstance(encoding, Mapping):
+                bpc, bpc_reason = _table_bytes_per_char(encoding)
+            elif encoding is None:
+                bpc = cls.bytes_per_char
+        if chars is not None:
+            if bpc is None:
+                detail = f" ({bpc_reason})" if bpc_reason else ""
+                raise TypeError(
+                    f"{cls.__name__}.of(): chars= needs a fixed"
+                    f" bytes-per-char, which this codec does not"
+                    f" declare{detail}; size the field in bytes (nbytes) or"
+                    f" pass bytes_per_char="
+                )
+            nbytes = chars * bpc
+        if not isinstance(nbytes, int) or nbytes < 1:
+            raise ValueError(
+                f"{cls.__name__}.of(): field size must be a positive int,"
+                f" got {nbytes!r}"
+            )
         ns = {
-            "_num_bits": chars * 8,
+            "_num_bits": nbytes * 8,
             "pad": pad,
             "terminator": terminator,
             "strip": strip,
             "errors": errors,
             "truncate": truncate,
         }
+        if bpc is not None:
+            ns["bytes_per_char"] = bpc
         if encoding is None:
             if "encoding" in getattr(cls, "__abstractmethods__", ()):
                 raise TypeError(
@@ -363,7 +453,7 @@ class String(BitType[str]):
             base = String
             ns["encoding"] = classmethod(lambda c, v, _e=enc: BitVector(_e(v)))
             ns["decoding"] = classmethod(lambda c, b, _d=dec: _d(bytes(b)))
-        typename = name or f"{base.__name__}x{chars}"
+        typename = name or f"{base.__name__}x{nbytes}"
         return type(base)(typename, (base,), ns)
 
 
@@ -467,44 +557,9 @@ class UTF8String(StandardEncodingString):
     encoding_name = "utf-8"
 
 
-class Str8(UTF8String):
-    _num_bits = 8
-
-
-class Str16(UTF8String):
-    _num_bits = 16
-
-
-class Str32(UTF8String):
-    _num_bits = 32
-
-
-class Str64(UTF8String):
-    _num_bits = 64
-
-
-class Str128(UTF8String):
-    _num_bits = 128
-
-
-class Str256(UTF8String):
-    _num_bits = 256
-
-
-class Str512(UTF8String):
-    _num_bits = 512
-
-
 __all__ = [
     "String",
     "StandardEncodingString",
     "TableString",
     "UTF8String",
-    "Str8",
-    "Str16",
-    "Str32",
-    "Str64",
-    "Str128",
-    "Str256",
-    "Str512",
 ]

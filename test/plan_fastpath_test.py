@@ -13,7 +13,7 @@ import pytest
 from bytemaker import _legacy_aggregate as legacy
 from bytemaker.bittypes import (
     BitType,
-    Buffer32,
+    Buffer,
     Float16,
     Float32,
     Float64,
@@ -37,6 +37,7 @@ from bytemaker.conversions.aggregate_types import (
 
 UInt24 = UInt.specialize(24, None)  # byte-aligned but letterless: slicing path only
 SInt24 = SInt.specialize(24, None)
+Buffer32 = Buffer.of(4, name="Buffer32")  # 4 bytes (the named zoo is gone)
 
 INT_TYPES = [
     UInt8, UInt16, UInt32, UInt64, SInt8, SInt16, SInt32, SInt64, UInt24, SInt24,

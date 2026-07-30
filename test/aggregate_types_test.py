@@ -4,7 +4,7 @@ from dataclasses import dataclass
 import pytest
 
 from bytemaker.bittypes import (
-    Buffer4,
+    Buffer,
     Float16,
     Float32,
     SInt5,
@@ -30,6 +30,8 @@ from bytemaker.conversions.aggregate_types import (
     to_bytes_aggregate,
     to_bytes_individual,
 )
+
+Buffer4 = Buffer.specialize(4, "Buffer4")  # 4 BITS (the named zoo is gone)
 
 test_unit_data = [
     # Integers

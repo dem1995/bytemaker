@@ -1,11 +1,7 @@
 import pytest
 
 from bytemaker.bittypes import (
-    Buffer4,
-    Buffer8,
-    Buffer16,
-    Buffer32,
-    Buffer64,
+    Buffer,
     Float,
     Float32,
     Float64,
@@ -14,18 +10,25 @@ from bytemaker.bittypes import (
     SInt16,
     SInt32,
     SInt64,
-    Str8,
-    Str16,
     UInt8,
     UInt10,
     UInt16,
     UInt32,
     UInt64,
+    UTF8String,
 )
 from bytemaker.bittypes.bittype import StructPackedBitType
 from bytemaker.bitvector import BitVector
 
-# from bytemaker.bittypes_old import Str8
+# Named-width String/Buffer zoos are gone; mint what these tests need.
+# (.of counts bytes — the field door; specialize counts bits — the box door.)
+Str8 = UTF8String.of(1, name="Str8")
+Str16 = UTF8String.of(2, name="Str16")
+Buffer4 = Buffer.specialize(4, "Buffer4")
+Buffer8 = Buffer.specialize(8, "Buffer8")
+Buffer16 = Buffer.specialize(16, "Buffer16")
+Buffer32 = Buffer.specialize(32, "Buffer32")
+Buffer64 = Buffer.specialize(64, "Buffer64")
 
 
 @pytest.mark.parametrize(

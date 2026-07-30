@@ -5,8 +5,7 @@ fields in Struct across both plan tiers."""
 import pytest
 
 from bytemaker.bittypes import (
-    Buffer16,
-    Str16,
+    Buffer,
     String,
     TableString,
     UInt4,
@@ -25,6 +24,7 @@ MonName = String.of(
 )
 Ascii6 = UTF8String.of(6, name="Ascii6")
 SJis6 = String.of(6, encoding="shift-jis", name="SJis6")
+Buf2 = Buffer.of(2, name="Buf2")
 
 
 class Monster(Struct, endian="little"):
@@ -169,7 +169,7 @@ def test_text_field_shiftmask_tier_roundtrip():
 def test_buffer_field_roundtrip_and_validation():
     class Blob(Struct, endian="little"):
         head: UInt8
-        data: Buffer16
+        data: Buf2
 
     b = Blob(head=1, data=b"\xab\xcd")
     assert b.data == b"\xab\xcd" and isinstance(b.data, bytes)
@@ -190,10 +190,40 @@ def test_sizedview_on_text_field():
     assert snap.value == "C[PK]" and f.value == "A"  # detached vs live
 
 
-def test_str16_legacy_exact_behavior_now_pads():
-    # Legacy-visible behavior change (ruled): Str16("a") used to raise.
-    s = Str16("a")
-    assert s.value == "a" and len(s.bits) == 16
+def test_of_size_spellings_chars_vs_nbytes():
+    # chars= derives bytes-per-char for uniform single-byte tables
+    Uni3 = String.of(chars=3, encoding={0x80: "A", 0x81: "B"}, name="Uni3")
+    assert Uni3.num_bits == 24 and Uni3.bytes_per_char == 1
+    # exactly one size spelling
+    with pytest.raises(TypeError):
+        String.of(4, chars=4, encoding=MON_TABLE)
+    with pytest.raises(TypeError):
+        String.of(encoding=MON_TABLE)
+    # control codes make character count undefined - the error names one
+    with pytest.raises(TypeError, match=r"\[PK\]"):
+        String.of(chars=4, encoding=MON_TABLE)
+    # variable-width codecs declare no bytes-per-char
+    with pytest.raises(TypeError, match="bytes-per-char"):
+        UTF8String.of(chars=4)
+
+
+def test_utf16_chars_sizing_and_unit_strip():
+    U16 = String.of(
+        chars=3, encoding="utf-16-le", bytes_per_char=2, name="U16"
+    )
+    assert U16.num_bits == 48
+    s = U16("ab")  # 4 content bytes + one 0x00 0x00 pad unit
+    assert bytes(s.bits) == b"a\x00b\x00\x00\x00"
+    # byte-wise stripping would eat "b"'s high NUL and split the code unit
+    assert s.value == "ab"
+
+
+def test_buffer_of_is_byte_counted():
+    assert Buf2.num_bits == 16
+    B4 = Buffer.of(4)
+    assert B4.num_bits == 32 and B4.__name__ == "Bufferx4"
+    with pytest.raises(ValueError):
+        Buffer.of(0)
 
 
 def test_sub_byte_text_width_rejected_in_struct():
