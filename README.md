@@ -8,13 +8,52 @@
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/dem1995/bytemaker/main?labpath=binder%2Fbinder.ipynb)
 
 ## What is it?
-bytemaker is a Python 3.8-compatible library for bit-manipulation and byte serialization/deserialization. It brings C bitfield functionality over to Python version 3.8+. To that end, it provides methods and types for converting @dataclass-decorated classes.
+bytemaker is a Python 3.8+ library for C-style binary records and bit manipulation, built for working with compiled-code data — ROM hacking, firmware, save files, wire formats. Declare a record's layout once, C-bitfield style, and get validated plain-value fields, packing/parsing, game-text codecs, and bulk decoding.
 
-## What can you do with it?
-- A `BitVector` class analogous to Python's `bytearray` class, but for sub-byte bit quantities. `BitVector` supports all the methods you'd expect to have in a bit-centric `bytearray` with a few extras, to boot.
-- A set of `BitTypes` classes, including various-sized buffers, unsigned/signed ints, floats, and strings, that have underlying `BitVector` representations.
-- Support for serializing/deserializing `@dataclass` annotated classes, where the annotations can be `ytypes`, Python `ctypes` (`c_uint8`, `ctypes.STRUCTURE`, etc.), or Python native types `pytypes` (`int`, `bool`, `char`, `float`). Nested types? No problem!
-- Automagic support for handling any of the aforementioned objects via `aggregate_types.to_bits_aggregate` and `aggregate_types.from_bits_aggregate`.
+## Quickstart
+
+```python
+from bytemaker import Struct, String, u4, u6, u8, u16
+
+# char name[4] with a game text table; the terminator cut and pad strip
+# happen at the byte layer, before decoding
+MonName = String.of(
+    nbytes=4,
+    encoding={0x80: "A", 0x81: "B", 0xE1: "[PK]"},
+    pad=0x50,
+    terminator=0x50,
+)
+
+class Monster(Struct, endian="little"):
+    name:    MonName
+    species: u8
+    hp:      u16
+
+m = Monster(name="A[PK]", species=25, hp=35)
+m.pack()                   # b'\x80\xe1PP\x19#\x00'
+Monster.parse(m.pack())    # Monster(name='A[PK]', species=25, hp=35)
+
+class TileAttr(Struct, endian="big"):   # sub-byte fields, C-bitfield style
+    palette:  u4
+    priority: u6
+    bank:     u6
+
+t = TileAttr(palette=3, priority=40, bank=12)
+t.priority + 40            # 80 -- fields are plain ints; C integer promotion
+t.priority = 200           # narrows AT THE STORE, like a C bitfield: 200 & 0x3F -> 8
+f = t.sizedview.priority   # live width-carrying handle: f.num_bits == 6,
+                           # f.bits is a write-through view, f.boxed() detaches a UInt6
+```
+
+- **Fields hold plain Python values** (`int`, `float`, `str`, `bytes`) — hashable, printable, `json`-able. Stores narrow (ints), validate (text/bytes), or coerce (floats), C-style; opt into `-Wconversion`-style checked stores with `NarrowingConfig.warn = True`.
+- **Any width works**: `from bytemaker import u31` mints a 31-bit unsigned field alias on the fly. The package ships type information (`py.typed`); fields read as `int` to type checkers.
+- **Text fields** speak Python codecs (`"shift-jis"`), `.tbl`-style game tables (`TableString`: longest-match, multi-byte control codes like `"[PK]"`), or custom `(encode, decode)` pairs — sized in bytes (`nbytes=`) or characters (`nchars=`, when the codec has a fixed bytes-per-char).
+- **Bulk decoding**: `Monster.plan.iter_tuples(buf)` streams records as plain tuples with no per-field object materialization — `struct`-module speed on byte-aligned layouts.
+
+## What else is in the box?
+- `BitVector` — a `bytearray` analog for bit quantities, with slicing, searching, and bitwise operations. Pure-Python by default; installs a C-backed implementation with the `[speedups]` extra. `FixedLengthBitVector` is its width-locked sibling (it backs the live `.bits` views).
+- `BitTypes` boxes — `UInt8`…`UInt64`, `SInt8`…`SInt64`, `Float16/32/64`, the `String` family, and `Buffer` — value+bits pairs with C promotion arithmetic and live, width-locked `.bits` handles. Any bit width via `specialize`.
+- The legacy `@dataclass` aggregate API (`bytemaker.conversions.aggregate_types`: `to_bytes_aggregate`, `from_bytes_aggregate`, …) serializes dataclasses annotated with BitTypes, Python `ctypes` (`c_uint8`, `ctypes.Structure`, …), or native types (`int`, `float`, `str`), including nested ones. It predates `Struct` and remains supported.
 
 ## How do I install it?
 Run `python -m pip install bytemaker`.
@@ -37,6 +76,7 @@ The main goal of the project is to ease development of projects working with com
 - **Removed the bit-numbered named-width zoos**: all `StrN` (`Str1`–`Str512`) and all `BufferN` (`Buffer1`–`Buffer1024`) classes are gone. The non-whole-byte `StrN` were unusable by construction (UTF-8 output is whole bytes), and the rest were standing misreads — `Str16`/`Buffer16` read as 16 *bytes* (the C `char name[16]` / `uint8_t buf[16]` count) but meant 16 *bits*. Declare text/bytes fields with the byte-counted factories instead: `String.of(N)` / `UTF8String.of(N)` / `Buffer.of(N)`; sub-byte and odd-width Buffers stay available via the bit-counted `Buffer.specialize(num_bits)`.
 
 #### Major changes
+- **Top-level public API.** `from bytemaker import Struct, String, u8, BitVector, …` — the package root was previously empty. It now exports the curated `Struct`-first surface (records, the standard-width boxes, the text machinery, `BitVector`/`FixedLengthBitVector`, `NarrowingConfig`/`NarrowingWarning`, `Plan`/`PlanCompileError`), resolves any-width `uN`/`sN` field aliases lazily (`from bytemaker import u31`), and carries `__version__`. Submodule imports are unchanged; the legacy aggregate API stays at `bytemaker.conversions.aggregate_types`.
 - **Text and bytes fields in `Struct`** — the C `char name[N]` idiom, with codecs. `String.of(nbytes=..., encoding=..., pad=..., terminator=..., strip=..., truncate=..., errors=...)` mints a fixed-size text field type: `encoding` may be a Python codec name (`"ascii"`, `"shift-jis"`), a `.tbl`-style mapping (`{0x80: "A", 0xE1: "[PK]"}` — the new `TableString`, longest-match in both directions), or an `(encode, decode)` pair. Fields hold plain `str`; overflow raises at the store; on parse, the terminator cut and pad strip happen at the byte layer *before* decoding (garbage after a terminator is normal in ROM data; 0xFF pads aren't valid UTF-8). `Buffer` fields hold plain exact-length `bytes`. Both plan tiers support them (`struct`'s `Ns` when aligned; opaque bit runs in shift/mask records with sub-byte siblings), and `sizedview` works on them unchanged.
 - **`Struct.sizedview`** — a live, width-carrying view of a record's fields. `t.sizedview.field` returns a `BoundField` handle with C lvalue semantics: reads promote to plain values, stores narrow, `f.bits` is a live write-through bits channel with width guards, `f.boxed()` detaches a snapshot. Handles compare by value and are unhashable; `__index__` and the bitwise operators are deliberately absent on handles (name the plane: `f.value & m` or `f.bits & bv`).
 - **Byte-counted declaration layer for the array-like family.** Numeric widths stay bit-counted (`UInt4`, `u31` — C's `uintN_t`); text/bytes field sizes are byte-counted (C's `char name[N]` / `uint8_t buf[N]`), with one rule: `.of()` is the field door and counts **bytes**, `specialize()` is the box door and counts **bits**. `String.of` accepts exactly one of `nbytes=` (the wire ground truth) or `nchars=` — twin names, both **keyword-only**, so every declaration names its unit and knowing one spelling gives you the other (a bare `of(16)` would be the same misread the zoos had). `nchars=` is sugar for `nchars × bytes_per_char`, legal only when the codec has a fixed, known bytes-per-char: derived for table codecs (every key one wire-unit length, every value one character), declared via `bytes_per_char=` (or an inherited class attribute) otherwise, and refused loudly at mint time for variable-width codecs (UTF-8, Shift-JIS, tables with control codes). `bytes_per_char` is sizing metadata, never a safety invariant — the wire contract and the store-time length check stay byte-based. When known, it also makes decode-side terminator/pad handling work in whole character units (a NUL-padded UTF-16 field strips `b"\x00\x00"` pairs and never splits a code unit). `Buffer.of(nbytes=N)` is the matching bytes-payload door (`nbytes` keyword-required there too).
