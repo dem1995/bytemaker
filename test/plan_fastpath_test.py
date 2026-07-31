@@ -168,6 +168,19 @@ def test_from_bytes_is_array_returns_list():
     assert [s.value for s in scalars] == [1, 2]
 
 
+def test_legacy_bfloat16_bypasses_struct_shortcut():
+    """BFloat16 is 16 bits but not IEEE binary16: the one-call struct
+    shortcut must not claim it via the width-keyed letter (regression: a
+    plain-float value packed as IEEE half, diverging from the boxed
+    path and from the type's own wire format)."""
+    from bytemaker.bittypes import BFloat16
+
+    cls = make_dataclass("RecBF", [("a", BFloat16)])
+    plain = to_bytes_aggregate(cls(1.5), endianness="big")
+    boxed = to_bytes_aggregate(cls(BFloat16(1.5)), endianness="big")
+    assert plain == boxed == bytes(BFloat16(1.5).bits)
+
+
 def test_parse_length_mismatch_raises():
     cls = make_dataclass("RecLen", [("a", UInt32)])
     with pytest.raises(ValueError):

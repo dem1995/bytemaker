@@ -11,10 +11,18 @@ import pytest
 
 from bytemaker import _legacy_aggregate as legacy
 from bytemaker.bittypes import (
+    BFloat16,
+    Buffer,
+    Float16,
     Float32,
+    Float64,
     SInt4,
     SInt6,
+    SInt8,
     SInt16,
+    SInt32,
+    SInt64,
+    UInt,
     UInt3,
     UInt4,
     UInt5,
@@ -23,7 +31,11 @@ from bytemaker.bittypes import (
     UInt10,
     UInt16,
     UInt32,
+    UInt64,
+    UTF8String,
+    bytes_to_bittype,
 )
+from bytemaker.bittypes.int import SignedConfig
 from bytemaker.plans import PlanCompileError
 from bytemaker.structs import Array, Codec, Struct, u16, u32
 import bytemaker.structs as structs_mod
@@ -506,12 +518,126 @@ def test_annotated_aliases():
     assert a.pack() == bytes([0x34, 0x12, 0xBC, 0x9A, 0x78, 0x56])
 
 
-def test_scalar_parse_boxed():
+def test_scalar_parse_plain():
+    # The one decoded-scalar rule: decoded scalars are always plain
+    # Python values (width lives in the schema; arr.element(v) re-boxes).
     arr = Array.of(UInt16, 3, endian="little")
     out = arr.parse(bytes([1, 0, 2, 0, 0xFF, 0xFF]))
-    assert [v.value for v in out] == [1, 2, 0xFFFF]
+    assert out == [1, 2, 0xFFFF]
+    assert all(type(v) is int for v in out)
     assert arr.pack(out) == bytes([1, 0, 2, 0, 0xFF, 0xFF])
     assert arr.pack([1, 2, 0x1FFFF]) == bytes([1, 0, 2, 0, 0xFF, 0xFF])  # narrows
+
+
+@pytest.mark.parametrize("endian", ["big", "little"])
+@pytest.mark.parametrize(
+    "elem",
+    [
+        UInt8, UInt16, UInt32, UInt64,
+        SInt8, SInt16, SInt32, SInt64,
+        UInt.specialize(24, name_="UInt24T"),  # letter-less: int.from_bytes path
+        Float32, Float64,
+    ],
+)
+def test_scalar_array_matches_box_reference(elem, endian):
+    """The fast paths must yield exactly what the config-aware box
+    reference (element(bits=...).value) yields, for every kind and both
+    byte orders — and round-trip."""
+    arr = Array.of(elem, 4, endian=endian)
+    data = bytes(range(1, 1 + arr.num_bytes))
+    out = arr.parse(data)
+    size = elem.num_bits // 8
+    ref = [
+        bytes_to_bittype(data[i : i + size], elem, endianness=endian).value
+        for i in range(0, len(data), size)
+    ]
+    assert out == ref
+    assert arr.pack(out) == data
+
+
+def test_scalar_array_exotic_signed_config_falls_back():
+    """Under a non-default SignedConfig the box path is the reference;
+    the two's-complement fast paths must not engage."""
+    arr = Array.of(SInt16, 2, endian="big")
+    old = SignedConfig.signed_int_format
+    SignedConfig.signed_int_format = "signed_magnitude"
+    try:
+        out = arr.parse(bytes([0x80, 0x05, 0x00, 0x05]))
+        assert out == [-5, 5]
+        assert arr.pack(out) == bytes([0x80, 0x05, 0x00, 0x05])
+    finally:
+        SignedConfig.signed_int_format = old
+
+
+def test_text_and_bytes_array_elements_stream_order():
+    """String/Buffer elements have no byte order: endian='little' must
+    not byte-swap them (it used to, in both parse and pack), matching the
+    plan engine's rule for "b" fields and C char[]."""
+    Tag2 = UTF8String.of(nbytes=2, name="Tag2")
+    tags = Array.of(Tag2, 2, endian="little")
+    assert tags.parse(b"hiyo") == ["hi", "yo"]
+    assert tags.pack(["hi", "yo"]) == b"hiyo"
+
+    B2 = Buffer.of(nbytes=2, name="B2x")
+    bufs = Array.of(B2, 2, endian="little")
+    assert bufs.parse(b"\x01\x02\x03\x04") == [b"\x01\x02", b"\x03\x04"]
+    assert bufs.pack([b"\x01\x02", b"\x03\x04"]) == b"\x01\x02\x03\x04"
+
+
+def test_non_ieee_float_rejected_everywhere():
+    """Non-IEEE floats have no struct codec and must be rejected loudly,
+    in BOTH Struct fields and Arrays. BFloat16 is 16 bits but not IEEE
+    binary16 (the width-keyed letter would mis-decode); FP24 has no
+    struct letter at all (24-bit) and used to slip through Array into the
+    integer fallback, decoding float bytes as raw ints and corrupting
+    round-trips."""
+    from bytemaker.bittypes import FP24
+
+    for bad_float in (BFloat16, FP24):
+        with pytest.raises(PlanCompileError):
+            class Bad(Struct):
+                x: bad_float
+
+        with pytest.raises(PlanCompileError):
+            Array.of(bad_float, 2)
+
+
+def test_array_is_an_immutable_value_object():
+    """Byte order and size are compiled into the codec at construction and
+    instances are shared via Array.of, so the identity attributes are
+    read-only; mutating one used to desync parse (cached codec) from pack
+    (live read)."""
+    arr = Array.of(UInt16, 2, endian="big")
+    for attr in ("element", "count", "endian", "num_bits"):
+        with pytest.raises(AttributeError):
+            setattr(arr, attr, arr.__getattribute__(attr))
+
+
+def test_scalar_array_special_float_values_match_reference():
+    """The struct fast path must agree with the box reference on NaN,
+    infinities, negative zero, and subnormals (Float16), for both byte
+    orders."""
+    import math
+
+    specials = [
+        math.nan, math.inf, -math.inf, 0.0, -0.0,
+        5.960464477539063e-08,  # smallest Float16 subnormal
+        6.103515625e-05,  # smallest Float16 normal
+    ]
+    for endian in ("big", "little"):
+        arr = Array.of(Float16, len(specials), endian=endian)
+        packed = arr.pack(specials)
+        out = arr.parse(packed)
+        size = 2
+        ref = [
+            bytes_to_bittype(packed[i : i + size], Float16, endianness=endian).value
+            for i in range(0, len(packed), size)
+        ]
+        for got, want in zip(out, ref):
+            assert (math.isnan(got) and math.isnan(want)) or got == want
+            # sign of zero must survive too
+            if want == 0:
+                assert math.copysign(1, got) == math.copysign(1, want)
 
 
 # -------------------------------------------------------------------- arrays
@@ -531,7 +657,7 @@ def test_array_of_array():
     grid = (UInt8 * 2) * 3
     blob = bytes(range(6))
     back = grid.parse(blob)
-    assert [[v.value for v in row] for row in back] == [[0, 1], [2, 3], [4, 5]]
+    assert back == [[0, 1], [2, 3], [4, 5]]  # plain values all the way down
     assert grid.pack(back) == blob
 
 

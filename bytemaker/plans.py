@@ -346,6 +346,21 @@ def _classify_scalar(bittype: type) -> Tuple[int, str, Optional[str]]:
         return width, ("s" if signed else "u"), letter
     if issubclass(bittype, Float):
         letter = _FLOAT_LETTERS.get(width)
+        # A float is only a valid field/element if it rides an IEEE struct
+        # codec: it must map to a 16/32/64-bit struct letter AND declare
+        # that same letter. Otherwise the width-keyed letter would decode
+        # with the wrong codec (BFloat16 -> IEEE half), or there is no
+        # letter at all (FP24 and other non-standard widths) and every
+        # downstream path -- struct fast path, shiftmask tier, Array's
+        # int fallback -- would mishandle it, silently corrupting the value.
+        if letter is None or (
+            getattr(bittype, "packing_format_letter", None) != letter
+        ):
+            raise PlanCompileError(
+                f"{bittype.__name__} is not an IEEE-754 float with a struct"
+                f" codec; only Float16/Float32/Float64 (16/32/64-bit IEEE)"
+                f" are supported as fields or Array elements"
+            )
         return width, "f", letter
     if issubclass(bittype, (String, Buffer)):
         if width % 8:
@@ -530,6 +545,12 @@ def compile_legacy_record_plan(
                     letter = letter.upper()
             elif issubclass(ftype, Float):
                 letter = _FLOAT_LETTERS.get(ftype.num_bits)
+                if letter is not None and (
+                    getattr(ftype, "packing_format_letter", None) != letter
+                ):
+                    # Non-IEEE float (e.g. BFloat16): no struct shortcut;
+                    # the boxed coercion path uses the type's own codec.
+                    letter = None
             else:
                 letter = None
             letters.append(letter)

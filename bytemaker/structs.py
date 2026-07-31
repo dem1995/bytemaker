@@ -48,6 +48,7 @@ from __future__ import annotations
 
 import operator
 import os
+import struct as _pystruct
 import typing
 
 from bytemaker.bittypes import (
@@ -63,7 +64,8 @@ from bytemaker.bittypes.bittype import (
     NarrowingWarning,
     _warn_narrowing,
 )
-from bytemaker.plans import Plan, PlanCompileError, compile_plan
+from bytemaker.bittypes.int import SignedConfig
+from bytemaker.plans import Plan, PlanCompileError, _classify_scalar, compile_plan
 from bytemaker.typing_redirect import (
     Any,
     ClassVar,
@@ -581,7 +583,15 @@ def _unwrap_bound(value):
     return value.value if isinstance(value, BoundField) else value
 
 
-class BoundField:
+#: The field's plain value type (int/float/str/bytes), for checker use:
+#: annotate a handle as ``BoundField[int]`` and ``.value`` reads/writes
+#: type as ``int`` while ``.boxed()`` returns ``BitType[int]``. Handles
+#: minted by ``sizedview`` attribute access type as ``Any`` (the view is
+#: dynamic); the parameter exists for explicitly-annotated code.
+V = typing.TypeVar("V")
+
+
+class BoundField(typing.Generic[V]):
     """Live lvalue handle to one Struct field (any scalar kind).
 
     Stores no data — only ``(owner, field name, field's BitType)``; the only
@@ -601,7 +611,7 @@ class BoundField:
 
     __slots__ = ("_owner", "_name", "_ftype")
 
-    def __init__(self, owner, name, ftype):
+    def __init__(self, owner, name: str, ftype: "type[BitType[V]]"):
         object.__setattr__(self, "_owner", owner)
         object.__setattr__(self, "_name", name)
         object.__setattr__(self, "_ftype", ftype)
@@ -609,19 +619,19 @@ class BoundField:
     # -- the two channels ---------------------------------------------------
 
     @property
-    def value(self):
+    def value(self) -> V:
         return getattr(self._owner, self._name)
 
     @value.setter
-    def value(self, new):
+    def value(self, new) -> None:
         setattr(self._owner, self._name, _unwrap_bound(new))
 
     @property
-    def bits(self):
+    def bits(self) -> "BoundBits":
         return BoundBits(self)
 
     @bits.setter
-    def bits(self, new):
+    def bits(self, new) -> None:
         if isinstance(new, BoundBits):
             new = new._snapshot()
         # Any other BitsConstructible goes straight through: the box's
@@ -629,10 +639,10 @@ class BoundField:
         setattr(self._owner, self._name, self._ftype(bits=new).value)
 
     @property
-    def num_bits(self):
+    def num_bits(self) -> int:
         return self._ftype.num_bits
 
-    def boxed(self):
+    def boxed(self) -> "BitType[V]":
         """A detached BitType snapshot (record's endianness); survives
         later struct mutation."""
         return self._ftype(self.value, endianness=type(self._owner)._bm_endian)
@@ -940,18 +950,32 @@ class Array:
 
     Built via ``element * count`` (Struct classes and scalar BitType classes
     both support ``*``) or :meth:`Array.of`. ``parse`` returns a ``list``;
-    ``pack`` accepts any sequence of the right length. Scalar elements are
-    boxed BitType instances (canonical bits; the array's ``endian`` governs
-    their byte order in the stream); plain values are accepted by ``pack``
-    and coerced through the element type (C-narrowing applies).
+    ``pack`` accepts any sequence of the right length.
+
+    **Decoded scalars are plain Python values** — the one decoded-scalar
+    rule, same as Struct fields: ``int``/``float`` for numeric elements,
+    ``str`` for String elements (decoded through the element's
+    terminator/pad policy), ``bytes`` for Buffer elements. Width lives in
+    the schema (``self.element``); re-attach it on demand with the
+    constructor cast, ``arr.element(v)``. ``pack`` accepts plain values
+    (coerced through the element type — C-narrowing for ints,
+    encode-validation for text) or boxes. ``endian`` governs numeric
+    elements' byte order; text/bytes elements have no byte order and stay
+    in stream order (as in the plan engine and C ``char[]``).
     """
 
-    __slots__ = ("element", "count", "endian", "num_bits")
+    # Immutable value object: the byte order is compiled into the scalar
+    # codec and the size into num_bits at construction, so the identity
+    # attributes are read-only (and instances are shared via Array.of).
+    # Mutating one would desync the cached codec from a live read -- build
+    # a new Array to change any of them.
+    __slots__ = ("_element", "_count", "_endian", "_num_bits", "_scalar_codec")
     _cache: ClassVar[Dict[tuple, "Array"]] = {}
 
     def __init__(self, element, count: int, endian: Literal["big", "little"] = "big"):
         if not isinstance(count, int) or count <= 0:
             raise PlanCompileError(f"Array count must be a positive int, got {count!r}")
+        self._scalar_codec = None
         if isinstance(element, (StructMeta, Array)):
             elem_bits = element.num_bits
         elif isinstance(element, type) and issubclass(element, BitType):
@@ -962,15 +986,44 @@ class Array:
                     f" not supported (element is {elem_bits} bits); wrap the"
                     f" elements in a Struct instead"
                 )
+            # Classify through the plan compiler so Array cannot drift from
+            # the Struct decode rules (also rejects e.g. non-IEEE floats).
+            try:
+                _width, kind, letter = _classify_scalar(element)
+            except PlanCompileError as exc:
+                raise PlanCompileError(
+                    f"Array of {element.__name__}: {exc}"
+                ) from None
+            struct_obj = None
+            if kind in ("u", "s", "f") and letter is not None:
+                prefix = "<" if endian == "little" else ">"
+                struct_obj = _pystruct.Struct(f"{prefix}{count}{letter}")
+            self._scalar_codec = (kind, struct_obj)
         else:
             raise PlanCompileError(
                 f"Array element must be a Struct class, a BitType class, or"
                 f" an Array, got {element!r}"
             )
-        self.element = element
-        self.count = count
-        self.endian = endian
-        self.num_bits = elem_bits * count
+        self._element = element
+        self._count = count
+        self._endian = endian
+        self._num_bits = elem_bits * count
+
+    @property
+    def element(self):
+        return self._element
+
+    @property
+    def count(self) -> int:
+        return self._count
+
+    @property
+    def endian(self) -> str:
+        return self._endian
+
+    @property
+    def num_bits(self) -> int:
+        return self._num_bits
 
     @classmethod
     def of(
@@ -1007,8 +1060,37 @@ class Array:
                 element.parse(data[i : i + size])
                 for i in range(0, self.num_bytes, size)
             ]
+        # Scalar elements decode to PLAIN values. Reference semantics:
+        # exactly what element(bits=<endian-normalized chunk>).value yields;
+        # the fast paths below are gated to configurations where they are
+        # provably identical to that reference.
+        kind, struct_obj = self._scalar_codec
+        if kind == "b":
+            # Text/bytes elements are in stream order (no byte order to
+            # apply — same rule as the plan engine's "b" fields and C
+            # char[]; endian governs numeric elements only).
+            chunks = [
+                bytes(data[i : i + size])
+                for i in range(0, self.num_bytes, size)
+            ]
+            if issubclass(element, String):
+                return [element._decode_wire(c) for c in chunks]
+            return chunks
+        if kind == "s" and SignedConfig.signed_int_format != "twos_complement":
+            # Exotic global signed format: the box path is the config-aware
+            # reference; the struct/int.from_bytes routes assume two's
+            # complement.
+            return [
+                bytes_to_bittype(
+                    bytes(data[i : i + size]), element, endianness=self.endian
+                ).value
+                for i in range(0, self.num_bytes, size)
+            ]
+        if struct_obj is not None:
+            return list(struct_obj.unpack(data))  # one C-level call
+        signed = kind == "s"
         return [
-            bytes_to_bittype(bytes(data[i : i + size]), element, endianness=self.endian)
+            int.from_bytes(bytes(data[i : i + size]), self.endian, signed=signed)
             for i in range(0, self.num_bytes, size)
         ]
 
@@ -1022,12 +1104,15 @@ class Array:
             return b"".join(v.pack() for v in values)
         if isinstance(element, Array):
             return b"".join(element.pack(v) for v in values)
+        # Text/bytes elements stay in stream order; endian byte-swaps
+        # numeric elements only (mirrors parse).
+        swap = self.endian == "little" and self._scalar_codec[0] != "b"
         parts = []
         for v in values:
             if not isinstance(v, element):
-                v = element(v)  # C-narrowing via the scalar's value setter
+                v = element(v)  # C-narrowing / encode-validation via the box
             b = bytes(v.bits)  # canonical big-endian bits, instance-agnostic
-            parts.append(b[::-1] if self.endian == "little" else b)
+            parts.append(b[::-1] if swap else b)
         return b"".join(parts)
 
     def __mul__(self, count: int) -> "Array":
