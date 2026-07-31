@@ -417,37 +417,37 @@ class Int(BitType[int]):
     def __rpow__(self, other: int | float | Int | Float) -> Any:
         return self._promoted_value_op(other, lambda x, y: y**x)
 
-    def __and__(self, other: int | Int) -> int:
+    def __and__(self, other: int | Int) -> int:  # type: ignore[override]
         return self._promoted_value_op(other, operator.and_)
 
-    def __rand__(self, other: int | Int) -> int:
+    def __rand__(self, other: int | Int) -> int:  # type: ignore[override]
         return self._promoted_value_op(other, lambda x, y: y & x)
 
-    def __or__(self, other: int | Int) -> int:
+    def __or__(self, other: int | Int) -> int:  # type: ignore[override]
         return self._promoted_value_op(other, operator.or_)
 
-    def __ror__(self, other: int | Int) -> int:
+    def __ror__(self, other: int | Int) -> int:  # type: ignore[override]
         return self._promoted_value_op(other, lambda x, y: y | x)
 
-    def __xor__(self, other: int | Int) -> int:
+    def __xor__(self, other: int | Int) -> int:  # type: ignore[override]
         return self._promoted_value_op(other, operator.xor)
 
-    def __rxor__(self, other: int | Int) -> int:
+    def __rxor__(self, other: int | Int) -> int:  # type: ignore[override]
         return self._promoted_value_op(other, lambda x, y: y ^ x)
 
-    def __lshift__(self, other: int | Int) -> int:
+    def __lshift__(self, other: int | Int) -> int:  # type: ignore[override]
         return self._promoted_value_op(other, operator.lshift)
 
     def __rlshift__(self, other: int | Int) -> int:
         return self._promoted_value_op(other, lambda x, y: y << x)
 
-    def __rshift__(self, other: int | Int) -> int:
+    def __rshift__(self, other: int | Int) -> int:  # type: ignore[override]
         return self._promoted_value_op(other, operator.rshift)
 
     def __rrshift__(self, other: int | Int) -> int:
         return self._promoted_value_op(other, lambda x, y: y >> x)
 
-    def __invert__(self) -> int:
+    def __invert__(self) -> int:  # type: ignore[override]
         # The classic C gotcha, faithfully: ~ promotes, so the result is
         # plain -(value + 1). The width-preserving spelling is ~self.bits.
         return ~self.value
@@ -468,24 +468,39 @@ class Int(BitType[int]):
         return self._promoted_value_op(other, operator.ge)
 
     # Compound assignment: read-promote, compute full-width, narrowing store.
-    # Type-preserving (returns self after the narrowing store).
+    # Type-preserving (returns self after the narrowing store). mypy reports
+    # __i*__/__*__ as incompatible on the arithmetic ops because C compound
+    # assignment deliberately diverges from the binary op: ``u += 1`` keeps
+    # u's box type (narrowing store) while ``u + 1`` promotes to plain int.
+    # The divergence is the intended D5 semantics, so ignore[misc] where it
+    # is flagged.
 
-    def __iadd__(self: IntSelf, other: int | float | Int | Float) -> IntSelf:
+    def __iadd__(  # type: ignore[misc]
+        self: IntSelf, other: int | float | Int | Float
+    ) -> IntSelf:
         return self._inplace_value_op(other, operator.add)
 
-    def __isub__(self: IntSelf, other: int | float | Int | Float) -> IntSelf:
+    def __isub__(  # type: ignore[misc]
+        self: IntSelf, other: int | float | Int | Float
+    ) -> IntSelf:
         return self._inplace_value_op(other, operator.sub)
 
-    def __imul__(self: IntSelf, other: int | float | Int | Float) -> IntSelf:
+    def __imul__(  # type: ignore[misc]
+        self: IntSelf, other: int | float | Int | Float
+    ) -> IntSelf:
         return self._inplace_value_op(other, operator.mul)
 
     def __itruediv__(self: IntSelf, other: int | float | Int | Float) -> IntSelf:
         return self._inplace_value_op(other, operator.truediv)
 
-    def __ifloordiv__(self: IntSelf, other: int | float | Int | Float) -> IntSelf:
+    def __ifloordiv__(  # type: ignore[misc]
+        self: IntSelf, other: int | float | Int | Float
+    ) -> IntSelf:
         return self._inplace_value_op(other, operator.floordiv)
 
-    def __imod__(self: IntSelf, other: int | float | Int | Float) -> IntSelf:
+    def __imod__(  # type: ignore[misc]
+        self: IntSelf, other: int | float | Int | Float
+    ) -> IntSelf:
         return self._inplace_value_op(other, operator.mod)
 
     def __ipow__(self: IntSelf, other: int | float | Int | Float) -> IntSelf:
