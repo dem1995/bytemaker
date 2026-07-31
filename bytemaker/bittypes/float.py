@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import operator
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NoReturn
 
 from bytemaker.bittypes.bittype import BitType, StructPackedBitType
 from bytemaker.bitvector import BitVector
@@ -9,6 +9,8 @@ from bytemaker.typing_redirect import Any, Final, Optional, Tuple, TypeVar
 from bytemaker.utils import classproperty
 
 if TYPE_CHECKING:
+    from bytemaker.bittypes.int import Int
+
     FloatSelf = TypeVar("FloatSelf", bound="Float")
 else:
     try:
@@ -62,7 +64,7 @@ class Float(BitType[float]):
     def num_bits(cls) -> int:
         return 1 + cls.num_exponent_bits + cls.num_mantissa_bits
 
-    def __float__(self):
+    def __float__(self) -> float:
         """
         Magic method to convert the `Float` to a `float`.
 
@@ -263,88 +265,93 @@ class Float(BitType[float]):
     # the constructor: Float16(a + b). Compound assignment narrows back into
     # self, like C's a += b.
 
-    def __add__(self, other):
+    def __add__(self, other: int | float | Int | Float) -> float:
         return self._promoted_value_op(other, operator.add)
 
-    def __radd__(self, other):
+    def __radd__(self, other: int | float | Int | Float) -> float:
         return self._promoted_value_op(other, lambda x, y: y + x)
 
-    def __sub__(self, other):
+    def __sub__(self, other: int | float | Int | Float) -> float:
         return self._promoted_value_op(other, operator.sub)
 
-    def __rsub__(self, other):
+    def __rsub__(self, other: int | float | Int | Float) -> float:
         return self._promoted_value_op(other, lambda x, y: y - x)
 
-    def __mul__(self, other):
+    def __mul__(self, other: int | float | Int | Float) -> float:
         return self._promoted_value_op(other, operator.mul)
 
-    def __rmul__(self, other):
+    def __rmul__(self, other: int | float | Int | Float) -> float:
         return self._promoted_value_op(other, lambda x, y: y * x)
 
-    def __truediv__(self, other):
+    def __truediv__(self, other: int | float | Int | Float) -> float:
         return self._promoted_value_op(other, operator.truediv)
 
-    def __rtruediv__(self, other):
+    def __rtruediv__(self, other: int | float | Int | Float) -> float:
         return self._promoted_value_op(other, lambda x, y: y / x)
 
-    def __floordiv__(self, other):
+    def __floordiv__(self, other: int | float | Int | Float) -> float:
         return self._promoted_value_op(other, operator.floordiv)
 
-    def __rfloordiv__(self, other):
+    def __rfloordiv__(self, other: int | float | Int | Float) -> float:
         return self._promoted_value_op(other, lambda x, y: y // x)
 
-    def __mod__(self, other):
+    def __mod__(self, other: int | float | Int | Float) -> float:
         return self._promoted_value_op(other, operator.mod)
 
-    def __rmod__(self, other):
+    def __rmod__(self, other: int | float | Int | Float) -> float:
         return self._promoted_value_op(other, lambda x, y: y % x)
 
-    def __pow__(self, other):
+    def __pow__(self, other: int | float | Int | Float) -> Any:
+        # float ** float can be complex (negative base, fractional
+        # exponent), so Any - as in typeshed's float.__pow__.
         return self._promoted_value_op(other, operator.pow)
 
-    def __rpow__(self, other):
+    def __rpow__(self, other: int | float | Int | Float) -> Any:
         return self._promoted_value_op(other, lambda x, y: y**x)
 
-    def __lt__(self, other):
+    def __lt__(self, other: int | float | Int | Float) -> bool:
         return self._promoted_value_op(other, operator.lt)
 
-    def __le__(self, other):
+    def __le__(self, other: int | float | Int | Float) -> bool:
         return self._promoted_value_op(other, operator.le)
 
-    def __gt__(self, other):
+    def __gt__(self, other: int | float | Int | Float) -> bool:
         return self._promoted_value_op(other, operator.gt)
 
-    def __ge__(self, other):
+    def __ge__(self, other: int | float | Int | Float) -> bool:
         return self._promoted_value_op(other, operator.ge)
 
-    def __iadd__(self, other):
+    # Compound assignment: type-preserving (returns self after the
+    # narrowing re-encode).
+
+    def __iadd__(self: FloatSelf, other: int | float | Int | Float) -> FloatSelf:
         return self._inplace_value_op(other, operator.add)
 
-    def __isub__(self, other):
+    def __isub__(self: FloatSelf, other: int | float | Int | Float) -> FloatSelf:
         return self._inplace_value_op(other, operator.sub)
 
-    def __imul__(self, other):
+    def __imul__(self: FloatSelf, other: int | float | Int | Float) -> FloatSelf:
         return self._inplace_value_op(other, operator.mul)
 
-    def __itruediv__(self, other):
+    def __itruediv__(self: FloatSelf, other: int | float | Int | Float) -> FloatSelf:
         return self._inplace_value_op(other, operator.truediv)
 
-    def __ifloordiv__(self, other):
+    def __ifloordiv__(self: FloatSelf, other: int | float | Int | Float) -> FloatSelf:
         return self._inplace_value_op(other, operator.floordiv)
 
-    def __imod__(self, other):
+    def __imod__(self: FloatSelf, other: int | float | Int | Float) -> FloatSelf:
         return self._inplace_value_op(other, operator.mod)
 
-    def __ipow__(self, other):
+    def __ipow__(self: FloatSelf, other: int | float | Int | Float) -> FloatSelf:
         return self._inplace_value_op(other, operator.pow)
 
-    def __neg__(self):
+    def __neg__(self) -> float:
         return -self.value
 
-    def __pos__(self):
+    def __pos__(self) -> float:
         return +self.value
 
-    def __abs__(self):
+    def __abs__(self) -> float:
         return abs(self.value)
 
     # Floats have no value-plane bitwise meaning (same as C, where bitwise
@@ -382,7 +389,7 @@ class Float(BitType[float]):
     def __rrshift__(self, other):
         return NotImplemented
 
-    def __invert__(self):
+    def __invert__(self) -> NoReturn:
         raise TypeError(
             f"bad operand type for unary ~: {type(self).__name__!r}"
             f" (the bit-plane spelling is ~self.bits)"

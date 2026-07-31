@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import operator
 from math import ceil, log2
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, overload
 
 from bytemaker.bittypes.bittype import (
     BitType,
@@ -15,6 +15,8 @@ from bytemaker.typing_redirect import Final, Literal, Optional, TypeVar
 from bytemaker.utils import is_instance_of_union
 
 if TYPE_CHECKING:
+    from bytemaker.bittypes.float import Float
+
     IntSelf = TypeVar("IntSelf", bound="Int")
 else:
     try:
@@ -54,10 +56,10 @@ class Int(BitType[int]):
     is_signed: Final[bool]
     """Whether the integer type is signed."""
 
-    def __int__(self):
+    def __int__(self) -> int:
         return self.value
 
-    def __index__(self):
+    def __index__(self) -> int:
         # Named, explicit lossless-integer protocol: makes boxes usable
         # anywhere a plain int is (hex(), list indexing, range(), and the
         # Struct field descriptors' operator.index() store path) without
@@ -307,79 +309,145 @@ class Int(BitType[int]):
     # promotes too - in C even ~uint8_t is an int. Compound assignment
     # narrows back into self's width, like C's a += b.
 
+    # Annotations follow the promotion semantics: int-plane operands
+    # (int/bool/Int) produce int; a float operand produces float (the
+    # overload pairs); division is always float; ** may go float on a
+    # negative exponent, so it is Any (as in typeshed's int.__pow__);
+    # the bitwise family only accepts the int plane.
+
+    @overload
+    def __add__(self, other: int | Int) -> int: ...
+
+    @overload
+    def __add__(self, other: float | Float) -> float: ...
+
     def __add__(self, other):
         return self._promoted_value_op(other, operator.add)
+
+    @overload
+    def __radd__(self, other: int | Int) -> int: ...
+
+    @overload
+    def __radd__(self, other: float | Float) -> float: ...
 
     def __radd__(self, other):
         return self._promoted_value_op(other, lambda x, y: y + x)
 
+    @overload
+    def __sub__(self, other: int | Int) -> int: ...
+
+    @overload
+    def __sub__(self, other: float | Float) -> float: ...
+
     def __sub__(self, other):
         return self._promoted_value_op(other, operator.sub)
+
+    @overload
+    def __rsub__(self, other: int | Int) -> int: ...
+
+    @overload
+    def __rsub__(self, other: float | Float) -> float: ...
 
     def __rsub__(self, other):
         return self._promoted_value_op(other, lambda x, y: y - x)
 
+    @overload
+    def __mul__(self, other: int | Int) -> int: ...
+
+    @overload
+    def __mul__(self, other: float | Float) -> float: ...
+
     def __mul__(self, other):
         return self._promoted_value_op(other, operator.mul)
+
+    @overload
+    def __rmul__(self, other: int | Int) -> int: ...
+
+    @overload
+    def __rmul__(self, other: float | Float) -> float: ...
 
     def __rmul__(self, other):
         return self._promoted_value_op(other, lambda x, y: y * x)
 
-    def __truediv__(self, other):
+    def __truediv__(self, other: int | float | Int | Float) -> float:
         return self._promoted_value_op(other, operator.truediv)
 
-    def __rtruediv__(self, other):
+    def __rtruediv__(self, other: int | float | Int | Float) -> float:
         return self._promoted_value_op(other, lambda x, y: y / x)
+
+    @overload
+    def __floordiv__(self, other: int | Int) -> int: ...
+
+    @overload
+    def __floordiv__(self, other: float | Float) -> float: ...
 
     def __floordiv__(self, other):
         return self._promoted_value_op(other, operator.floordiv)
 
+    @overload
+    def __rfloordiv__(self, other: int | Int) -> int: ...
+
+    @overload
+    def __rfloordiv__(self, other: float | Float) -> float: ...
+
     def __rfloordiv__(self, other):
         return self._promoted_value_op(other, lambda x, y: y // x)
+
+    @overload
+    def __mod__(self, other: int | Int) -> int: ...
+
+    @overload
+    def __mod__(self, other: float | Float) -> float: ...
 
     def __mod__(self, other):
         return self._promoted_value_op(other, operator.mod)
 
+    @overload
+    def __rmod__(self, other: int | Int) -> int: ...
+
+    @overload
+    def __rmod__(self, other: float | Float) -> float: ...
+
     def __rmod__(self, other):
         return self._promoted_value_op(other, lambda x, y: y % x)
 
-    def __pow__(self, other):
+    def __pow__(self, other: int | float | Int | Float) -> Any:
         return self._promoted_value_op(other, operator.pow)
 
-    def __rpow__(self, other):
+    def __rpow__(self, other: int | float | Int | Float) -> Any:
         return self._promoted_value_op(other, lambda x, y: y**x)
 
-    def __and__(self, other):
+    def __and__(self, other: int | Int) -> int:
         return self._promoted_value_op(other, operator.and_)
 
-    def __rand__(self, other):
+    def __rand__(self, other: int | Int) -> int:
         return self._promoted_value_op(other, lambda x, y: y & x)
 
-    def __or__(self, other):
+    def __or__(self, other: int | Int) -> int:
         return self._promoted_value_op(other, operator.or_)
 
-    def __ror__(self, other):
+    def __ror__(self, other: int | Int) -> int:
         return self._promoted_value_op(other, lambda x, y: y | x)
 
-    def __xor__(self, other):
+    def __xor__(self, other: int | Int) -> int:
         return self._promoted_value_op(other, operator.xor)
 
-    def __rxor__(self, other):
+    def __rxor__(self, other: int | Int) -> int:
         return self._promoted_value_op(other, lambda x, y: y ^ x)
 
-    def __lshift__(self, other):
+    def __lshift__(self, other: int | Int) -> int:
         return self._promoted_value_op(other, operator.lshift)
 
-    def __rlshift__(self, other):
+    def __rlshift__(self, other: int | Int) -> int:
         return self._promoted_value_op(other, lambda x, y: y << x)
 
-    def __rshift__(self, other):
+    def __rshift__(self, other: int | Int) -> int:
         return self._promoted_value_op(other, operator.rshift)
 
-    def __rrshift__(self, other):
+    def __rrshift__(self, other: int | Int) -> int:
         return self._promoted_value_op(other, lambda x, y: y >> x)
 
-    def __invert__(self):
+    def __invert__(self) -> int:
         # The classic C gotcha, faithfully: ~ promotes, so the result is
         # plain -(value + 1). The width-preserving spelling is ~self.bits.
         return ~self.value
@@ -387,54 +455,55 @@ class Int(BitType[int]):
     # Ordering comparisons (value-based, like __eq__; new in the promotion
     # model - they previously did not exist at all).
 
-    def __lt__(self, other):
+    def __lt__(self, other: int | float | Int | Float) -> bool:
         return self._promoted_value_op(other, operator.lt)
 
-    def __le__(self, other):
+    def __le__(self, other: int | float | Int | Float) -> bool:
         return self._promoted_value_op(other, operator.le)
 
-    def __gt__(self, other):
+    def __gt__(self, other: int | float | Int | Float) -> bool:
         return self._promoted_value_op(other, operator.gt)
 
-    def __ge__(self, other):
+    def __ge__(self, other: int | float | Int | Float) -> bool:
         return self._promoted_value_op(other, operator.ge)
 
     # Compound assignment: read-promote, compute full-width, narrowing store.
+    # Type-preserving (returns self after the narrowing store).
 
-    def __iadd__(self, other):
+    def __iadd__(self: IntSelf, other: int | float | Int | Float) -> IntSelf:
         return self._inplace_value_op(other, operator.add)
 
-    def __isub__(self, other):
+    def __isub__(self: IntSelf, other: int | float | Int | Float) -> IntSelf:
         return self._inplace_value_op(other, operator.sub)
 
-    def __imul__(self, other):
+    def __imul__(self: IntSelf, other: int | float | Int | Float) -> IntSelf:
         return self._inplace_value_op(other, operator.mul)
 
-    def __itruediv__(self, other):
+    def __itruediv__(self: IntSelf, other: int | float | Int | Float) -> IntSelf:
         return self._inplace_value_op(other, operator.truediv)
 
-    def __ifloordiv__(self, other):
+    def __ifloordiv__(self: IntSelf, other: int | float | Int | Float) -> IntSelf:
         return self._inplace_value_op(other, operator.floordiv)
 
-    def __imod__(self, other):
+    def __imod__(self: IntSelf, other: int | float | Int | Float) -> IntSelf:
         return self._inplace_value_op(other, operator.mod)
 
-    def __ipow__(self, other):
+    def __ipow__(self: IntSelf, other: int | float | Int | Float) -> IntSelf:
         return self._inplace_value_op(other, operator.pow)
 
-    def __iand__(self, other):
+    def __iand__(self: IntSelf, other: int | Int) -> IntSelf:
         return self._inplace_value_op(other, operator.and_)
 
-    def __ior__(self, other):
+    def __ior__(self: IntSelf, other: int | Int) -> IntSelf:
         return self._inplace_value_op(other, operator.or_)
 
-    def __ixor__(self, other):
+    def __ixor__(self: IntSelf, other: int | Int) -> IntSelf:
         return self._inplace_value_op(other, operator.xor)
 
-    def __ilshift__(self, other):
+    def __ilshift__(self: IntSelf, other: int | Int) -> IntSelf:
         return self._inplace_value_op(other, operator.lshift)
 
-    def __irshift__(self, other):
+    def __irshift__(self: IntSelf, other: int | Int) -> IntSelf:
         return self._inplace_value_op(other, operator.rshift)
 
 
