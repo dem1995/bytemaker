@@ -110,6 +110,8 @@ __all__ = [
     "Struct",
     "StructMeta",
     "Array",
+    "field",
+    "array",
     "DEBUG_VALIDATE",
     "NarrowingConfig",
     "NarrowingWarning",
@@ -542,7 +544,53 @@ def _generate_methods(cls, field_defs, defaults) -> None:
 # --------------------------------------------------------------------------
 
 
-@dataclass_transform(eq_default=True)
+_MISSING = object()
+
+
+class _FieldSpec:
+    """Runtime marker produced by :func:`field`/:func:`array`. Carries the
+    field's bytemaker type (a BitType class, a Struct class, or an
+    :class:`Array`) and an optional default. The metaclass reads the type
+    from here when a field is spelled ``name: <plain type> = field(...)``,
+    so the annotation stays the plain checker type."""
+
+    __slots__ = ("bittype", "default")
+
+    def __init__(self, bittype, default=_MISSING):
+        self.bittype = bittype
+        self.default = default
+
+
+def field(bittype: Any, *, default: Any = _MISSING) -> Any:
+    """Declare a Struct field whose *checker* type is the annotation and
+    whose *wire* type is ``bittype`` — a scalar BitType class, a
+    ``String``/``Buffer`` type (e.g. from ``String.of(...)``), a nested
+    ``Struct`` class, or an ``Array``. The checker-friendly counterpart to
+    the annotation-carries-the-type spellings (``uN``, ``Annotated[...]``)::
+
+        hp:   int = field(UInt8)
+        name: str = field(String.of(nbytes=4, encoding=MON_TABLE))
+
+    Returns ``Any`` to type checkers so it is assignable to any field
+    annotation; the field's real type comes from the annotation (via
+    dataclass_transform), the wire type from ``bittype`` at runtime.
+    """
+    return _FieldSpec(bittype, default)
+
+
+def array(
+    element: Any,
+    count: int,
+    *,
+    endian: Any = None,
+    default: Any = _MISSING,
+) -> Any:
+    """Declare a fixed-count array field: ``colors: list[int] = array(UInt16, 8)``.
+    Sugar for ``field(element * count)`` with a plain-list checker type."""
+    return _FieldSpec(Array.of(element, count, endian), default)
+
+
+@dataclass_transform(eq_default=True, field_specifiers=(field, array))
 class StructMeta(type):
     """Metaclass of :class:`Struct`: turns annotated class bodies into
     compiled, slots-backed record classes, and provides ``T * N`` sugar."""
@@ -574,6 +622,12 @@ class StructMeta(type):
             raise PlanCompileError(f"{name} declares no fields")
 
         defaults: Dict[str, Any] = {}
+        # Fields spelled `name: <plain type> = field(...)` / `= array(...)`
+        # carry their wire type in the RHS _FieldSpec (the annotation is the
+        # plain checker type). Collect those here; the rest resolve their
+        # type from the annotation via _unwrap_annotation, as before.
+        specs: Dict[str, Any] = {}
+        seen_default = False
         for n in field_names:
             # Reserved-name guard: field descriptors are installed with plain
             # setattr, so a colliding name would silently shadow the Struct
@@ -591,9 +645,24 @@ class StructMeta(type):
                     f" (e.g. {n + '_'!r} — layout is positional, so field"
                     f" names never affect the wire format)"
                 )
+            has_default = False
             if n in ns:
-                defaults[n] = ns.pop(n)
-            elif defaults:
+                val = ns.pop(n)
+                if isinstance(val, _FieldSpec):
+                    specs[n] = val.bittype  # wire type from the RHS spec
+                    if val.default is not _MISSING:
+                        defaults[n] = val.default
+                        has_default = True
+                else:
+                    defaults[n] = val  # a plain default value
+                    has_default = True
+            # A required field (no default) may not follow a defaulted one —
+            # the generated __init__ would put a non-default param after a
+            # defaulted one. A spec-without-default is required even though it
+            # has a class-body assignment, so key this off has_default.
+            if has_default:
+                seen_default = True
+            elif seen_default:
                 raise PlanCompileError(
                     f"{name}.{n}: field without a default follows fields"
                     f" with defaults"
@@ -604,7 +673,8 @@ class StructMeta(type):
 
         hints = _resolve_hints(cls)
         field_defs: List[Tuple[str, type]] = [
-            (n, _unwrap_annotation(name, n, hints[n])) for n in field_names
+            (n, specs[n] if n in specs else _unwrap_annotation(name, n, hints[n]))
+            for n in field_names
         ]
 
         if endian is None:

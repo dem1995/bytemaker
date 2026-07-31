@@ -53,11 +53,20 @@ from bytemaker.bitvector import (
     FixedLengthBitVector,
 )
 from bytemaker.plans import Plan, PlanCompileError
-from bytemaker.structs import Array, NarrowingConfig, NarrowingWarning, Struct
+from bytemaker.structs import (
+    Array,
+    NarrowingConfig,
+    NarrowingWarning,
+    Struct,
+    array,
+    field,
+)
 
 __all__ = [
     "Struct",
     "Array",
+    "field",
+    "array",
     "Plan",
     "PlanCompileError",
     "NarrowingConfig",

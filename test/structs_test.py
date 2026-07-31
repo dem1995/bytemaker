@@ -37,7 +37,7 @@ from bytemaker.bittypes import (
 )
 from bytemaker.bittypes.int import SignedConfig
 from bytemaker.plans import PlanCompileError
-from bytemaker.structs import Array, Codec, Struct, u16, u32
+from bytemaker.structs import Array, Codec, Struct, array, field, u8, u16, u32
 import bytemaker.structs as structs_mod
 
 
@@ -1005,6 +1005,96 @@ def test_array_of_struct_element_aliases_like_nested_struct():
     x, y = N(), N()
     x.vals[0] = 5
     assert y.vals[0] == 0 and x.vals is not y.vals
+
+
+# ------------------------------------------------ field()/array() specifiers
+def test_field_specifier_all_kinds_roundtrip():
+    """field()/array() carry the wire type on the RHS so the annotation is
+    the plain checker type; runtime behaves identically to the annotation
+    forms. (mypy contract: test/_typing_repro.py.)"""
+    Name4 = UTF8String.of(nbytes=4)
+    Buf2 = Buffer.of(nbytes=2)
+
+    class RGB(Struct, endian="little"):
+        r: int = field(UInt8)
+        g: int = field(UInt8)
+
+    class Rec(Struct, endian="little"):
+        hp: int = field(UInt8)
+        speed: float = field(Float32)
+        name: str = field(Name4)
+        data: bytes = field(Buf2)
+        child: RGB = field(RGB)
+        colors: list = array(UInt16, 3)
+
+    r = Rec(hp=1, speed=1.5, name="ab", data=b"xy",
+            child=RGB(r=1, g=2), colors=[10, 20, 30])
+    assert Rec.parse(r.pack()) == r
+    assert isinstance(r.hp, int) and isinstance(r.name, str)
+    assert isinstance(r.data, bytes) and isinstance(r.child, RGB)
+    assert r.colors == [10, 20, 30]
+    r.colors[0] = 70000  # array element still narrows at the store
+    assert r.colors[0] == 4464
+
+
+def test_field_specifier_matches_annotation_form_bytes():
+    """A field() spec produces byte-identical layout to the equivalent
+    annotation-carried spelling."""
+    class ViaSpec(Struct, endian="little"):
+        a: int = field(UInt16)
+        b: int = field(UInt8)
+
+    class ViaAnno(Struct, endian="little"):
+        a: u16
+        b: UInt8
+
+    assert ViaSpec(a=0x0102, b=3).pack() == ViaAnno(a=0x0102, b=3).pack()
+
+
+def test_field_specifier_default_and_mutable_default():
+    class S(Struct, endian="little"):
+        hp: int = field(UInt8, default=100)
+        colors: list = array(UInt8, 3, default=[1, 2, 3])
+
+    a, b = S(), S()
+    assert a.hp == 100 and list(a.colors) == [1, 2, 3]
+    a.colors[0] = 9
+    assert b.colors[0] == 1 and a.colors is not b.colors  # per-instance snapshot
+
+
+def test_field_specifier_coexists_with_alias_and_bare():
+    """One record mixing every declaration style compiles and round-trips."""
+    from typing import Annotated
+
+    class RGB(Struct, endian="little"):
+        r: u8
+
+    class Mix(Struct, endian="little"):
+        a: u8                                  # terse alias
+        b: int = field(UInt8)                  # specifier
+        c: Annotated[int, UInt8]               # explicit Annotated
+        d: RGB                                 # bare nested Struct
+        e: list = array(UInt8, 2)              # array specifier
+
+    m = Mix(a=1, b=2, c=3, d=RGB(r=4), e=[5, 6])
+    assert Mix.parse(m.pack()) == m
+
+
+def test_field_specifier_array_explicit_endian_honored():
+    class M(Struct, endian="little"):
+        be: list = array(UInt16, 2, endian="big")
+        le: list = array(UInt16, 2)
+
+    raw = M(be=[0x0102, 0x0304], le=[0x0102, 0x0304]).pack()
+    assert raw[:4] == b"\x01\x02\x03\x04"  # explicit big honored
+    assert raw[4:8] == b"\x02\x01\x04\x03"  # inherits little
+
+
+def test_field_specifier_required_after_default_rejected():
+    with pytest.raises(PlanCompileError, match="follows fields with defaults"):
+        class Bad(Struct, endian="big"):
+            a: int = field(UInt8, default=1)
+            b: int = field(UInt8)  # required (no default) after a defaulted field
 
 
 # --------------------------------------------------------------- bulk hatch

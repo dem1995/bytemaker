@@ -10,16 +10,28 @@ and it must report the two ``reveal_type`` notes below and **no errors**
 except the ones marked ``# type: ignore[...]`` (which are the negative
 cases -- ``--warn-unused-ignores`` proves the checker really rejects them).
 
-Covers the checker-friendly spellings:
-- scalar fields via the ``uN``/``sN``/``fN`` aliases (``Annotated[int, UIntN]``);
-- array fields via ``Annotated[list[T], Elem * N]`` -- the array analog of
-  the ``uN`` pattern (the terse runtime sugar ``Elem * N`` is not a valid
-  type to a checker, so the checker-friendly form carries the element/count
-  in the ``Annotated`` metadata while the first arg is the plain list type).
+Covers both checker-friendly declaration styles:
+- annotation-carried: ``uN``/``sN``/``fN`` for scalars, bare for nested
+  Struct, ``Annotated[list[T], Elem * N]`` for arrays;
+- field-specifier: ``x: <plain type> = field(...)`` / ``= array(...)`` --
+  the annotation is the plain checker type, the wire type rides the RHS
+  specifier (which returns ``Any``, so it is assignable to any annotation).
+Both produce identical runtime + identical checker types.
 """
 from typing import Annotated, List
 
-from bytemaker import Struct, UInt16, Float32, u8, u16
+from bytemaker import (
+    Buffer,
+    Float32,
+    Struct,
+    UInt8,
+    UInt16,
+    UTF8String,
+    array,
+    field,
+    u8,
+    u16,
+)
 
 
 class RGB(Struct, endian="little"):
@@ -61,3 +73,24 @@ p.colors[0] = "x"          # type: ignore
 p.colors = "not a list"    # type: ignore
 p.tiles[0] = 5             # type: ignore
 bad = Palette(colors="x", coeffs=[], tiles=[], count=0)  # type: ignore
+
+
+# --- field-specifier style: annotation is the plain type, RHS is the spec ---
+class Spec(Struct, endian="little"):
+    hp: int = field(UInt8)
+    speed: float = field(Float32)
+    name: str = field(UTF8String.of(nbytes=4))
+    data: bytes = field(Buffer.of(nbytes=2))
+    tags: List[int] = array(UInt16, 3)
+    child: RGB = field(RGB)
+
+
+s = Spec(hp=1, speed=1.5, name="ab", data=b"xy", tags=[1, 2, 3], child=RGB(r=1, g=2))
+reveal_type(s.hp)     # noqa: F821  -> int
+reveal_type(s.name)   # noqa: F821  -> str
+reveal_type(s.data)   # noqa: F821  -> bytes
+reveal_type(s.tags)   # noqa: F821  -> list[int]
+reveal_type(s.child)  # noqa: F821  -> RGB
+s.hp = "x"            # type: ignore  # field is int
+s.name = 5            # type: ignore  # field is str
+s.tags[0] = "x"       # type: ignore  # list[int]
