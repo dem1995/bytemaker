@@ -1119,6 +1119,20 @@ class Array:
     encode-validation for text) or boxes. ``endian`` governs numeric
     elements' byte order; text/bytes elements have no byte order and stay
     in stream order (as in the plan engine and C ``char[]``).
+
+    **Type-checking an array field.** The terse ``field: Elem * N`` spelling
+    works at runtime but is not a valid *type* to a checker (``Elem * N`` is
+    an expression, not a type). For checker visibility use the ``Annotated``
+    form — the array analog of the ``uN`` scalar aliases::
+
+        colors: Annotated[list[int], UInt16 * 8]   # reads as list[int]
+        tiles:  Annotated[list[RGB], RGB * 3]       # reads as list[RGB]
+
+    The first argument is the plain type the field reads/writes as
+    (``list[int]`` / ``list[float]`` / ``list[YourStruct]``); the ``Elem * N``
+    metadata is the runtime :class:`Array` (unwrapped by the field
+    machinery). Bind it to a module-level alias to reuse it. See
+    ``test/_typing_repro.py`` for the mypy contract.
     """
 
     # Immutable value object: the byte order is compiled into the scalar

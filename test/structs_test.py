@@ -965,6 +965,27 @@ def test_array_field_oneshot_iterable_default_not_shared():
     assert list(S().vals) == [0, 1, 2]  # 2nd instance not empty
 
 
+def test_array_field_annotated_checker_spelling_roundtrips():
+    """The checker-friendly spelling `Annotated[list[T], Elem * N]` (see
+    test/_typing_repro.py for the mypy contract) works identically at
+    runtime -- the Array metadata is unwrapped exactly like the terse
+    `Elem * N`."""
+    from typing import Annotated
+
+    Colors = Annotated[list, UInt16 * 3]  # module-alias style
+
+    class P(Struct, endian="little"):
+        colors: Colors
+        tiles: Annotated[list, WarpDestination * 2]  # struct-element array
+        count: UInt8
+
+    rows = [WarpDestination(i, i + 1, i + 2, -i, i) for i in range(2)]
+    p = P(colors=[1, 2, 70000], tiles=rows, count=2)
+    assert p.colors == [1, 2, 4464]  # item narrowed at the store
+    assert P.parse(p.pack()) == p  # round-trips like the terse spelling
+    assert P.plan.byte_offset("colors.2") == 4
+
+
 def test_array_of_struct_element_aliases_like_nested_struct():
     """Struct element instances are stored by reference (like a scalar
     nested-Struct field), so a shared default aliases across instances --
