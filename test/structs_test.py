@@ -555,18 +555,26 @@ def test_scalar_array_matches_box_reference(elem, endian):
     assert arr.pack(out) == data
 
 
-def test_scalar_array_exotic_signed_config_falls_back():
-    """Under a non-default SignedConfig the box path is the reference;
-    the two's-complement fast paths must not engage."""
+def test_scalar_array_ignores_signed_config():
+    """R9 / 13 #17: the new Struct/Plan/Array system is two's-complement and
+    config-INDEPENDENT (SignedConfig governs only the legacy layer). A
+    standalone Array and the same schema as a Struct field must agree
+    byte-for-byte under ANY global config -- both two's complement."""
+    data = bytes([0x80, 0x05, 0x00, 0x05])
     arr = Array.of(SInt16, 2, endian="big")
+
+    class Rec(Struct, endian="big"):
+        v: SInt16 * 2
+
     old = SignedConfig.signed_int_format
-    SignedConfig.signed_int_format = "signed_magnitude"
-    try:
-        out = arr.parse(bytes([0x80, 0x05, 0x00, 0x05]))
-        assert out == [-5, 5]
-        assert arr.pack(out) == bytes([0x80, 0x05, 0x00, 0x05])
-    finally:
-        SignedConfig.signed_int_format = old
+    for cfg in ("twos_complement", "signed_magnitude", "ones_complement"):
+        SignedConfig.signed_int_format = cfg
+        try:
+            assert arr.parse(data) == [-32763, 5]  # two's complement, always
+            assert arr.pack(arr.parse(data)) == data  # standalone round-trip
+            assert list(Rec.parse(data).v) == arr.parse(data)  # field == standalone
+        finally:
+            SignedConfig.signed_int_format = old
 
 
 def test_text_and_bytes_array_elements_stream_order():

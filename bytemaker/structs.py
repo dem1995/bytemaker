@@ -57,14 +57,12 @@ from bytemaker.bittypes import (
     Int,
     SInt,
     String,
-    bytes_to_bittype,
 )
 from bytemaker.bittypes.bittype import (
     NarrowingConfig,
     NarrowingWarning,
     _warn_narrowing,
 )
-from bytemaker.bittypes.int import SignedConfig
 from bytemaker.plans import Plan, PlanCompileError, _classify_scalar, compile_plan
 from bytemaker.typing_redirect import (
     Any,
@@ -1308,16 +1306,11 @@ class Array:
             if issubclass(element, String):
                 return [element._decode_wire(c) for c in chunks]
             return chunks
-        if kind == "s" and SignedConfig.signed_int_format != "twos_complement":
-            # Exotic global signed format: the box path is the config-aware
-            # reference; the struct/int.from_bytes routes assume two's
-            # complement.
-            return [
-                bytes_to_bittype(
-                    bytes(data[i : i + size]), element, endianness=self.endian
-                ).value
-                for i in range(0, self.num_bytes, size)
-            ]
+        # Numeric elements decode two's-complement / IEEE, config-INDEPENDENT:
+        # the new Struct/Plan/Array system does not consult SignedConfig
+        # (that legacy global governs only the aggregate/BitType layer). This
+        # makes a standalone Array and the same schema used as a Struct field
+        # agree byte-for-byte -- see R9 / tracker 13 #17.
         if struct_obj is not None:
             return list(struct_obj.unpack(data))  # one C-level call
         signed = kind == "s"
@@ -1336,16 +1329,26 @@ class Array:
             return b"".join(v.pack() for v in values)
         if isinstance(element, Array):
             return b"".join(element.pack(v) for v in values)
-        # Text/bytes elements stay in stream order; endian byte-swaps
-        # numeric elements only (mirrors parse).
-        swap = self.endian == "little" and self._scalar_codec[0] != "b"
-        parts = []
-        for v in values:
-            if not isinstance(v, element):
-                v = element(v)  # C-narrowing / encode-validation via the box
-            b = bytes(v.bits)  # canonical big-endian bits, instance-agnostic
-            parts.append(b[::-1] if swap else b)
-        return b"".join(parts)
+        kind, struct_obj = self._scalar_codec
+        if kind == "b":
+            # Text/bytes elements: stream order, via the box's wire bytes
+            # (no byte order to apply; not affected by SignedConfig).
+            parts = []
+            for v in values:
+                if not isinstance(v, element):
+                    v = element(v)  # encode-validation via the box
+                parts.append(bytes(v.bits))
+            return b"".join(parts)
+        # Numeric elements: two's-complement / IEEE, config-INDEPENDENT and
+        # narrowed at the boundary exactly as parse decodes (R9 / 13 #17).
+        # struct_obj already carries the byte order, so no manual swap.
+        coerced = self._coerce_seq(values)
+        if struct_obj is not None:
+            return struct_obj.pack(*coerced)
+        size = element.num_bits // 8  # letter-less whole-byte int (e.g. UInt24)
+        return b"".join(
+            v.to_bytes(size, self.endian, signed=(kind == "s")) for v in coerced
+        )
 
     def __mul__(self, count: int) -> "Array":
         return Array.of(self, count)
