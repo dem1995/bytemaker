@@ -199,10 +199,11 @@ class _SIntField:
 
 
 class _FloatField:
-    __slots__ = ("_slot",)
+    __slots__ = ("_slot", "_ftype")
 
-    def __init__(self, slot):
+    def __init__(self, slot, ftype):
         self._slot = slot
+        self._ftype = ftype
 
     def __get__(self, obj, objtype=None):
         if obj is None:
@@ -210,7 +211,10 @@ class _FloatField:
         return self._slot.__get__(obj, objtype)
 
     def __set__(self, obj, value):
-        self._slot.__set__(obj, float(value))
+        # Narrow through the codec so the stored value is exactly what pack()
+        # serializes (D1) -- a Float32 field must not read back a full-width
+        # double. Float64 narrowing is a no-op (native width).
+        self._slot.__set__(obj, self._ftype(float(value)).value)
 
 
 class _StrField:
@@ -273,6 +277,108 @@ class _StructField:
         self._slot.__set__(obj, value)
 
 
+class NarrowingList(list):
+    """A fixed-length list that narrows every element at the store (D1) and
+    refuses length change (R1 / :class:`FixedLengthBitVector`, list edition).
+
+    Backs an :class:`Array` *field*. Item and length-preserving slice writes
+    C-narrow each element through the element type and pass through;
+    ``append``/``extend``/``insert``/``pop``/``remove``/``clear``/``del``/
+    ``+=``/``*=`` and length-changing slice assignment raise. The field hands
+    out this live object, so ``s.colors[0] = 70000`` narrows to ``4464`` in
+    place -- a C lvalue, and a read that never lies about what ``pack()``
+    will serialize. Reordering in place (``reverse``/``sort``) is allowed:
+    it preserves length and the already-narrowed contents.
+    """
+
+    __slots__ = ("_arr",)
+
+    def __init__(self, arr, values):
+        # values are pre-coerced (Array._coerce_seq) or trusted (parse).
+        super().__init__(values)
+        self._arr = arr
+
+    def _violation(self):
+        return ValueError(
+            f"length is invariant ({len(self)} elements): an array field is"
+            f" fixed-count; assign a full-length sequence to replace it"
+        )
+
+    def __setitem__(self, key, value):
+        if isinstance(key, slice):
+            vals = [self._arr._coerce_one(v) for v in value]
+            span = len(range(*key.indices(len(self))))
+            if len(vals) != span:
+                raise self._violation()
+            super().__setitem__(key, vals)
+        else:
+            super().__setitem__(key, self._arr._coerce_one(value))
+
+    def __delitem__(self, key):
+        raise self._violation()
+
+    def append(self, value):
+        raise self._violation()
+
+    def extend(self, values):
+        raise self._violation()
+
+    def insert(self, index, value):
+        raise self._violation()
+
+    def pop(self, index=-1):
+        raise self._violation()
+
+    def remove(self, value):
+        raise self._violation()
+
+    def clear(self):
+        raise self._violation()
+
+    def __iadd__(self, other):
+        raise self._violation()
+
+    def __imul__(self, count):
+        raise self._violation()
+
+    def __reduce__(self):
+        # copy/deepcopy/pickle: rebuild via the constructor, never list's
+        # default reduce (which repopulates an empty instance through the
+        # guarded append/extend and would raise). Contents are already
+        # coerced, so the constructor stores them as trusted.
+        return (NarrowingList, (self._arr, list(self)))
+
+
+class _ArrayField:
+    """Descriptor for an Array field: the slot holds a live
+    :class:`NarrowingList`; assignment snapshots into a fresh fixed-length
+    list (the caller's *sequence* is never aliased, per R1).
+
+    Scope note: the snapshot copies the list container and narrows numeric
+    elements to plain values. Struct *element instances* are stored by
+    reference (not deep-copied) -- exactly as a scalar nested-Struct field
+    does via :class:`_StructField` -- so a shared mutable Struct element or
+    a shared Struct-element default aliases across instances the same way a
+    nested-Struct field's default does. Numeric elements are immutable, so
+    numeric arrays are fully independent."""
+
+    __slots__ = ("_slot", "_arr")
+
+    def __init__(self, slot, arr):
+        self._slot = slot
+        self._arr = arr
+
+    def __get__(self, obj, objtype=None):
+        if obj is None:
+            return self
+        return self._slot.__get__(obj, objtype)
+
+    def __set__(self, obj, value):
+        self._slot.__set__(
+            obj, NarrowingList(self._arr, self._arr._coerce_seq(value))
+        )
+
+
 # Annotation-only ClassVars (invisible to hasattr on the base) that the
 # metaclass assigns per class; everything else reserved is caught by the
 # hasattr-over-bases check (which auto-covers future API) or the _bm_ prefix.
@@ -296,21 +402,21 @@ def _unwrap_annotation(owner: str, field: str, hint) -> type:
     through; anything else is a compile error."""
     if Annotated is not None and get_origin(hint) is Annotated:
         for meta in get_args(hint)[1:]:
-            if isinstance(meta, StructMeta) or (
+            if isinstance(meta, (StructMeta, Array)) or (
                 isinstance(meta, type) and issubclass(meta, BitType)
             ):
                 return meta
         raise PlanCompileError(
-            f"{owner}.{field}: Annotated[...] carries no BitType or Struct"
-            f" class in its metadata"
+            f"{owner}.{field}: Annotated[...] carries no BitType, Struct,"
+            f" or Array in its metadata"
         )
-    if isinstance(hint, StructMeta) or (
+    if isinstance(hint, (StructMeta, Array)) or (
         isinstance(hint, type) and issubclass(hint, BitType)
     ):
         return hint
     raise PlanCompileError(
         f"{owner}.{field}: annotation {hint!r} is not a BitType class, a"
-        f" Struct, or an Annotated[...] of one"
+        f" Struct, an Array, or an Annotated[...] of one"
     )
 
 
@@ -325,12 +431,20 @@ def _generate_methods(cls, field_defs, defaults) -> None:
     slot_of = {}
     child_of = {}
     str_of = {}  # String fields: slot holds str; the tuple carries wire bytes
+    array_of = {}  # Array fields: (arr_var, elem_struct_var_or_None)
     for i, (n, ftype) in enumerate(field_defs):
         slot_of[n] = f"_s{i}"
         env[f"_s{i}"] = cls.__dict__["_bm_" + n]
         if isinstance(ftype, StructMeta):
             child_of[n] = f"_c{i}"
             env[f"_c{i}"] = ftype
+        elif isinstance(ftype, Array):  # before issubclass (instance!)
+            env[f"_a{i}"] = ftype
+            elem_var = None
+            if isinstance(ftype.element, StructMeta):
+                elem_var = f"_ae{i}"
+                env[elem_var] = ftype.element
+            array_of[n] = (f"_a{i}", elem_var)
         elif isinstance(ftype, type) and issubclass(ftype, String):
             str_of[n] = (f"_enc{i}", f"_dec{i}")
             env[f"_enc{i}"] = ftype._encode_padded
@@ -340,7 +454,16 @@ def _generate_methods(cls, field_defs, defaults) -> None:
     params = []
     for n in names:
         if n in defaults:
-            env[f"_d_{n}"] = defaults[n]
+            dflt = defaults[n]
+            if n in array_of and not isinstance(dflt, (list, tuple)):
+                # A one-shot iterable default (generator/map/zip) lives once
+                # in __init__.__defaults__ and would be consumed by the
+                # first instance, leaving every later one empty. Materialize
+                # to a tuple so each instance gets an independent snapshot
+                # (the per-instance list() copy in _coerce_seq handles the
+                # rest, exactly as for a list/tuple default).
+                dflt = tuple(dflt)
+            env[f"_d_{n}"] = dflt
             params.append(f"{n}=_d_{n}")
         else:
             params.append(n)
@@ -360,6 +483,24 @@ def _generate_methods(cls, field_defs, defaults) -> None:
                 f" {child_of[n]}._bm_from_tuple(values[{idx}:{idx + span}]))"
             )
             idx += span
+        elif n in array_of:
+            arr_var, elem_var = array_of[n]
+            count = ftype.count
+            if elem_var is not None:  # Struct-element array: rebuild each
+                span = len(ftype.element.plan.fields)
+                lines.append(
+                    f"    {slot_of[n]}.__set__(obj, {arr_var}.field_list(["
+                    f"{elem_var}._bm_from_tuple("
+                    f"values[{idx}+k*{span}:{idx}+(k+1)*{span}])"
+                    f" for k in range({count})]))"
+                )
+                idx += count * span
+            else:  # numeric array: the count flat entries are the values
+                lines.append(
+                    f"    {slot_of[n]}.__set__(obj, {arr_var}.field_list("
+                    f"values[{idx}:{idx + count}]))"
+                )
+                idx += count
         elif n in str_of:
             lines.append(
                 f"    {slot_of[n]}.__set__(obj, {str_of[n][1]}(values[{idx}]))"
@@ -376,6 +517,15 @@ def _generate_methods(cls, field_defs, defaults) -> None:
     for n, _ftype in field_defs:
         if n in child_of:
             parts.append(f"*{child_of[n]}._bm_to_tuple({slot_of[n]}.__get__(obj))")
+        elif n in array_of:
+            arr_var, elem_var = array_of[n]
+            if elem_var is not None:  # splat each element struct's leaves
+                parts.append(
+                    f"*[x for e in {slot_of[n]}.__get__(obj)"
+                    f" for x in {elem_var}._bm_to_tuple(e)]"
+                )
+            else:  # splat the numeric list straight in
+                parts.append(f"*{slot_of[n]}.__get__(obj)")
         elif n in str_of:
             parts.append(f"{str_of[n][0]}({slot_of[n]}.__get__(obj))")
         else:
@@ -480,6 +630,8 @@ class StructMeta(type):
             slot = cls.__dict__["_bm_" + n]
             if isinstance(ftype, StructMeta):
                 descriptor = _StructField(slot, ftype)
+            elif isinstance(ftype, Array):  # before issubclass (instance!)
+                descriptor = _ArrayField(slot, ftype)
             elif issubclass(ftype, Int):
                 mask = (1 << ftype.num_bits) - 1
                 if issubclass(ftype, SInt):
@@ -491,7 +643,7 @@ class StructMeta(type):
             elif issubclass(ftype, Buffer):
                 descriptor = _BytesField(slot, ftype.num_bits // 8)
             else:  # Float; compile_plan already rejected everything else
-                descriptor = _FloatField(slot)
+                descriptor = _FloatField(slot, ftype)
             setattr(cls, n, descriptor)
 
         _generate_methods(cls, field_defs, defaults)
@@ -928,6 +1080,13 @@ class _SizedView:
             ) from None
         if isinstance(ftype, StructMeta):
             return getattr(owner, name).sizedview
+        if isinstance(ftype, Array):
+            # No scalar sized-handle for a list field (a whole-array handle
+            # is a possible future addition); read/write the live list.
+            raise AttributeError(
+                f"array field {name!r} has no scalar sized-view; access its"
+                f" live list via the field itself ({name})"
+            )
         return BoundField(owner, name, ftype)
 
     def __setattr__(self, name, value):
@@ -969,12 +1128,26 @@ class Array:
     # attributes are read-only (and instances are shared via Array.of).
     # Mutating one would desync the cached codec from a live read -- build
     # a new Array to change any of them.
-    __slots__ = ("_element", "_count", "_endian", "_num_bits", "_scalar_codec")
+    __slots__ = (
+        "_element", "_count", "_endian", "_endian_set", "_num_bits",
+        "_scalar_codec",
+    )
     _cache: ClassVar[Dict[tuple, "Array"]] = {}
 
-    def __init__(self, element, count: int, endian: Literal["big", "little"] = "big"):
+    def __init__(
+        self,
+        element,
+        count: int,
+        endian: Optional[Literal["big", "little"]] = None,
+    ):
         if not isinstance(count, int) or count <= 0:
             raise PlanCompileError(f"Array count must be a positive int, got {count!r}")
+        # ``endian=None`` means "unset": standalone parse/pack resolve it to
+        # big (the historical default), but as a Struct FIELD an unset array
+        # inherits the record's byte order (like a C array -- see
+        # compile_plan). An explicit endian is honored either way.
+        self._endian_set = endian is not None
+        resolved = endian if endian is not None else "big"
         self._scalar_codec = None
         if isinstance(element, (StructMeta, Array)):
             elem_bits = element.num_bits
@@ -996,7 +1169,7 @@ class Array:
                 ) from None
             struct_obj = None
             if kind in ("u", "s", "f") and letter is not None:
-                prefix = "<" if endian == "little" else ">"
+                prefix = "<" if resolved == "little" else ">"
                 struct_obj = _pystruct.Struct(f"{prefix}{count}{letter}")
             self._scalar_codec = (kind, struct_obj)
         else:
@@ -1006,7 +1179,7 @@ class Array:
             )
         self._element = element
         self._count = count
-        self._endian = endian
+        self._endian = resolved
         self._num_bits = elem_bits * count
 
     @property
@@ -1027,7 +1200,10 @@ class Array:
 
     @classmethod
     def of(
-        cls, element, count: int, endian: Literal["big", "little"] = "big"
+        cls,
+        element,
+        count: int,
+        endian: Optional[Literal["big", "little"]] = None,
     ) -> "Array":
         try:
             key = (element, count, endian)
@@ -1038,6 +1214,62 @@ class Array:
             return arr
         except TypeError:  # unhashable element
             return cls(element, count, endian)
+
+    def __reduce__(self):
+        # copy/deepcopy/pickle: rebuild from the declarative fields.
+        # _scalar_codec caches a _pystruct.Struct (unpicklable); __init__
+        # regenerates it. Pass endian back as None when unset so the
+        # reconstructed array keeps inheriting the record's byte order.
+        endian = self._endian if self._endian_set else None
+        return (Array, (self._element, self._count, endian))
+
+    # -- field support (R8): store-time narrowing helpers --------------------
+    #: Duck-type marker so ``compile_plan`` (which cannot import Array without
+    #: a structs<->plans cycle) recognizes an array field via getattr.
+    _is_bm_array: ClassVar[bool] = True
+
+    def field_list(self, values) -> "NarrowingList":
+        """Wrap already-decoded, in-range values into a live
+        :class:`NarrowingList` for the parse path (no re-narrow)."""
+        return NarrowingList(self, list(values))
+
+    def _coerce_seq(self, values) -> list:
+        """Validate length and narrow/canonicalize each element C-style, the
+        store-time narrowing an array *field* applies (D1). Returns a plain
+        list; the descriptor wraps it in a live :class:`NarrowingList`."""
+        seq = list(values)
+        if len(seq) != self._count:
+            raise ValueError(
+                f"array field expects exactly {self._count} elements,"
+                f" got {len(seq)}"
+            )
+        return [self._coerce_one(v) for v in seq]
+
+    def _coerce_one(self, value):
+        """Narrow/validate one element to its plain stored form, *exactly*
+        as the scalar field descriptors do: Int/SInt via ``operator.index``
+        + C mask (rejects float/str, emits the opt-in NarrowingWarning);
+        Float narrowed through the codec (D1); Struct type-checked (stored
+        by reference, like ``_StructField``)."""
+        element = self._element
+        if isinstance(element, StructMeta):
+            if not isinstance(value, element):
+                raise TypeError(
+                    f"array element must be a {element.__name__} instance,"
+                    f" got {value!r}"
+                )
+            return value  # by reference, like _StructField (see _ArrayField)
+        if issubclass(element, Int):  # mirrors _UIntField / _SIntField
+            iv = operator.index(value)
+            mask = (1 << element.num_bits) - 1
+            v = iv & mask
+            if issubclass(element, SInt) and v >= (1 << (element.num_bits - 1)):
+                v -= mask + 1
+            if NarrowingConfig.warn and v != iv:
+                _warn_narrowing(iv, v, f"array element ({element.__name__})")
+            return v
+        # Float element: narrow through the codec, matching _FloatField.
+        return element(float(value)).value
 
     @property
     def num_bytes(self) -> int:

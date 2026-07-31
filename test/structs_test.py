@@ -665,6 +665,319 @@ def test_array_cache_identity():
     assert (WarpDestination * 3) is (WarpDestination * 3)
 
 
+# ------------------------------------------------------------ array fields (R8)
+def test_array_field_numeric_matches_hand_written_scalars():
+    """A numeric array field flattens to repeated leaves and is byte- and
+    value-identical to the equivalent hand-written scalar fields."""
+    class Packed(Struct, endian="little"):
+        a: UInt16
+        b: UInt16
+        c: UInt16
+        d: UInt16
+
+    class Arr(Struct, endian="little"):
+        vals: UInt16 * 4
+
+    assert Arr.plan.tier == "struct"
+    assert Arr.plan.struct_obj.format == "<HHHH"
+    raw = Arr(vals=[1, 2, 3, 40000]).pack()
+    assert raw == Packed(a=1, b=2, c=3, d=40000).pack()
+    assert Arr.parse(raw).vals == [1, 2, 3, 40000]
+
+
+def test_array_field_sugar_inherits_record_endian():
+    """`UInt16 * N` (endian unset) inherits the record's byte order (C
+    array), so a little-endian record's array field is little-endian and
+    equals the standalone codec at the record's endian."""
+    class LE(Struct, endian="little"):
+        v: UInt16 * 2
+
+    class BE(Struct, endian="big"):
+        v: UInt16 * 2
+
+    assert LE(v=[0x0102, 0x0304]).pack() == b"\x02\x01\x04\x03"
+    assert BE(v=[0x0102, 0x0304]).pack() == b"\x01\x02\x03\x04"
+    raw = LE(v=[7, 8]).pack()
+    assert LE.parse(raw).v == Array.of(UInt16, 2, endian="little").parse(raw)
+
+
+def test_array_field_explicit_endian_is_honored():
+    """An explicitly-endianed Array field keeps its byte order even against
+    the record's (like a nested Struct with an explicit endian)."""
+    BE2 = Array.of(UInt16, 2, endian="big")
+
+    class Mixed(Struct, endian="little"):
+        be: BE2
+        le: UInt16 * 2
+
+    raw = Mixed(be=[0x0102, 0x0304], le=[0x0102, 0x0304]).pack()
+    assert raw[:4] == b"\x01\x02\x03\x04"  # big
+    assert raw[4:8] == b"\x02\x01\x04\x03"  # little
+    assert Mixed.parse(raw) == Mixed(be=[0x0102, 0x0304], le=[0x0102, 0x0304])
+
+
+def test_array_field_item_store_narrows_d1():
+    """Item and slice writes narrow C-style at the store (D1): a read never
+    returns a value pack() would not serialize."""
+    class S(Struct, endian="little"):
+        vals: UInt16 * 3
+
+    s = S(vals=[0, 0, 0])
+    s.vals[0] = 70000
+    assert s.vals[0] == 70000 & 0xFFFF == 4464  # narrowed in place
+    s.vals[1:3] = [70001, 70002]
+    assert s.vals[1:3] == [4465, 4466]
+    assert S.parse(s.pack()).vals == [4464, 4465, 4466]
+
+
+def test_array_field_is_fixed_length():
+    class S(Struct, endian="big"):
+        vals: UInt8 * 3
+
+    s = S(vals=[1, 2, 3])
+    for op in (
+        lambda: s.vals.append(4),
+        lambda: s.vals.pop(),
+        lambda: s.vals.insert(0, 9),
+        lambda: s.vals.__delitem__(0),
+        lambda: s.vals.__setitem__(slice(0, 2), [1]),  # length-changing slice
+    ):
+        with pytest.raises(ValueError):
+            op()
+    assert s.vals == [1, 2, 3]  # untouched by the failures
+
+
+def test_array_field_assignment_snapshots_and_length_checks():
+    class S(Struct, endian="big"):
+        vals: UInt8 * 3
+
+    ext = [10, 20, 30]
+    s = S(vals=ext)
+    ext[0] = 99
+    assert s.vals[0] == 10  # snapshot: caller's list is not aliased
+    with pytest.raises(ValueError):
+        s.vals = [1, 2]  # wrong length
+
+
+def test_array_field_mutable_default_not_shared():
+    class S(Struct, endian="big"):
+        vals: UInt8 * 3 = [0, 0, 0]
+
+    a, b = S(), S()
+    a.vals[0] = 5
+    assert b.vals[0] == 0 and a.vals is not b.vals
+
+
+def test_array_of_struct_field_and_dotted_offsets():
+    class RGB(Struct, endian="little"):
+        r: UInt8
+        g: UInt8
+        b: UInt8
+
+    class Sprite(Struct, endian="little"):
+        palette: RGB * 3
+        id: UInt16
+
+    assert Sprite.plan.tier == "struct"
+    s = Sprite(palette=[RGB(1, 2, 3), RGB(4, 5, 6), RGB(7, 8, 9)], id=42)
+    assert Sprite.parse(s.pack()) == s
+    assert Sprite.plan.byte_offset("palette.1.g") == 4  # 3-byte RGB + g offset
+    s.palette[0].r = 300  # child's own descriptor narrows
+    assert s.palette[0].r == 44
+
+
+def test_array_of_struct_field_keeps_element_endian_shiftmask():
+    """A big-endian Struct element inside a little record keeps its endian,
+    forcing the shiftmask tier; each leaf must still decode correctly."""
+    class BE(Struct, endian="big"):
+        x: UInt16
+
+    class Rec(Struct, endian="little"):
+        items: BE * 2
+        tag: UInt16
+
+    assert Rec.plan.tier == "shiftmask"
+    r = Rec(items=[BE(0x0102), BE(0x0304)], tag=0x0506)
+    assert Rec.parse(r.pack()) == r
+    assert r.pack()[:4] == b"\x01\x02\x03\x04"  # element stayed big-endian
+
+
+def test_struct_with_array_field_as_array_element():
+    """Recursion: an Array of a Struct that itself has an array field."""
+    class Row(Struct, endian="little"):
+        cells: UInt8 * 2
+        flag: UInt8
+
+    grid = Row * 3
+    rows = [Row(cells=[i, i + 1], flag=i) for i in range(3)]
+    blob = grid.pack(rows)
+    assert grid.parse(blob) == rows
+
+
+def test_array_field_deferred_kinds_rejected():
+    from bytemaker.bittypes import UTF8String
+
+    with pytest.raises(PlanCompileError, match="text/bytes"):
+        class BadStr(Struct):
+            x: UTF8String.of(nbytes=2) * 2
+
+    with pytest.raises(PlanCompileError, match="2-D array"):
+        class Bad2D(Struct):
+            x: (UInt8 * 2) * 2
+
+
+def test_array_field_sizedview_rejected_scalar_still_works():
+    class S(Struct, endian="little"):
+        vals: UInt16 * 2
+        id: UInt8
+
+    s = S(vals=[1, 2], id=9)
+    with pytest.raises(AttributeError, match="array field"):
+        s.sizedview.vals
+    assert s.sizedview.id.value == 9  # scalar handle unaffected
+
+
+def test_array_field_beside_subbyte_forces_record_total_guard():
+    """An array field composes with the existing sub-byte record-total
+    guard; it adds no new sub-byte code path."""
+    with pytest.raises(PlanCompileError, match="whole number of|multiple of 8"):
+        class Bad(Struct):
+            colors: UInt16 * 3  # 48 bits
+            flag: UInt4  # 4 bits -> 52 total, not a byte multiple
+
+
+def test_array_field_repr_and_equality():
+    class S(Struct, endian="little"):
+        vals: UInt8 * 3
+        id: UInt8
+
+    a = S(vals=[1, 2, 3], id=9)
+    b = S(vals=[1, 2, 3], id=9)
+    assert a == b
+    assert repr(a) == "S(vals=[1, 2, 3], id=9)"
+    a.vals[0] = 5
+    assert a != b
+
+
+# -- R8 review fixes -----------------------------------------------------------
+class _PickRGB(Struct, endian="little"):  # module-level so pickle can find it
+    r: UInt8
+    g: UInt8
+
+
+class _PickArr(Struct, endian="little"):
+    vals: UInt16 * 3
+    pts: _PickRGB * 2
+
+
+def test_array_field_copy_deepcopy_pickle_roundtrip():
+    """A Struct with an array field must copy/deepcopy/pickle like plain and
+    nested Structs (NarrowingList and Array both had unpicklable state)."""
+    import copy
+    import pickle
+
+    s = _PickArr(vals=[1, 2, 3], pts=[_PickRGB(1, 2), _PickRGB(3, 4)])
+    for maker in (
+        lambda x: copy.deepcopy(x),
+        lambda x: pickle.loads(pickle.dumps(x)),
+    ):
+        c = maker(s)
+        assert c == s and c.vals is not s.vals
+        c.vals[0] = 9  # deep/pickle copies are independent
+        assert s.vals[0] == 1
+    # copy.copy of the live list rebuilds (was a 0-length ValueError)
+    cc = copy.copy(s.vals)
+    cc[0] = 7
+    assert cc[0] == 7 and s.vals[0] == 1
+
+
+def test_array_int_element_rejects_non_int_like_scalar_field():
+    """Item/whole stores narrow C-style through operator.index, so a float
+    or str is rejected exactly as a scalar Int field rejects it."""
+    class S(Struct, endian="little"):
+        scalar: UInt16
+        arr: UInt16 * 2
+
+    s = S(scalar=0, arr=[0, 0])
+    for bad in (3.7, "5"):
+        with pytest.raises(TypeError):
+            s.scalar = bad
+        with pytest.raises(TypeError):
+            s.arr[0] = bad
+        with pytest.raises(TypeError):
+            s.arr = [bad, 0]
+
+
+def test_float_array_field_narrows_and_matches_scalar():
+    """Float fields (scalar and array) narrow at the store (D1): a read is
+    exactly what pack() serializes, and the two paths agree."""
+    class S(Struct, endian="little"):
+        v: Float32
+        arr: Float32 * 2
+
+    s = S(v=0.1, arr=[0.1, 0.2])
+    assert s.v == s.arr[0]  # scalar and array element agree
+    r = S.parse(s.pack())
+    assert r.v == s.v and list(r.arr) == list(s.arr)  # D1 round-trip
+    s.arr[0] = 0.3
+    assert s.arr[0] == S.parse(s.pack()).arr[0]
+
+
+def test_array_field_narrowing_warning_opt_in():
+    import warnings as pywarnings
+
+    from bytemaker.bittypes.bittype import NarrowingConfig, NarrowingWarning
+
+    class S(Struct, endian="little"):
+        arr: UInt16 * 3
+
+    s = S(arr=[0, 0, 0])
+    NarrowingConfig.warn = True
+    try:
+        with pytest.warns(NarrowingWarning):
+            s.arr[0] = 70000
+        with pytest.warns(NarrowingWarning):
+            s.arr[1:3] = [70001, 70002]
+        with pytest.warns(NarrowingWarning):
+            s.arr = [70000, 70000, 70000]
+        with pywarnings.catch_warnings():
+            pywarnings.simplefilter("error")  # in-range stays silent
+            s.arr[0] = 5
+    finally:
+        NarrowingConfig.warn = False
+
+
+def test_array_field_oneshot_iterable_default_not_shared():
+    """A generator/map default is materialized once so every instance gets
+    an independent snapshot (not consumed by the first)."""
+    class S(Struct, endian="big"):
+        vals: UInt8 * 3 = (x for x in range(3))
+
+    assert list(S().vals) == [0, 1, 2]
+    assert list(S().vals) == [0, 1, 2]  # 2nd instance not empty
+
+
+def test_array_of_struct_element_aliases_like_nested_struct():
+    """Struct element instances are stored by reference (like a scalar
+    nested-Struct field), so a shared default aliases across instances --
+    documented, consistent behavior, not a snapshot of the elements."""
+    class RGB(Struct, endian="big"):
+        r: UInt8
+
+    class S(Struct, endian="big"):
+        pts: RGB * 1 = [RGB(0)]
+
+    a, b = S(), S()
+    assert a.pts[0] is b.pts[0]  # same as scalar nested-struct default
+    # numeric arrays, by contrast, are fully independent (immutable ints)
+    class N(Struct, endian="big"):
+        vals: UInt8 * 3 = [0, 0, 0]
+
+    x, y = N(), N()
+    x.vals[0] = 5
+    assert y.vals[0] == 0 and x.vals is not y.vals
+
+
 # --------------------------------------------------------------- bulk hatch
 def test_plan_unpack_tuple_and_iter_tuples():
     raw = pystruct.pack("<IHHhh", 7, 8, 9, -1, 1)

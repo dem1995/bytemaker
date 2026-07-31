@@ -398,6 +398,30 @@ def compile_plan(
     def add(prefix: str, name: str, ftype: type, field_endian) -> None:
         nonlocal offset
         full = f"{prefix}{name}"
+        if getattr(ftype, "_is_bm_array", False):  # Array field (duck-typed)
+            elem = ftype.element
+            if getattr(elem, "_is_bm_array", False):
+                raise PlanCompileError(
+                    f"{owner_name}.{full}: a 2-D array field is not supported"
+                    f" yet; declare the inner Array as a Struct element, or"
+                    f" flatten to a single Array and index with i*cols + j"
+                )
+            if isinstance(elem, type) and issubclass(elem, (String, Buffer)):
+                raise PlanCompileError(
+                    f"{owner_name}.{full}: an Array of {elem.__name__}"
+                    f" (text/bytes) is not supported as a field yet; use a"
+                    f" single String.of(nbytes=N*K) / Buffer of the full"
+                    f" width and split in your own code, or wrap the run in"
+                    f" a Struct element"
+                )
+            # Numeric leaves inherit the record's byte order unless the array
+            # was given an explicit endian (C arrays follow the struct's
+            # order; the `T * N` sugar leaves it unset). A Struct element
+            # keeps its own declared endian via the nested-Struct branch.
+            eff_endian = ftype.endian if ftype._endian_set else field_endian
+            for i in range(ftype.count):
+                add(f"{full}.", str(i), elem, eff_endian)
+            return
         subplan = getattr(ftype, "plan", None)
         if isinstance(subplan, Plan):  # nested Struct: flatten, keep child endian
             for leaf in subplan.fields:
