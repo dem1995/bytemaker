@@ -420,6 +420,73 @@ def _unwrap_annotation(owner: str, field: str, hint) -> type:
     )
 
 
+def _expected_py_type(bittype):
+    """The plain Python value type a field of ``bittype`` reads as: ``int``
+    for Int, ``float`` for Float, ``str`` for String, ``bytes`` for Buffer
+    (its box value is a BitVector, but a *field* holds plain bytes),
+    ``list`` for an Array, and the class itself for a nested Struct. Used to
+    check a ``field()``/``array()`` field's plain annotation against its wire
+    type. Returns ``None`` for anything unrecognized (check skipped)."""
+    if isinstance(bittype, Array):
+        return list
+    if isinstance(bittype, StructMeta):
+        return bittype
+    if isinstance(bittype, type) and issubclass(bittype, Buffer):
+        return bytes
+    if isinstance(bittype, type) and issubclass(bittype, BitType):
+        return bittype.py_type
+    return None
+
+
+def _check_spec_annotation(owner, field_name, bittype, annotation):
+    """R10 invariant: a ``field()``/``array()`` field's plain annotation is
+    the type a checker trusts, so it must match the value type its wire
+    ``bittype`` actually reads as. Raises :class:`PlanCompileError` on a
+    disagreement (the annotation-carried path enforces the same truth via
+    ``_unwrap_annotation``). ``Any`` is allowed as a deliberate opt-out."""
+    if annotation is None:
+        return
+    ann = annotation
+    if Annotated is not None and get_origin(ann) is Annotated:
+        ann = get_args(ann)[0]
+    if ann is Any:
+        return  # explicit "untype this" escape hatch
+    expected = _expected_py_type(bittype)
+    if expected is None:
+        return
+    if expected is list:  # Array field: want list[<elem>] or bare list
+        if not (ann is list or get_origin(ann) is list):
+            _spec_type_error(owner, field_name, annotation, bittype, "list[...]")
+        args = get_args(ann)
+        if args:  # parameterized -> the element type must match too
+            elem_expected = _expected_py_type(bittype.element)
+            elem_ann = args[0]
+            if Annotated is not None and get_origin(elem_ann) is Annotated:
+                elem_ann = get_args(elem_ann)[0]
+            if (
+                elem_expected is not None
+                and elem_ann is not Any
+                and elem_ann is not elem_expected
+            ):
+                want = getattr(elem_expected, "__name__", elem_expected)
+                _spec_type_error(
+                    owner, field_name, annotation, bittype, f"list[{want}]"
+                )
+        return
+    if ann is not expected:
+        want = getattr(expected, "__name__", str(expected))
+        _spec_type_error(owner, field_name, annotation, bittype, want)
+
+
+def _spec_type_error(owner, field_name, annotation, bittype, want):
+    raise PlanCompileError(
+        f"{owner}.{field_name}: annotation {annotation!r} disagrees with the"
+        f" field()/array() wire type {bittype!r} — a checker would trust the"
+        f" annotation while the field really holds {want}. Annotate it as"
+        f" {want} (or fix the field()/array() type)."
+    )
+
+
 # --------------------------------------------------------------------------
 # Code generation (once per class): __init__, _from_tuple, _to_tuple
 # --------------------------------------------------------------------------
@@ -676,6 +743,11 @@ class StructMeta(type):
             (n, specs[n] if n in specs else _unwrap_annotation(name, n, hints[n]))
             for n in field_names
         ]
+        # field()/array() fields carry the wire type on the RHS and the plain
+        # checker type in the annotation; verify they agree, so the static
+        # type a checker trusts matches what the field actually holds.
+        for n in specs:
+            _check_spec_annotation(name, n, specs[n], hints.get(n))
 
         if endian is None:
             endian = "big"

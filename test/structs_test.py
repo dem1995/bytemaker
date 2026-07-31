@@ -1097,6 +1097,40 @@ def test_field_specifier_required_after_default_rejected():
             b: int = field(UInt8)  # required (no default) after a defaulted field
 
 
+def test_field_specifier_annotation_must_match_wire_type():
+    """The checker trusts the annotation; the runtime uses the spec. They
+    must agree or bytemaker would vouch for a static type it contradicts
+    (R10 review finding). The annotation-carried path already enforces this
+    via _unwrap_annotation; the spec path must too."""
+    from typing import Any, List
+
+    class RGB(Struct, endian="little"):
+        r: int = field(UInt8)
+
+    # lies -> rejected at class definition
+    for ann, spec in [
+        (str, lambda: field(UInt8)),        # str over int wire
+        (bool, lambda: field(UInt8)),       # bool over int (int subclass, still a lie)
+        (float, lambda: field(UInt8)),      # float over int
+        (int, lambda: field(Float32)),      # int over float
+        (List[str], lambda: array(UInt16, 2)),  # list[str] over list[int]
+        (int, lambda: array(UInt16, 2)),    # int over a list field
+    ]:
+        with pytest.raises(PlanCompileError, match="disagrees with"):
+            type("Lie", (Struct,), {"__annotations__": {"x": ann}, "x": spec()})
+
+    # truthful (incl. bare list, parameterized list, Any opt-out) -> compile
+    class OK(Struct, endian="little"):
+        a: int = field(UInt8)
+        b: bytes = field(Buffer.of(nbytes=2))
+        c: RGB = field(RGB)
+        d: list = array(UInt8, 2)
+        e: List[int] = array(UInt16, 2)
+        f: Any = field(UInt8)
+
+    assert OK.parse(OK(a=1, b=b"xy", c=RGB(r=1), d=[1, 2], e=[3, 4], f=9).pack())
+
+
 # --------------------------------------------------------------- bulk hatch
 def test_plan_unpack_tuple_and_iter_tuples():
     raw = pystruct.pack("<IHHhh", 7, 8, 9, -1, 1)
