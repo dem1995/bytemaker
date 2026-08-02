@@ -1,0 +1,16 @@
+{
+ "group": "buffer",
+ "coverageComplete": true,
+ "verdicts": [
+  {
+   "title": "Rewrite the Buffer class docstring: delete the orphaned duplicate literal and point at of()/specialize() instead of nonexistent pre-defined subclasses",
+   "ok": true,
+   "issues": "No substantive problems. Before-snippet matches current source (buffer.py lines 17-45) verbatim, exactly once; patched copy verified: 'pre-defined subclasses' gone from Buffer.__doc__, orphan literal gone (getsource count 2->1), of()/specialize() both named, and the file's own section-header docstring style (Class Attributes:/Instance Attributes) is preserved (buffer.py never used the :cvar:/:ivar: RST style, so matching the file is correct). Note, already flagged by the designer and confirmed real: the rewritten Instance Attributes text ('value : ... An independent, resizable snapshot ... mutating it does not affect the buffer') is FALSE unless buffer-2 lands first or together — if buffer-2 is rejected, this hunk must be revised per the proposal's stated fallback (keep 'Identical to bits' + explicit mutation-hazard warning). PRE-EXISTING: docs/source/quickstart/notebooks/bittypes.ipynb still imports the removed named-width zoo (Buffer32, Buffer8, Str32 at cell line 31 and uses Buffer32 throughout) — same stale-doc family as this finding but out of scope; the notebook would fail against current bytemaker regardless of these fixes."
+  },
+  {
+   "title": "Make Buffer.value return an independent BitVector snapshot instead of the live width-locked bits handle",
+   "ok": true,
+   "issues": "No substantive problems found after adversarial re-verification. Before-snippet matches current source (lines 49-51) verbatim. Re-ran everything on a patched copy (package + test dir copied beside each other, neutral cwd, bytemaker.__file__ confirmed pointing at the work copy): full suite 854 passed before AND after (claim confirmed); repro flips exactly as claimed (value is not bits, mutation isolated, append works on the copy, box width intact, .bits plane still live). Grep + probes confirmed no live-alias reliance anywhere: Struct Buffer fields are _BytesField (plain bytes; the BoundField .bits-setter and __setitem__ paths route box.value through bytes(), identical for either vector type — probed), Array Buffer elements parse to plain bytes by slicing and pack via bytes(v.bits), _legacy_aggregate.py has zero Buffer/.value references (oracle claim confirmed), and tests only compare Buffer.value by equality. Consistency claim verified: Int/Float/String .value all return fresh plain immutable values; Buffer was the sole live-handle outlier. Backend claim verified empirically on all three implementations (bitarray_speedup [active], speedup, native): BitVector(width-locked-subclass) returns exactly BitVector, equal, storage-independent, resizable; the real FixedLengthBitVector probe on the active backend also passes. Read-modify-write via the setter (v = b.value; v[i] = 1; b.value = v) works, and the untouched setter still length-validates resizable input. Behavior deltas are exactly the two flagged maintainer decisions (snapshot-over-live-alias; resizable rather than width-locked copy) plus the loss of the width-lock ValueError on a value read's append — intended, no in-repo caller depends on it."
+  }
+ ]
+}
