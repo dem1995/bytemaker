@@ -1,0 +1,536 @@
+# Solutions — Narrowing warnings & int_format (bittype.py / int.py)
+
+> Proposed fixes for the [findings](../README.md) in this area — every solution independently re-checked by an adversarial reviewer; 1 flag(s) found and resolved by revision. **Nothing has been applied to the source; these are proposals for review.**
+
+## Strategy
+
+The mechanism is fixed once, in two layers, then applied consistently. Layer 1 (narrowing-1): _warn_narrowing stops hardcoding stacklevel=3 and walks the stack to the first frame outside the bytemaker package, so every store path (scalar field, array field, NarrowingList, box setter, constructor) attributes the warning to the user's assignment. Layer 2 (narrowing-2): a new shared _narrow_int(value, num_bits, signed, target) helper in bittype.py performs the C wrap/mask AND the opt-in warning in one place; StructPackedBitType.value, UInt.value and SInt.value all route through it, which closes the 'standard C widths never warn' hole and makes the NarrowingConfig docstring/README true as written. narrowing-1 must land before (or with) narrowing-2, because the helper adds a stack frame that a fixed stacklevel could not tolerate. narrowing-3 then fixes the other skip_struct_packing defect (SInt8/16/32/64 gating on the process global instead of the instance's int_format) with one shared _StructPackedSInt base, and narrowing-4 validates int_format at construction so the gate can never see garbage. narrowing-5 (bittypes re-export) and narrowing-6 (document the C-promotion contract) are independent and can land any time. Cross-group note: the int.py edits avoid the Int.__invert__ region (lines 450-453) where the float-4 solution inserts __neg__/__pos__/__abs__, but narrowing-2 does rewrite int.py's import block (drops NarrowingConfig/_warn_narrowing, adds _narrow_int) — any other patch touching those imports should be merged with that in mind. All six fixes were applied together to a work copy: 854/854 tests pass (same as pristine baseline).
+
+_6 solutions — 3 apply-now, 6 empirically verified on a patched copy._
+
+---
+
+## 1. Attribute NarrowingWarning to the first frame outside bytemaker instead of a fixed stacklevel
+
+**Priority:** **now** · [`bytemaker/bittypes/bittype.py:bittype.py 51-56 (plus 'import sys' in the 3-6 import block); warn call sites in structs.py 173-174, 196-197, 1422-1423 need no change`](../../bytemaker/bittypes/bittype.py#L51) · **✓ verified on a patched copy**
+
+**Problem.** The hardcoded stacklevel=3 in _warn_narrowing is calibrated for exactly one call chain (user store -> field descriptor -> _warn_narrowing). The array-field chain (_ArrayField.__set__ -> _coerce_seq -> listcomp -> _coerce_one), NarrowingList.__setitem__, and even the box constructor (BitType.__init__ -> value setter) are deeper, so the same conceptual event reports bytemaker's own structs.py/bittype.py internals as the warning location instead of the user's assignment.
+
+**Fix.** Make _warn_narrowing compute the stacklevel: walk sys._getframe() upward while the frame's module (frame.f_globals['__name__']) is inside the bytemaker package, and warn at the first external frame. This is caller-independent, so every present and future warn path (including the shared _narrow_int helper added in narrowing-2, which inserts one more frame) attributes correctly, on any Python version (module-name matching also absorbs the PEP 709 comprehension-frame difference between 3.11 and 3.12+). It is the pre-3.12 equivalent of warnings.warn(..., skip_file_prefixes=...), which is unavailable at this project's floor of Python 3.8. Cost is a few frame hops, paid only when a warning actually fires.
+
+**Before:**
+
+```python
+def _warn_narrowing(original, stored, target):
+    warnings.warn(
+        f"narrowing store to {target}: {original!r} became {stored!r}",
+        NarrowingWarning,
+        stacklevel=3,
+    )
+```
+
+**After:**
+
+```python
+# in the module import block (line 3-6), add sys:
+import operator
+import os
+import struct
+import sys
+import warnings
+
+# replacement for _warn_narrowing (lines 51-56):
+def _warn_narrowing(original, stored, target):
+    # Attribute the warning to the first frame outside bytemaker, however
+    # deep the internal chain is (field descriptor, array coercion, box
+    # setter, __init__): a fixed stacklevel is right for exactly one of
+    # those chains and blames library internals for all the others.
+    level = 1
+    frame = sys._getframe()
+    while frame is not None:
+        # A non-string __name__ (possible under exec with custom globals)
+        # marks user code just as surely as a foreign module name does.
+        mod = frame.f_globals.get("__name__")
+        if not (isinstance(mod, str) and mod.partition(".")[0] == "bytemaker"):
+            break
+        frame = frame.f_back
+        level += 1
+    warnings.warn(
+        f"narrowing store to {target}: {original!r} became {stored!r}",
+        NarrowingWarning,
+        stacklevel=level,
+    )
+```
+
+**Behavior change.** Repro (NarrowingConfig.warn=True, warnings recorded, all stores from repro.py). BEFORE: scalar field s.a = 300 -> [('repro.py', 68)] (correct); array field s.xs = [70000, 0, 0] -> [('structs.py', 1400)]; NarrowingList s.xs[0] = 70000 -> [('structs.py', 315)]; box setter u.value = 200 -> [('repro.py', 83)] (correct); constructor UInt7(200) -> [('bittype.py', 158)]; UInt8(300) -> no warning at all (separate bug, narrowing-2). AFTER: every path points at the user's line: scalar ('repro.py', 68), array ('repro.py', 73), narrowlist ('repro.py', 78), box setter ('repro.py', 83), constructor ('repro.py', 87), struct-packed constructor ('repro.py', 91).
+
+**Tests to add.** With NarrowingConfig.warn=True and warnings.catch_warnings(record=True), for each store path assert the recorded warning's .filename == __file__ of the test module (not structs.py/bittype.py): (1) scalar field s.a = 300; (2) array field s.xs = [70000, 0, 0] on a `xs: UInt16 * 3` field; (3) s.xs[0] = 70000 via the live NarrowingList; (4) slice write s.xs[:2] = [70000, 5]; (5) UInt7(0).value = 200; (6) UInt7(200) constructor; (7) after narrowing-2, UInt8(300). Also assert exactly one warning per narrowing store and zero for in-range stores.
+
+**Risks / sync obligations / review notes.** sys._getframe is a CPython implementation detail (also present on PyPy); if it ever mattered, a hasattr(sys, '_getframe') fallback to stacklevel=3 restores today's behavior. User code that itself lives in a module named 'bytemaker...' would be skipped as internal - not a real scenario for this repo (tests are 'structs_test' etc. and were verified to attribute correctly). No BitVector-implementation or legacy-oracle sync needed (neither warns). Re-run test/structs_test.py narrowing tests (pytest.warns paths). REVISION (adversarial review): the original walk crashed with AttributeError when a user frame's globals held a non-string __name__ (e.g. exec(code, {"__name__": None})). Hardened to isinstance-check __name__ and treat any non-string as user code; probe calls under __name__=None, missing __name__, and a normal call all warn without crashing.
+
+<sub>covers: `inconsistency|bytemaker/structs.py|1350-1351`</sub>
+
+---
+
+## 2. Route all integer box stores through a shared _narrow_int helper so struct-packed widths warn too
+
+**Priority:** **now** · [`bytemaker/bittypes/bittype.py:bittype.py new helper after 51-56, setter 578-594; int.py imports 7-12, SInt setter 598-613, UInt setter 789-798; aggregate_types.py 150-154`](../../bytemaker/bittypes/bittype.py#L51) · **✓ verified on a patched copy**
+
+**Problem.** StructPackedBitType.value (the setter that actually runs for UInt8/16/32/64 and SInt8/16/32/64 via MRO) does its own C-style wrap/mask but never calls _warn_narrowing, so the documented -Wconversion knob (NarrowingConfig.warn / BYTEMAKER_WARN_NARROWING) is a silent no-op for exactly the widths users reach for most, while odd widths (UInt7, SInt3, ...) warn. The NarrowingConfig docstring and README:91 promise coverage for all Int/UInt/SInt value setters.
+
+**Fix.** Factor the narrowing itself into one module-level helper in bittype.py, _narrow_int(value, num_bits, signed, target), that wraps (signed) or masks (unsigned) AND emits the opt-in warning when the value changed - so the truncation and the diagnostic can never drift apart again. StructPackedBitType.value's integer branch, UInt.value and SInt.value (twos_complement branch) all call it; int.py's imports swap NarrowingConfig/_warn_narrowing for _narrow_int. Depends on narrowing-1: the helper adds a frame, which the dynamic stacklevel absorbs. One consistency companion edit: the legacy aggregate one-call fast path (_pack_all_plain_numbers) replicates the silent wrap in C-level struct.pack; when NarrowingConfig.warn is on it now bails to the boxed coercion path (which warns via these setters), so all legacy pack paths emit the same diagnostics while producing byte-identical output. No doc changes needed: this makes the NarrowingConfig docstring and README true as written, resolving the doc-side finding.
+
+**Before:**
+
+```python
+# --- bytemaker/bittypes/bittype.py 578-594 (StructPackedBitType.value setter) ---
+    @value.setter
+    def value(self, value: T):
+        if not self.skip_struct_packing:
+            if self.py_type is int and isinstance(value, int):
+                # C-style narrowing: wrap an out-of-range integer to the low
+                # num_bits bits instead of letting struct.pack raise, matching
+                # (uintN_t)/(intN_t) truncation. Floats are packed unchanged.
+                n = self.num_bits
+                # struct's integer format letters are lowercase for signed
+                # types (b/h/i/q) and uppercase for unsigned (B/H/I/Q)
+                if self.packing_format_letter.islower():
+                    value = ((value + (1 << (n - 1))) % (1 << n)) - (1 << (n - 1))
+                else:
+                    value &= (1 << n) - 1
+            self._bits = FixedLengthBitVector(
+                struct.pack(self.packing_format, value)
+            )
+
+# --- bytemaker/bittypes/int.py 7-12 (imports) ---
+from bytemaker.bittypes.bittype import (
+    BitType,
+    NarrowingConfig,
+    StructPackedBitType,
+    _warn_narrowing,
+)
+
+# --- bytemaker/bittypes/int.py 598-613 (SInt.value setter) ---
+    @value.setter
+    def value(self, value):
+        n = self.num_bits
+        if self.int_format == "twos_complement":
+            # C-style narrowing conversion: wrap into the signed range
+            # (mod 2**n), matching (intN_t) truncation in C. The other
+            # (non-two's-complement) formats have no C analogue and still
+            # reject out-of-range values.
+            wrapped = ((value + (1 << (n - 1))) % (1 << n)) - (1 << (n - 1))
+            if NarrowingConfig.warn and wrapped != value:
+                _warn_narrowing(value, wrapped, type(self).__name__)
+            value = wrapped
+        str_bits = Int.to_bitstring(
+            value, signed=True, bit_length=n, rep_format=self.int_format
+        )
+        self.bits = BitVector(str_bits)
+
+# --- bytemaker/bittypes/int.py 789-798 (UInt.value setter) ---
+    @value.setter
+    def value(self, value):
+        # C-style narrowing conversion: keep the low num_bits bits
+        # (value modulo 2**num_bits), so out-of-range values wrap instead
+        # of raising, matching (uintN_t) truncation in C.
+        masked = value & ((1 << self.num_bits) - 1)
+        if NarrowingConfig.warn and masked != value:
+            _warn_narrowing(value, masked, type(self).__name__)
+        str_bits = Int.to_bitstring(masked, signed=False, bit_length=self.num_bits)
+        self.bits = BitVector(str_bits)
+
+# --- bytemaker/conversions/aggregate_types.py 150-154 (_pack_all_plain_numbers) ---
+    letters = plan.fmt_letters
+    if None in letters:
+        return None
+    if SignedConfig.signed_int_format != "twos_complement":
+        return None
+```
+
+**After:**
+
+```python
+# --- bytemaker/bittypes/bittype.py: add after _warn_narrowing ---
+def _narrow_int(value: int, num_bits: int, signed: bool, target: str) -> int:
+    """C-style narrowing to ``num_bits`` — wrap for signed, mask for
+    unsigned — plus the opt-in :class:`NarrowingWarning` when the store
+    actually changed the value. Every integer value setter routes through
+    here so the truncation and the diagnostic cannot drift apart."""
+    if signed:
+        half = 1 << (num_bits - 1)
+        narrowed = ((value + half) % (half << 1)) - half
+    else:
+        narrowed = value & ((1 << num_bits) - 1)
+    if NarrowingConfig.warn and narrowed != value:
+        _warn_narrowing(value, narrowed, target)
+    return narrowed
+
+# --- bytemaker/bittypes/bittype.py (StructPackedBitType.value setter) ---
+    @value.setter
+    def value(self, value: T):
+        if not self.skip_struct_packing:
+            if self.py_type is int and isinstance(value, int):
+                # C-style narrowing: wrap an out-of-range integer to the low
+                # num_bits bits instead of letting struct.pack raise, matching
+                # (uintN_t)/(intN_t) truncation. Floats are packed unchanged.
+                # struct's integer format letters are lowercase for signed
+                # types (b/h/i/q) and uppercase for unsigned (B/H/I/Q).
+                value = _narrow_int(
+                    value,
+                    self.num_bits,
+                    signed=self.packing_format_letter.islower(),
+                    target=type(self).__name__,
+                )
+            self._bits = FixedLengthBitVector(
+                struct.pack(self.packing_format, value)
+            )
+
+# --- bytemaker/bittypes/int.py (imports) ---
+from bytemaker.bittypes.bittype import (
+    BitType,
+    StructPackedBitType,
+    _narrow_int,
+)
+
+# --- bytemaker/bittypes/int.py (SInt.value setter) ---
+    @value.setter
+    def value(self, value):
+        n = self.num_bits
+        if self.int_format == "twos_complement":
+            # C-style narrowing conversion: wrap into the signed range
+            # (mod 2**n), matching (intN_t) truncation in C. The other
+            # (non-two's-complement) formats have no C analogue and still
+            # reject out-of-range values.
+            value = _narrow_int(value, n, signed=True, target=type(self).__name__)
+        str_bits = Int.to_bitstring(
+            value, signed=True, bit_length=n, rep_format=self.int_format
+        )
+        self.bits = BitVector(str_bits)
+
+# --- bytemaker/bittypes/int.py (UInt.value setter) ---
+    @value.setter
+    def value(self, value):
+        # C-style narrowing conversion: keep the low num_bits bits
+        # (value modulo 2**num_bits), so out-of-range values wrap instead
+        # of raising, matching (uintN_t) truncation in C.
+        masked = _narrow_int(
+            value, self.num_bits, signed=False, target=type(self).__name__
+        )
+        str_bits = Int.to_bitstring(masked, signed=False, bit_length=self.num_bits)
+        self.bits = BitVector(str_bits)
+
+# --- bytemaker/conversions/aggregate_types.py (_pack_all_plain_numbers; also add
+# --- `from bytemaker.bittypes.bittype import NarrowingConfig` to the imports) ---
+    letters = plan.fmt_letters
+    if None in letters:
+        return None
+    if SignedConfig.signed_int_format != "twos_complement":
+        return None
+    if NarrowingConfig.warn:
+        # Checked-store mode: the boxed coercion path is authoritative (it
+        # emits the opt-in NarrowingWarning); the one-call fast path would
+        # wrap silently.
+        return None
+```
+
+**Behavior change.** Repro (NarrowingConfig.warn=True, warnings recorded). BEFORE: UInt8(300), UInt8().value=300, SInt8().value=200, UInt16().value=70000, SInt16().value=40000, and u=UInt8(0); u+=300 -> 0 warnings each (silent wrap); UInt7().value=200 / SInt7().value=200 -> 1 warning each. AFTER: all eight -> exactly 1 NarrowingWarning, attributed to the user's line, e.g. 'narrowing store to UInt8: 300 became 44'. Non-narrowing stores warn 0 times before AND after: UInt8().value=44, SInt8().value=-56, UInt7().value=72, UInt8(True). warnings.simplefilter('error', NarrowingWarning) now actually raises for UInt8(300), as the NarrowingWarning docstring has promised all along. Legacy aggregate pack with warn=True: an all-struct-letter dataclass (UInt8+UInt16 fields, values 300/70000) went 0 warnings BEFORE -> 2 AFTER, an odd-width dataclass (UInt8+UInt7) went 1 -> 2; packed bytes identical in all cases (2c1170). Values never change anywhere; with warn=False (the default) behavior is bit-for-bit identical. Full suite: 854/854 before and after.
+
+**Tests to add.** (1) for T, v, expect in [(UInt8, 300, 44), (SInt8, 200, -56), (UInt16, 70000, 4464), (SInt16, 40000, -25536), (UInt64, 2**64, 0), (SInt32, 2**31, -2**31)]: with NarrowingConfig.warn=True assert pytest.warns(NarrowingWarning) on T(v) and on x.value = v, and the stored value == expect; (2) in-range stores for the same types emit no warning (warnings.catch_warnings(record=True) stays empty); (3) UInt8(0) += 300 warns once and equals 44; (4) with warn=True, to_bytes_aggregate on a dataclass of UInt8/UInt16 fields holding 300/70000 warns twice and equals the warn=False bytes; (5) parametrize an existing narrowing-warning test over UInt7 and UInt8 so both MRO paths stay covered.
+
+**Risks / sync obligations / review notes.** Apply after (or with) narrowing-1 - with the old fixed stacklevel=3 the extra helper frame would mis-attribute the odd-width warnings that are correct today. Newly-firing warnings are opt-in only (NarrowingConfig.warn defaults off), so default behavior is untouched; but code running with warn=True or BYTEMAKER_WARN_NARROWING will now see warnings from standard widths (e.g. UInt8(-1) -> 255 now warns, matching UInt7(-1) today). Legacy-oracle sync: no oracle code change needed (it coerces through these same box setters, so it inherits the warning; parity tests compare bytes and stay green 854/854); the _pack_all_plain_numbers guard only reroutes the warn=True case to the already-authoritative boxed path. BitVector implementations unaffected (no narrowing logic there). int.py's import block changes - coordinate with any other group patching those imports (float-4 inserts methods near __invert__, no overlap). Re-run: full pytest suite, plus test/plan_fastpath_test.py parity cases.
+
+> ⚖️ **Decision needed:** The legacy fast-path guard means NarrowingConfig.warn=True routes legacy dataclass packing through the slower boxed path so warnings fire consistently there too. OK to trade fast-path speed for diagnostic consistency in the (debug-only) warn mode, or would you rather keep the fast path silent and scope the warning contract to stores only?
+
+<sub>covers: `bug|bytemaker/bittypes/bittype.py|578-594`, `inconsistency|bytemaker/bittypes/bittype.py|39-46`, `inconsistency|bytemaker/bittypes/int.py|795-796 (UInt.value setter), 6`</sub>
+
+---
+
+## 3. Gate SInt8/16/32/64 struct packing on the instance's int_format via a shared _StructPackedSInt base
+
+**Priority:** **now** · [`bytemaker/bittypes/int.py:int.py 694-700 (SInt8), 731-755 (SInt16/32/64); comment touch-up in bittype.py 596-600`](../../bytemaker/bittypes/int.py#L694) · **✓ verified on a patched copy**
+
+**Problem.** The hardcoded SInt8/16/32/64 gate struct packing on the process-global SignedConfig.signed_int_format, so the documented int_format constructor argument is silently ignored at exactly those widths: SInt8(0, int_format='signed_magnitude').value = -5 stores two's-complement 0xFB, while SInt7 and SInt.specialize(8, 'b') honor the same request. Two identical requests, opposite behavior, keyed only on whether the width happens to be a standard C width.
+
+**Fix.** Replace the four copy-pasted global-reading skip_struct_packing properties with one private intermediate base, _StructPackedSInt(StructPackedBitType, SInt), whose property reads self.int_format != 'twos_complement' - exactly the per-instance gate SInt.specialize already generates - and derive SInt8/16/32/64 from it. Since SInt.__init__ captures int_format (defaulting from SignedConfig) before the value/bits store, the gate is always coherent with the format the getter/setter actually use; it also stops an existing instance from silently flipping packing mode when the global changes mid-life, which matches how non-packed SInts already behave (they capture at construction too). Also update the stale comment in StructPackedBitType.value's else-branch that described the old global-based trigger.
+
+**Before:**
+
+```python
+# --- bytemaker/bittypes/int.py 694-700 ---
+class SInt8(StructPackedBitType, SInt):
+    _num_bits = 8
+    packing_format_letter = "b"
+
+    @property
+    def skip_struct_packing(self):
+        return SignedConfig.signed_int_format != "twos_complement"
+
+# --- bytemaker/bittypes/int.py 731-755 ---
+class SInt16(StructPackedBitType, SInt):
+    _num_bits = 16
+    packing_format_letter = "h"
+
+    @property
+    def skip_struct_packing(self):
+        return SignedConfig.signed_int_format != "twos_complement"
+
+
+class SInt32(StructPackedBitType, SInt):
+    _num_bits = 32
+    packing_format_letter = "i"
+
+    @property
+    def skip_struct_packing(self):
+        return SignedConfig.signed_int_format != "twos_complement"
+
+
+class SInt64(StructPackedBitType, SInt):
+    _num_bits = 64
+    packing_format_letter = "q"
+
+    @property
+    def skip_struct_packing(self):
+        return SignedConfig.signed_int_format != "twos_complement"
+
+# --- bytemaker/bittypes/bittype.py 596-600 (stale comment) ---
+            # ``super().value = value`` does not work: super() proxies do not
+            # support attribute assignment, so it raised AttributeError
+            # whenever skip_struct_packing was true (e.g. any SInt8/16/32/64
+            # under a non-two's-complement SignedConfig). Invoke the next
+            # value setter in the MRO explicitly instead.
+```
+
+**After:**
+
+```python
+# --- bytemaker/bittypes/int.py (replaces the SInt8 block; SInt16/32/64 shrink to match) ---
+class _StructPackedSInt(StructPackedBitType, SInt):
+    """Shared base of the struct-packable signed widths (SInt8/16/32/64).
+
+    struct's b/h/i/q letters are two's-complement only, so packing applies
+    exactly when *this instance's* ``int_format`` is two's complement —
+    the same per-instance gate ``SInt.specialize`` generates. Any other
+    format falls back to the bit-string path on the MRO.
+    """
+
+    @property
+    def skip_struct_packing(self):
+        return self.int_format != "twos_complement"
+
+
+class SInt8(_StructPackedSInt):
+    _num_bits = 8
+    packing_format_letter = "b"
+
+# ... and later in the file:
+class SInt16(_StructPackedSInt):
+    _num_bits = 16
+    packing_format_letter = "h"
+
+
+class SInt32(_StructPackedSInt):
+    _num_bits = 32
+    packing_format_letter = "i"
+
+
+class SInt64(_StructPackedSInt):
+    _num_bits = 64
+    packing_format_letter = "q"
+
+# --- bytemaker/bittypes/bittype.py (comment touch-up) ---
+            # ``super().value = value`` does not work: super() proxies do not
+            # support attribute assignment, so it raised AttributeError
+            # whenever skip_struct_packing was true (e.g. any SInt8/16/32/64
+            # with a non-two's-complement int_format). Invoke the next
+            # value setter in the MRO explicitly instead.
+```
+
+**Behavior change.** BEFORE: s = SInt8(0, int_format='signed_magnitude'); s.value = -5 -> bits 11111011 (two's complement; int_format silently ignored) and s.skip_struct_packing False, while SInt.specialize(8, 'b')(0, int_format='signed_magnitude').skip_struct_packing is True. AFTER: bits 10000101 (true sign-magnitude, matching SInt7's 1000101 behavior) and skip_struct_packing True, agreeing with specialize. Defaults are unchanged: SInt8(5) -> 00000101, SInt8(-5) -> 11111011 / value -5. SInt8.__mro__ gains _StructPackedSInt; pickle round-trips for both the class and an instance were verified. Full suite 854/854, including test/plan_fastpath_test.py's SignedConfig=signed_magnitude legacy-vs-oracle parity (both paths construct boxes after the global is set, so construction-time capture preserves parity).
+
+**Tests to add.** (1) for T, n in [(SInt8, 8), (SInt16, 16), (SInt32, 32), (SInt64, 64)]: x = T(0, int_format='signed_magnitude'); x.value = -5; assert x.bits.to01() == '1' + '0'*(n-4) + '101' and x.skip_struct_packing is True; (2) same via SignedConfig.signed_int_format = 'signed_magnitude' with int_format=None (global default still respected at construction); (3) T(0).skip_struct_packing is False and two's-complement round-trip unchanged; (4) T(bits=...) with int_format='ones_complement' decodes ones-complement (getter path); (5) parity: SInt8(v, int_format=f).bits == SInt.specialize(8, 'b')(v, int_format=f).bits for all three formats and v in {-5, 5, -128}.
+
+**Risks / sync obligations / review notes.** Semantic sharpening: an already-constructed SInt8 no longer flips packing mode when SignedConfig.signed_int_format changes later - it keeps its construction-time int_format (this was already true of the format actually used for encoding, so the old late-read gate could disagree with the instance's own format; both orders now agree, and both wire formats are identical for the default config). MRO change (SInt8/16/32/64 gain one private base) - nothing in the repo introspects those bases; pickle verified. Legacy aggregate/oracle both construct fresh boxes per pack, so parity is unaffected (854/854, incl. plan_fastpath signed_magnitude parity test). The surgical alternative (edit the four property bodies in place to read self.int_format) is equivalent behaviorally if the shared base is unwanted. Re-run: test/plan_fastpath_test.py, test/bittypes_test.py, test/aggregate_types_test.py.
+
+<sub>covers: `inconsistency|bytemaker/bittypes/int.py|698-700, 735-737, 744-746, 753`</sub>
+
+---
+
+## 4. Validate int_format at SInt construction and name the parameter and choices in the error
+
+**Priority:** soon · [`bytemaker/bittypes/int.py:int.py 581-587 (SInt.__init__)`](../../bytemaker/bittypes/int.py#L581) · **✓ verified on a patched copy**
+
+**Problem.** SInt.__init__ stores int_format verbatim. A typo like 'twos-complement' either fails much later inside to_bitstring/to_pyint with 'ValueError: Unsupported format: twos-complement' (never naming the int_format argument or the valid choices), or - on the struct-packed widths - is accepted totally silently and encodes two's complement anyway.
+
+**Fix.** Validate right after the SignedConfig default is applied (so a garbage global is caught too) and raise a ValueError that names the parameter, the bad value, and the three valid literals. The undocumented 'sign_magnitude' alias - which to_pyint/to_bitstring have always accepted - is normalized to 'signed_magnitude' so it keeps working and self.int_format is always one of the three canonical literals (which the narrowing-3 gate and any == comparison rely on).
+
+**Before:**
+
+```python
+        if int_format is None:
+            int_format = SignedConfig.signed_int_format
+
+        self.int_format: Literal[
+            "twos_complement", "signed_magnitude", "ones_complement"
+        ] = int_format
+        super().__init__(source=source, value=value, bits=bits, endianness=endianness)
+```
+
+**After:**
+
+```python
+        if int_format is None:
+            int_format = SignedConfig.signed_int_format
+        elif int_format == "sign_magnitude":  # alias accepted downstream
+            int_format = "signed_magnitude"
+        if int_format not in (
+            "twos_complement",
+            "signed_magnitude",
+            "ones_complement",
+        ):
+            raise ValueError(
+                f"int_format must be one of 'twos_complement',"
+                f" 'signed_magnitude', or 'ones_complement';"
+                f" got {int_format!r}"
+            )
+
+        self.int_format: Literal[
+            "twos_complement", "signed_magnitude", "ones_complement"
+        ] = int_format
+        super().__init__(source=source, value=value, bits=bits, endianness=endianness)
+```
+
+**Behavior change.** BEFORE: SInt3(2, int_format='twos-complement') -> late 'ValueError: Unsupported format: twos-complement' from inside to_bitstring; SInt8(5, int_format='twos-complement') -> silently accepted, bits 00000101, the bad string persists on the instance. AFTER: both raise immediately at the constructor: "ValueError: int_format must be one of 'twos_complement', 'signed_magnitude', or 'ones_complement'; got 'twos-complement'". SInt8(5, int_format='sign_magnitude') is still accepted (normalized; bits 00000101, correct sign-magnitude for +5). Full suite 854/854.
+
+**Tests to add.** (1) pytest.raises(ValueError, match="int_format must be one of") for SInt3(2, int_format='twos-complement'), SInt8(5, int_format='twos-complement'), and SInt8(5, int_format=''); (2) SInt8(5, int_format='sign_magnitude').int_format == 'signed_magnitude' and, with narrowing-3 applied, SInt8(0, int_format='sign_magnitude') behaves as sign-magnitude (value=-5 -> bits 10000101); (3) a bad SignedConfig.signed_int_format global ('junk') now raises at the next SInt construction with the same message; (4) all three canonical literals construct fine at packed and non-packed widths.
+
+**Risks / sync obligations / review notes.** Constructions that previously 'worked' by accident (invalid string on a struct-packed width, silently two's complement) now raise - desired, and no repo code or test does this. A garbage SignedConfig.signed_int_format global also surfaces at the next SInt construction instead of later/never. No oracle or BitVector sync needed. Re-run: test/bittypes_test.py.
+
+> ⚖️ **Decision needed:** The 'sign_magnitude' alias is normalized-and-accepted here because to_pyint/to_bitstring already accept it. Would you rather reject it at the constructor and drop the alias branches in to_pyint/to_bitstring/min_bit_length too (sole-user, no compat pressure)?
+
+<sub>covers: `ux|bytemaker/bittypes/int.py|571-587`</sub>
+
+---
+
+## 5. Re-export NarrowingConfig and NarrowingWarning from bytemaker.bittypes
+
+**Priority:** soon · [`bytemaker/bittypes/__init__.py:bittypes/__init__.py 1 and 65-69`](../../bytemaker/bittypes/__init__.py#L1) · **✓ verified on a patched copy**
+
+**Problem.** NarrowingConfig/NarrowingWarning live in bytemaker/bittypes/bittype.py and are public (top-level bytemaker re-exports both; README names them), but the bittypes subpackage - where every other public bittype.py symbol is re-exported - omits them, so `from bytemaker.bittypes import NarrowingConfig` raises ImportError.
+
+**Fix.** Add both names to the bittype import at the top of bytemaker/bittypes/__init__.py and to __all__, keeping the bittype.py group of __all__ together, so the subpackage exposes the same public surface as the top level.
+
+**Before:**
+
+```python
+from bytemaker.bittypes.bittype import BitType, StructPackedBitType, bytes_to_bittype
+
+# ... and the head of __all__ (lines 65-69):
+__all__ = [
+    "BitType",
+    "StructPackedBitType",
+    "bytes_to_bittype",
+    "Buffer",
+```
+
+**After:**
+
+```python
+from bytemaker.bittypes.bittype import (
+    BitType,
+    NarrowingConfig,
+    NarrowingWarning,
+    StructPackedBitType,
+    bytes_to_bittype,
+)
+
+# ... and the head of __all__:
+__all__ = [
+    "BitType",
+    "NarrowingConfig",
+    "NarrowingWarning",
+    "StructPackedBitType",
+    "bytes_to_bittype",
+    "Buffer",
+```
+
+**Behavior change.** BEFORE: `from bytemaker.bittypes import NarrowingConfig` -> ImportError: cannot import name 'NarrowingConfig' from 'bytemaker.bittypes'. AFTER: the import works, both names are in bytemaker.bittypes.__all__, and they are the same objects as bytemaker.NarrowingConfig/NarrowingWarning. Full suite 854/854.
+
+**Tests to add.** (1) from bytemaker.bittypes import NarrowingConfig, NarrowingWarning succeeds; (2) both in bytemaker.bittypes.__all__; (3) identity with the top level: bytemaker.NarrowingConfig is bytemaker.bittypes.NarrowingConfig (and same for NarrowingWarning); (4) an __all__ import smoke test: `from bytemaker.bittypes import *` binds them.
+
+**Risks / sync obligations / review notes.** None beyond namespace addition; no import cycles (bittype has no imports from the subpackage init).
+
+<sub>covers: `inconsistency|bytemaker/bittypes/__init__.py|1-125`</sub>
+
+---
+
+## 6. Document the C-promotion / store-narrowing contract in the Int class and module docstrings
+
+**Priority:** soon · [`bytemaker/bittypes/int.py:int.py 1 (new module docstring) and 29-53 (Int class docstring)`](../../bytemaker/bittypes/int.py#L1) · **✓ verified on a patched copy**
+
+**Problem.** UInt8(200) + UInt8(100) returns plain int 300 (not a wrapped UInt8(44)) and only stores/constructor/compound-assignment narrow - the single most surprising behavior of the type - yet the module has no docstring and the Int class docstring says nothing about it; the explanation lives only in inline implementation comments invisible to help() and rendered docs.
+
+**Fix.** Add a short module docstring and a paragraph in the Int class docstring (kept in that file's field-list-era style, inserted before the 'Class Attributes:' block) stating the contract: binary ops (including bitwise and ~) promote to plain int at full width; the constructor is the narrowing cast (UInt8(a+b) == (uint8_t)(a+b)); compound assignment narrows back into the box's width; NarrowingConfig.warn opts into warnings on value-changing stores. This mirrors the inline comments at lines 304-316/450-453/470-476 without moving them.
+
+**Before:**
+
+```python
+# --- bytemaker/bittypes/int.py 1-5 (no module docstring) ---
+from __future__ import annotations
+
+import operator
+from math import ceil, log2
+from typing import TYPE_CHECKING, Any, overload
+
+# --- bytemaker/bittypes/int.py 28-34 (Int class docstring head) ---
+class Int(BitType[int]):
+    """
+    A `BitType` that represents an integer.
+
+    Is further subclassed into `SInt` and `UInt` for signed and unsigned integers,
+
+    Class Attributes:
+```
+
+**After:**
+
+```python
+# --- module docstring (new, above `from __future__ import annotations`) ---
+"""Sized integer BitTypes: `Int` and its `SInt`/`UInt` families.
+
+Arithmetic follows the C promotion model: binary operators (including the
+bitwise family and `~`) compute on plain values at full width and return a
+plain `int`. Narrowing back to a width happens only at stores — the `value`
+setter and compound assignment — and at the constructor, which is the
+narrowing cast. See the `Int` docstring for the full contract.
+"""
+from __future__ import annotations
+
+# --- Int class docstring head ---
+class Int(BitType[int]):
+    """
+    A `BitType` that represents an integer.
+
+    Is further subclassed into `SInt` and `UInt` for signed and unsigned integers,
+
+    Arithmetic follows the C promotion model. Binary operators — including
+    the bitwise family and `~` — compute on plain values at full width and
+    return a plain `int`: `UInt8(200) + UInt8(100) == 300`, never a wrapped
+    box. Width re-attaches only at stores: the constructor is the narrowing
+    cast (`UInt8(a + b)` wraps like `(uint8_t)(a + b)` in C), and compound
+    assignment (`u += 1`) narrows the result back into the box's width.
+    Out-of-range stores wrap silently by default, as in C; set
+    `NarrowingConfig.warn = True` to make them emit a `NarrowingWarning`.
+
+    Class Attributes:
+```
+
+**Behavior change.** BEFORE: import bytemaker.bittypes.int as m; m.__doc__ is None and 'promot' does not appear in m.Int.__doc__. AFTER (verified on the patched copy): m.__doc__ is set and 'promotion model' appears in help(Int)/Int.__doc__. No runtime behavior change; 854/854 tests pass.
+
+**Tests to add.** Doc smoke test: assert bytemaker.bittypes.int.__doc__ is not None; assert 'promotion' in Int.__doc__ and 'narrowing cast' in Int.__doc__ (guards against a rewrite dropping the contract again).
+
+**Risks / sync obligations / review notes.** Docs-only. The float-4 solution adds unary __neg__/__pos__/__abs__ right after Int.__invert__ (lines 450-453) - these docstring edits are at the top of the file and do not overlap, but if float-4 also documents unary semantics, merge the wording once. Float has the same promotion model; a follow-up could add a matching sentence to float.py.
+
+<sub>covers: `ux|bytemaker/bittypes/int.py|28-53`</sub>
+
+---

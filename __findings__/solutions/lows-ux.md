@@ -1,0 +1,396 @@
+# Solutions — Low-severity patterns: UX
+
+> Proposed fixes for the [findings](../README.md) in this area — every solution independently re-checked by an adversarial reviewer; no flags. **Nothing has been applied to the source; these are proposals for review.**
+
+## Strategy
+
+37 low UX findings clustered into 6 patterns; 13 of 37 MOOTED by accepted solutions (narrowing-5, docs-misc-1/-3, bitvector-behavior-4/-8, bitvector-polish-1, lows-docs-1/-2/-3, string-6, pytypes-1) - the medium fixes absorbed most repr/pop/docstring complaints. Each mooted ref sits in the thematically matching pattern's checklist with its mooting solution named. The 24 live refs: (1) structs.py store errors that never name the field, (2) dishonest/context-free error text across the three BitVector backends + legacy conversions, (3) late validation (mint-time codec check, min_bit_length None fallthrough, pack_tuple raw struct.error, dead pytypes registrations), (4) lookup failures that do not list the valid choices, (5) discoverability (empty conversions/__init__, undocumented array() params, stub typing cliff, silent deprecation), (6) ergonomic surprises (N*Cls reflected sugar broken, pop default=None sentinel bug). ALL runtime patterns (1,2,3,4,6 and the pattern-5 deprecation item) were applied together to a scratch copy and the FULL suite run there: 854/854 green after updating exactly one pinned test family (test_construction_invalid_source_type x3: ValueError -> TypeError, quoted in lows-ux-2). APPLY ORDER: pattern-6 pop sentinel edits the same prologue bitvector-behavior-8 rewrites - apply after it; the string mint check slots next to string-4's errors= validation (shares 'import codecs'); the YType/oracle items note the sync procedure inline. Three-backend coverage checked per checklist entry (several findings under-scoped it; noted where the C-level bitarray messages needed wrapping too).
+
+_6 solutions — 0 apply-now, 6 empirically verified on a patched copy._
+
+---
+
+## 1. Name the field: thread the field name into every structs.py store-path error
+
+**Priority:** soon · [`bytemaker/structs.py:170-176, 191-198, 213-217, 251-257, 376-379, 1390-1426`](../../bytemaker/structs.py#L170) · **✓ verified on a patched copy**
+
+**Problem.** The Struct field descriptors already know the field name (self._slot.__name__ is '_bm_<field>'; _UIntField/_SIntField use the [4:] strip for NarrowingWarning at lines 174/197) but every ERROR path drops it: _UIntField/_SIntField leak Python's bare operator.index TypeError ("'str' object cannot be interpreted as an integer"), _FloatField leaks a codec-internal OverflowError from bittype.py:593 ('float too large to pack with f format'), _BytesField raises 'expected exactly 4 bytes, got 2', and Array._coerce_seq raises 'array field expects exactly 3 elements, got 2'. On a record with several fields - or through the codegen'd __init__, whose traceback points at generated code - the user cannot tell which field was wrong.
+
+**Fix.** RULE: every exception raised on a field store names the field via the existing self._slot.__name__[4:] idiom; coercion helpers that lack the slot take an optional ctx string.
+CHECKLIST:
+- structs.py:170-176 (_UIntField.__set__) and 191-198 (_SIntField.__set__) - wrap operator.index in try/except TypeError, re-raise TypeError(f"field {name!r} expects an int, got {value!r}") from None.
+- structs.py:213-217 (_FloatField.__set__) - wrap the float(value) + codec narrow: TypeError -> TypeError(f"field {name!r} expects a float, got {value!r}") from None; (ValueError, OverflowError) as exc -> ValueError(f"field {name!r}: {value!r} does not fit a {self._ftype.__name__} ({exc})") from None.
+- structs.py:251-257 (_BytesField.__set__) - prefix the length error: f"field {name!r}: expected exactly {self._nbytes} bytes, got {len(v)}".
+- structs.py:376-379 (_ArrayField.__set__) - pass ctx=f"field {name!r}" into _coerce_seq.
+- structs.py:1390-1400 (Array._coerce_seq) - signature (self, values, ctx='array field'); message f"{ctx}: expected exactly {self._count} elements, got {len(seq)}"; forward ctx to _coerce_one.
+- structs.py:1402-1426 (Array._coerce_one) - signature (self, value, ctx=None); wrap the operator.index at 1417 in try/except TypeError naming the element type and ctx when present. NarrowingList item writes call _coerce_one with no ctx and keep working (default arg).
+IMPL COVERAGE: structs.py only - no BitVector backend or legacy-oracle involvement. _StructField (names the expected type) and _StrField (String box raises class-named errors) are already acceptable; leave them.
+
+**Before:**
+
+```python
+# structs.py:170-172 (verbatim)
+    def __set__(self, obj, value):
+        iv = operator.index(value)
+        v = iv & self._mask
+# structs.py:253-256 (verbatim)
+        if len(v) != self._nbytes:
+            raise ValueError(
+                f"expected exactly {self._nbytes} bytes, got {len(v)}"
+            )
+# structs.py:217 (verbatim)
+        self._slot.__set__(obj, self._ftype(float(value)).value)
+# Observed today (S with x: UInt8, b: Buffer.of(nbytes=4), xs: array(UInt8,3), f: Float32):
+#   s.b = b'ab'      -> ValueError: expected exactly 4 bytes, got 2
+#   s.x = 'hello'    -> TypeError: 'str' object cannot be interpreted as an integer
+#   s.xs = [1, 2]    -> ValueError: array field expects exactly 3 elements, got 2
+#   s.f = 1e300      -> OverflowError: float too large to pack with f format
+#   s.xs = [1,'z',3] -> TypeError: 'str' object cannot be interpreted as an integer
+```
+
+**After:**
+
+```python
+# _UIntField.__set__ (same shape in _SIntField):
+    def __set__(self, obj, value):
+        try:
+            iv = operator.index(value)
+        except TypeError:
+            raise TypeError(
+                f"field {self._slot.__name__[4:]!r} expects an int,"
+                f" got {value!r}"
+            ) from None
+        v = iv & self._mask
+        ...
+# Observed on the patched copy:
+#   s.b = b'ab'      -> ValueError: field 'b': expected exactly 4 bytes, got 2
+#   s.x = 'hello'    -> TypeError: field 'x' expects an int, got 'hello'
+#   s.xs = [1, 2]    -> ValueError: field 'xs': expected exactly 3 elements, got 2
+#   s.f = 1e300      -> ValueError: field 'f': 1e+300 does not fit a Float32 (float too large to pack with f format)
+#   s.xs = [1,'z',3] -> TypeError: field 'xs': array element expects an int (UInt8), got 'z'
+```
+
+**Behavior change.** Message-only for bytes/array-length/int-type paths (exception types unchanged). Two exception-TYPE changes on the float path, both deliberate: overflow store OverflowError -> ValueError (a value that does not fit is a value error; matches _BytesField), and wrong-type float store ValueError -> TypeError (str-to-float is a type error; matches the int fields). Success paths and narrowing semantics untouched. Full suite green on the patched copy (nothing pins these messages).
+
+**Tests to add.** One test class with a field of each kind, asserting the field name appears for: wrong-size bytes, str->int field, wrong-length array, str array element, 1e300->Float32 (pytest.raises match="field 'f'"), and via generated __init__ (S('hello', ...)). Full suite run on the patched copy: 854/854 green with zero test edits for this pattern.
+
+**Risks / sync obligations / review notes.** Callers catching OverflowError around float field stores would need ValueError instead - sole user, none in-tree (suite proves). try/except around operator.index is zero-cost on the success path. REVIEWER CORRECTION: the wrong-type float store claim only holds for non-str inputs; s.f='nope' still raises ValueError worded 'does not fit' - the behavior text overstates.
+
+<sub>covers: `ux|bytemaker/structs.py|251-257`, `ux|bytemaker/structs.py|170-176`, `ux|bytemaker/structs.py|1394-1399`, `ux|bytemaker/structs.py|213-217`</sub>
+
+---
+
+## 2. Honest error text: name BitVector (not the backend), both lengths, the operation, and real type names
+
+**Priority:** soon · [`bytemaker/bitvector/bitvector_native.py:see checklist`](../../bytemaker/bitvector/bitvector_native.py#L1) · **✓ verified on a patched copy**
+
+**Problem.** A family of error messages state something other than what happened or name things the user never chose: the active bitarray backend says 'bitarray' where the public type is BitVector (index/rindex, plus C-level messages leaking through delegation); the equal-length bitwise ValueError withholds the two lengths (the one datum needed to debug an off-by-one width); the constructor raises ValueError for a wrong TYPE, diverging from the same file's own 'Invalid key type' TypeErrors; transitional from_int/to_int docs and errors name a nonexistent 'Bits' type; the five legacy aggregate TypeErrors name 'YType', a symbol that exists nowhere; FixedLengthBitVector's shared violation message never names the operation; classproperty raises pre-3.11 attribute errors with no attribute name.
+
+**Fix.** RULE: an error message names the public type (BitVector, BitType), the operation, and the offending value/lengths; never a backend or a renamed-away symbol. All raise-text edits are made identically in ALL backends that carry the message.
+CHECKLIST (live):
+- bitvector_speedup.py:874-875 + bitvector_native.py:745-746 - append ', got {len_self} and {len_other}' to the equal-length ValueError in _binary_bitwise_op. THREE-BACKEND NOTE (finding under-scoped): the bitarray backend has no such message - it delegates to the C lib whose error says 'bitarrays of equal length expected'; add a _require_equal_length(self, other) helper and call it around the super() delegation in __and__/__or__/__xor__ (bwbs:728-800; the r/i-variants all funnel through these three, verified by reading 744-800).
+- bitvector_native.py:254 + bitvector_speedup.py:341 + bitvector_with_bitarray_speedup.py:244 - replace ValueError(f"Invalid source type: {type(source)}") with a TypeError naming the value, the type, and the accepted forms (matches the same files' 'Invalid key type' TypeErrors). REQUIRED TEST EDIT (quoted below): test_construction_invalid_source_type pins ValueError in all three parametrizations.
+- bitvector_with_bitarray_speedup.py:1392, 1425 - index()/rindex(): 'is not in bitarray' -> 'is not in BitVector' (plain {value}, no !r - matches native:1417/1444 and speedup:1560/1585); ALSO wrap the super().index(...) calls in try/except ValueError -> raise ValueError(f"{value} is not in BitVector") from None, because for int needles the C lib raises its own 'True not in bitarray' BEFORE the -1 check is reached (observed). Adjacent same-pattern site, same one-line wrap: bwbs remove() (line 1092) leaks '1 not in bitarray' the same way - fix while there (coordinate with bitvector-behavior-3, which reworks the same method's coercion).
+- bitvector_{native,speedup,with_bitarray_speedup}.py from_int/to_int block (native:1683-1717, speedup:1800-1835, bwbs:1694-1728) - replace 'Bits object'/'the Bits' with 'BitVector' in the three docstrings per file and 'Cannot convert {integer} to Bits with size {size}' -> 'to a BitVector of size {size}' in the from_int ValueError (all three backends; finding cited one).
+- _legacy_aggregate.py:127, 150, 182, 219, 284 - 'not a CType, YType, or PyType' -> 'not a ctypes type, BitType, or supported Python primitive' (BitType is the only importable name of the three; say plain words for the rest). Also sweep the stale 'YType' from docstrings at 157/193/240. ORACLE NOTE: single copy - aggregate_types.py re-exports these functions from _legacy_aggregate, so there is no second path to sync; message-only, parity suite green on the patched copy.
+- fixed.py:33-38 - _length_violation(self, op) interpolating the operation ('append()', 'del', '+=', '*=', 'slice assignment'); update the 12 raise sites. Marginal (traceback already names the frame) but one-word-per-site cheap; keep the existing remedy sentence.
+- utils.py:40, 45, 51 - give classproperty a __set_name__ storing 'Owner.attr' and name it in all three AttributeErrors (matches CPython 3.11+ property). The setter/deleter branches are currently unreachable in-tree (read-only uses only) - this is cheap future-proofing, priority 'later' if split out.
+CHECKLIST (mooted):
+- bitvector_with_bitarray_speedup.py:1089 (pop from empty bitarray) - MOOTED by bitvector-behavior-8 (honest out-of-range pop messages, all three backends).
+- bitvector_native.py:1157-1160 (pop 'from empty' on non-empty vector) - MOOTED by bitvector-behavior-8 ('pop index {raw} out of range for BitVector of length {n}').
+- bitvector_speedup.py:1064-1070 (extended-slice error talks about 'bytes') - MOOTED by bitvector-behavior-4 (pre-check raises 'attempt to assign sequence of size N to extended slice of size M' on native+speedup, matching the bitarray backend).
+- bitvector_with_bitarray_speedup.py:535 (oct() docstring says 0x) - MOOTED by bitvector-polish-1 (fixes oct AND the same defect in bin at 551).
+- bitvector_with_bitarray_speedup.py:1166, 1254 (startswith/endswith docstrings say 'the bitarray') - MOOTED by lows-docs-2.
+- bitvector_with_bitarray_speedup.py:864-884 (__contains__ implicit None fall-through) - MOOTED by lows-docs-3, which includes the CODE fix (assert isinstance + unconditional return, matching native:908-910 / speedup).
+
+**Before:**
+
+```python
+# speedup:874-875 (verbatim; native:745-746 identical)
+        if other._len != self._len:
+            raise ValueError("BitVectors of equal length expected")
+# all three backends (verbatim)
+        raise ValueError(f"Invalid source type: {type(source)}")
+# bwbs:1392 and 1425 (verbatim)
+            raise ValueError(f"{value} is not in bitarray")
+# Observed today:
+#   sp.BitVector('1010') & sp.BitVector('10')   -> ValueError: BitVectors of equal length expected
+#   bwbs.BitVector('1010') & bwbs.BitVector('10')-> ValueError: bitarrays of equal length expected
+#   BitVector(3.5)                               -> ValueError: Invalid source type: <class 'float'>
+#   bwbs.BitVector('0000').index(True)           -> ValueError: True not in bitarray  (C-level, bypasses line 1392)
+#   sp.BitVector.from_int(300, size=4)           -> ValueError: Cannot convert 300 to Bits with size 4, ...
+#   to_bits_aggregate(object())                  -> TypeError: ... unit type is not a CType, YType, or PyType
+#   FixedLengthBitVector('1010').append(1)       -> ValueError: length is invariant (4 bits): width-changing mutation is not allowed...
+#   classproperty with no setter, instance write -> AttributeError: can't set attribute
+```
+
+**After:**
+
+```python
+# Observed on the patched copy (all three backends where applicable):
+#   & mismatch (native/speedup/bwbs, identical) -> ValueError: BitVectors of equal length expected, got 4 and 2
+#   BitVector(3.5) (all three, identical)       -> TypeError: invalid source for BitVector: 3.5 of type float;
+#       expected a BitVector/bitstring, bytes-like, int size, iterable of bits, or BitsCastable
+#   bwbs.BitVector('0000').index(True)           -> ValueError: True is not in BitVector
+#   sp.BitVector.from_int(300, size=4)           -> ValueError: Cannot convert 300 to a BitVector of size 4, because it requires 9 bits to represent.
+#   to_bits_aggregate(object())                  -> TypeError: Cannot convert <object ...> to bits because the unit type is not a ctypes type, BitType, or supported Python primitive
+#   FixedLengthBitVector('1010').append(1)       -> ValueError: append() would change the length, which is invariant (4 bits) on a FixedLengthBitVector; make a resizable copy with BitVector(...) first
+#   classproperty no-setter write                -> AttributeError: can't set classproperty C.broken (no setter)
+# Required test edit (the ONLY suite fallout of ALL six patterns combined):
+def test_construction_invalid_source_type(BitVector):
+    with pytest.raises(TypeError, match="invalid source for BitVector"):
+        BitVector(3.5)
+```
+
+**Behavior change.** One exception-TYPE change: unsupported constructor source ValueError -> TypeError in all three backends (wrong type is a TypeError; the same files already use TypeError for 'Invalid key type'). Everything else is message/docstring text only. Full suite on the patched copy: 3 parametrized failures, all test_construction_invalid_source_type; green (854/854) after the quoted 2-line test update.
+
+**Tests to add.** Update test_construction_invalid_source_type as quoted. Add parity assertions that the three backends emit IDENTICAL text for: & length mismatch, invalid constructor source, index() miss (int and subsequence needles), from_int overflow - this is the regression net that would have caught the bitarray-name leaks in the first place. Grep 'bitarray' over raise/docstring text in bwbs afterwards; expect zero user-facing hits.
+
+**Risks / sync obligations / review notes.** except ValueError around BitVector construction breaks (sole user; none in-tree - suite proves). The bwbs bitwise pre-check adds one len() comparison per op (negligible next to the copy type(self)(other) already performs). fixed.py op-labels: keep labels in sync if methods are added. _legacy_aggregate edit is message-only but IS an oracle-file edit - run the parity suite in the same commit (done on the scratch copy). REVIEWER CORRECTIONS: (a) the proposed identical-text parity test fails for subsequence needles (the bwbs wrap interpolates the coerced value); relax it to a pattern match; (b) the checklist's remove() wrap was never applied to the verified copy - it still leaks '1 not in bitarray'; apply and verify it at landing; (c) 'read-only classproperty uses only' is wrong - codepoint_changes has a setter.
+
+<sub>covers: `ux|bytemaker/bitvector/bitvector_speedup.py|874-875`, `ux|bytemaker/bitvector/bitvector_speedup.py|341`, `ux|bytemaker/bitvector/bitvector_with_bitarray_speedup.py|1392, 1425`, `ux|bytemaker/_legacy_aggregate.py|126-128, 148-151, 181-183, 218`, `ux|bytemaker/bitvector/bitvector_speedup.py|1800-1835`, `ux|bytemaker/bitvector/fixed.py|33-38`, `ux|bytemaker/utils.py|40, 45, 51`, `ux|bytemaker/bitvector/bitvector_with_bitarray_speedup.py|1089`, `ux|bytemaker/bitvector/bitvector_native.py|1157-1160`, `ux|bytemaker/bitvector/bitvector_speedup.py|1064-1070`, `ux|bytemaker/bitvector/bitvector_with_bitarray_speedup.py|535`, `ux|bytemaker/bitvector/bitvector_with_bitarray_speedup.py|1166, 1254`, `ux|bytemaker/bitvector/bitvector_with_bitarray_speedup.py|864-884`</sub>
+
+---
+
+## 3. Validate at the source: mint/entry-point checks instead of deep, late failures
+
+**Priority:** soon · [`bytemaker/bittypes/string.py:string.py:445-447; int.py:169-195; plans.py:244-270; pytypes.py:196, 215-222, 276, 319`](../../bytemaker/bittypes/string.py#L445) · **✓ verified on a patched copy**
+
+**Problem.** Four places accept bad input at the declaration/entry point and fail later, far from the mistake, with an error that names neither the culprit nor the choices: String.of(encoding='utf-99') mints a working-looking type that explodes at first encode with a bare LookupError; min_bit_length's signed branch has no trailing else, silently returns None on an unknown bin_format, and surfaces as "'<=' not supported between instances of 'NoneType' and 'int'" inside to_bitstring (its siblings from_bitstring/to_pyint/to_bitstring all raise 'Unsupported format: ...'); Plan.pack_tuple's struct-tier retry only C-wraps ints, so a None/str/float in an int slot re-raises a raw field-less struct.error 'required argument is not an integer'; and pytypes.py builds bytes/bytearray/memoryview ConversionInfos in a live-looking loop whose registration is commented out, then fails with a bare 'No conversion found' that hints at nothing.
+
+**Fix.** RULE: reject bad declarations where they are written; when a low-level failure must propagate, translate it using the schema/context the raiser already holds.
+CHECKLIST:
+- string.py:445-447 - in the isinstance(encoding, str) branch of of(), codecs.lookup(encoding) in try/except LookupError -> ValueError(f"{cls.__name__}.of(): unknown encoding {encoding!r}") from None. COORDINATE with string-4: it adds 'import codecs' and validates errors= at the same dispatch site; land this as the first check of that branch (both keyed off the resolved base).
+- int.py:169-195 - add the missing trailing else to the signed min_bit_length chain: raise ValueError(f"Unsupported format: {bin_format!r}. Expected one of 'twos_complement', 'signed_magnitude', or 'ones_complement'.") - the exact shape its siblings already use (int.py:137-138, 301-302). Makes the '-> int' annotation truthful.
+- plans.py:244-248 - wrap the retry: on a second (_struct.error, TypeError), call a new Plan._raise_unpackable(values, exc) that walks zip(self.fields, values) and raises TypeError naming the first non-conforming field (kind 'b' -> exact-width bytes check, 'u'/'s' -> isinstance int, 'f' -> isinstance (int, float)); falls back to 'raise exc' if nothing is identifiable. COORDINATE with plans-2 (arity pre-check at the top of pack_tuple runs first). Wrap-retry semantics for legitimately out-of-range ints unchanged (verified).
+- pytypes.py:215-222 - DELETE the dead loop rather than uncommenting the registration: enabling bytes/bytearray/memoryview conversion would silently change legacy aggregate behavior for zero known need, and the adjacent commented-out _string_conversion_info block (199-205) shows 'deliberately disabled' is the file's convention. Then make the three 'No conversion found' raises (196 in get_conversion_info, 276 in pytype_to_bits, 319 in bits_to_pytype) list the registered types. LEGACY NOTE: pytypes feeds _legacy_aggregate; deletion of never-registered infos + message text is behavior-neutral (suite green).
+
+**Before:**
+
+```python
+# string.py:445-447 (verbatim)
+        elif isinstance(encoding, str):
+            base = StandardEncodingString
+            ns["encoding_name"] = encoding
+# int.py:191-195 (verbatim; chain then falls off the end)
+            elif bin_format == "ones_complement":
+                if n == 0:
+                    return 1  # ...
+                return ceil(log2(abs(n) + 1)) + 1
+# plans.py:244-248 (verbatim)
+        if self.tier == "struct":
+            try:
+                return self.struct_obj.pack(*values)
+            except (_struct.error, TypeError):
+                return self.struct_obj.pack(*self._wrap_values(values))
+# Observed today:
+#   String.of(nbytes=4, encoding='utf-99')      -> mints fine; T('AB') -> LookupError: unknown encoding: utf-99
+#   Int.min_bit_length(5, signed=True, bin_format='garbage') -> None
+#   Int.to_bitstring(5, signed=True, rep_format='garbage')   -> TypeError: '<=' not supported between instances of 'NoneType' and 'int'
+#   P.plan.pack_tuple([5, None])                 -> struct.error: required argument is not an integer
+#   pytype_to_bytes(b'\x01\x02')               -> TypeError: No conversion found for <class 'bytes'>
+```
+
+**After:**
+
+```python
+# Observed on the patched copy:
+#   String.of(nbytes=4, encoding='utf-99') -> ValueError: String.of(): unknown encoding 'utf-99'   (at the declaration)
+#   String.of(nbytes=4, encoding='utf-8')('hi').value == 'hi'                                      (valid codecs unaffected)
+#   Int.min_bit_length(5, signed=True, bin_format='garbage') -> ValueError: Unsupported format: 'garbage'. Expected one of 'twos_complement', 'signed_magnitude', or 'ones_complement'.
+#   Int.to_bitstring(5, signed=True, rep_format='garbage')   -> same ValueError (at the source, not the NoneType comparison)
+#   P.plan.pack_tuple([5, None])  -> TypeError: field 'b' expects an int, got None
+#   P.plan.pack_tuple(['x', 3])   -> TypeError: field 'a' expects an int, got 'x'
+#   P.plan.pack_tuple([5, 300])   -> b'\x05,'   (C-wrap retry path unchanged)
+#   pytype_to_bytes(b'\x01\x02') -> TypeError: No conversion found for <class 'bytes'>; conversions are registered for ['bool', 'float', 'int', 'str']
+```
+
+**Behavior change.** Typo'd encoding now fails at mint (ValueError) instead of first use (LookupError); unknown signed bin_format raises ValueError instead of returning None (and to_bitstring's downstream NoneType TypeError disappears); pack_tuple with an unpackable value raises a field-naming TypeError instead of raw struct.error; pytypes failure messages list the registered types. All valid-input paths byte-identical; full suite green on the patched copy with zero test edits for this pattern.
+
+**Tests to add.** pytest.raises(ValueError, match='unknown encoding') on String.of(encoding='utf-99'); min_bit_length/to_bitstring garbage-format tests expecting the choice-listing ValueError; pack_tuple([5, None]) / (['x', 3]) matching "field '.'"; pack_tuple wrap-retry regression (out-of-range int still packs); pytype_to_bytes(b'') message lists registered types. Suite: 854/854 green.
+
+**Risks / sync obligations / review notes.** Mint-time codec validation could reject an encoding registered only later via codecs.register - theoretical; register custom codecs before minting (or pass a callable pair, which of() supports). Callers catching struct.error from pack_tuple for TYPE errors now need TypeError (none in-tree). min_bit_length None-reliance: none possible, annotated -> int.
+
+> ⚖️ **Decision needed:** pytypes dead loop: DELETE (recommended, keeps the legacy conversion surface frozen) vs uncomment the registration to actually support bytes/bytearray/memoryview in legacy aggregates - flag if bytes support is actually wanted.
+
+<sub>covers: `ux|bytemaker/bittypes/string.py|445-447, 473-474`, `ux|bytemaker/bittypes/int.py|169-195`, `ux|bytemaker/plans.py|244-248`, `ux|bytemaker/conversions/pytypes.py|215-222`</sub>
+
+---
+
+## 4. Lookup failures should teach: list the valid choices and point at the real knob
+
+**Priority:** soon · [`bytemaker/plans.py:plans.py:313-318; fields.py:88-91`](../../bytemaker/plans.py#L313) · **✓ verified on a patched copy**
+
+**Problem.** Name-lookup helpers fail without teaching: Plan.bit_offset/byte_offset typos raise KeyError("no field named 'bb'") - no field list, no record identity, and KeyError's quote-in-quote traceback rendering; fields.py's lazy uN/sN factory answers f8/f128 with the generic 'module has no attribute' even though the module docstring itself explains exactly why only f16/f32/f64 exist. In both cases the knowledge for a helpful message is already in scope.
+
+**Fix.** RULE: when a lookup by name fails and the valid names are enumerable in scope, enumerate them (or explain the rule that generates them).
+CHECKLIST (live):
+- plans.py:313-318 - Plan._find raises ValueError(f"no field named {name!r}; fields are {[f.name for f in self.fields]}") - ValueError matches the sibling byte_offset error at line 328, fixing the KeyError double-quoting and the type inconsistency in one move.
+- fields.py:88-91 - before the generic AttributeError, check re.fullmatch(r"f[1-9][0-9]*", name) and raise an AttributeError explaining floats are the fixed IEEE set f16/f32/f64 (an arbitrary width has no exponent/mantissa split) and pointing at Float.specialize. f16/f32/f64 are real module attributes (fields.py:78-80), so __getattr__ never fires for them; 'from bytemaker.fields import f8' wraps the message in ImportError but preserves the text.
+CHECKLIST (mooted):
+- int.py:545, 561 (SInt docstring points at nonexistent `Config`) - MOOTED by docs-misc-3 (points both lines at SignedConfig).
+- bittypes/__init__.py:1,65-125 (NarrowingConfig/NarrowingWarning not importable from the defining subpackage) - MOOTED by narrowing-5 (re-exports both + __all__).
+
+**Before:**
+
+```python
+# plans.py:318 (verbatim)
+        raise KeyError(f"no field named {name!r}")
+# fields.py:88-91 (verbatim)
+def __getattr__(name):
+    match = _ALIAS_PATTERN.fullmatch(name)
+    if match is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+# Observed today:
+#   p.byte_offset('bb')      -> KeyError: "no field named 'bb'"
+#   getattr(fields, 'f8')    -> AttributeError: module 'bytemaker.fields' has no attribute 'f8'
+```
+
+**After:**
+
+```python
+# Observed on the patched copy:
+#   p.byte_offset('bb') -> ValueError: no field named 'bb'; fields are ['a', 'b']
+#   getattr(fields, 'f8') -> AttributeError: module 'bytemaker.fields' has no attribute 'f8':
+#       float aliases are the fixed IEEE set f16/f32/f64 (an arbitrary bit width does not
+#       determine an exponent/mantissa split); for a custom split use Float.specialize
+#   u31/s5/u128 still mint via the alias cache (unchanged)
+```
+
+**Behavior change.** One exception-TYPE change: Plan._find KeyError -> ValueError (surfaces via bit_offset/byte_offset). byte_offset's docstring already advertises 'raises ValueError otherwise', so the helpers become uniformly ValueError. Suite green on the patched copy with zero test edits - nothing pins the KeyError.
+
+**Tests to add.** pytest.raises(ValueError, match='fields are') for byte_offset/bit_offset typos; AttributeError message match 'f16/f32/f64' for fields.f8/f128; regression: fields.u31 still resolves, fields.q8 still gets the plain message.
+
+**Risks / sync obligations / review notes.** Callers catching KeyError around Plan offset lookups (none in-tree). Field lists on huge plans make long messages - acceptable for an introspection helper. REVIEWER CORRECTION: `from bytemaker.fields import f8` does NOT preserve the teaching text (Python raises its own generic ImportError, no chaining); the hint works for attribute access only - the fix text mis-states this.
+
+<sub>covers: `ux|bytemaker/plans.py|313-329`, `ux|bytemaker/fields.py|15-17, 83, 88-91`, `ux|bytemaker/bittypes/int.py|545, 561`, `ux|bytemaker/bittypes/__init__.py|1,65-125`</sub>
+
+---
+
+## 5. Discoverability: package re-exports, undocumented params, the stub's 64-bit cliff, and runtime deprecation signals
+
+**Priority:** later · [`bytemaker/conversions/__init__.py:conversions/__init__.py:1; structs.py:631-657; fields.pyi:9-11, 28-162; bittype.py:348-372; float.py:22-54`](../../bytemaker/conversions/__init__.py#L1) · **✓ verified on a patched copy**
+
+**Problem.** Capabilities exist but nothing surfaces them where a user looks: conversions/__init__.py is 0 bytes while both sibling subpackages (bittypes, bitvector) re-export their public API with __all__; array()'s docstring never mentions its endian= override (the ONLY per-array byte-order knob; unset arrays inherit the record's order) nor default=, and field() omits default= too; fields.pyi types u65+/s65+ as Any so the read-int/write-SupportsIndex channel typing silently stops at 64 even though UInt128/256 and SInt128/256 are real canonical classes; to_bits/from_bits say DEPRECATED in docstrings but emit no runtime signal (and are still called by the legacy oracle at _legacy_aggregate.py:121/176 and 11 test sites); Float's ten binary bitwise dunders return bare NotImplemented with no pointer to the f.bits spelling that __invert__ already teaches.
+
+**Fix.** RULE: every public knob is reachable from where a user would look for it - the package __init__, help() on the factory, the stub, or a runtime warning.
+CHECKLIST (live):
+- conversions/__init__.py:1 - re-export the public legacy API with __all__, mirroring the sibling-subpackage convention: the eight aggregate entry points from aggregate_types (to/from_bits/bytes_aggregate, to/from_bits/bytes_individual) plus the pytype_*/ctype_* helpers; keep it a curated subset exactly like bittypes/__init__ and bitvector/__init__.
+- structs.py:648-657 - array() docstring: add param lines for element/count, 'endian: force this array's byte order; None (default) inherits the record's' and 'default: initial value (list of elements)'; structs.py:631-645 - field() docstring: one line for default=. COORDINATE: lows-docs-3 rewords the same array() docstring's 'Sugar for field(element * count)' sentence - merge into one edit; note structs-2 (detach-copied Struct-valued defaults) when phrasing default=.
+- fields.pyi:9-11, 28-156 - extend the explicit alias ladder with the canonical wide widths that exist as named classes (u128/s128/u256/s256 -> UInt128/SInt128/UInt256/SInt256, all real bittypes exports), and sharpen the lines 9-11 note to a blunt rule: 'other widths past 64 type as Any - add a descriptor class here if you need a checked width'. Do NOT retype __getattr__: '-> Any' is the only spelling that keeps `x: u999` legal in annotation position (a descriptor instance is not a type). COORDINATE: docs-misc-4 adds __all__ to this stub - include the four new names.
+- bittype.py:350-372 - three coordinated steps, verified together on the patched copy: (1) redirect the only two in-tree callers, both in the frozen oracle - _legacy_aggregate.py:121 'return unit.to_bits()' -> 'return unit.bits' and :176 'return unittype.from_bits(unitbits)' -> 'return unittype(bits=unitbits)' (behavior-identical: those ARE the method bodies; ORACLE SYNC: single-file edit, parity suite green, record the equivalence note per house procedure); (2) add warnings.warn(..., DeprecationWarning, stacklevel=2) to both methods ('import warnings' already at bittype.py top); (3) migrate the 11 direct call sites in test/bittypes_test.py to .bits / constructor, keeping one pytest.deprecated_call() test per method. Removal per the '# TODO remove' stays a later, separate step.
+- float.py:362-390 - docstring-only: KEEP 'return NotImplemented' (idiomatic; preserves the reflected-operand protocol - raising would break duck-typed r-ops), and add a short 'Bitwise operations' paragraph to the Float class docstring teaching the bit-plane spelling (f.bits & mask, f.bits >> 2, ~f.bits) that __invert__'s TypeError already hints. COORDINATE: float-5 rewrites the same class docstring - fold this paragraph into that edit.
+CHECKLIST (mooted):
+- string.py:43-44 (String has no class docstring) - MOOTED by string-6 (adds it, folding in the field-knob comment).
+- string.py:43 (String/Buffer repr shows raw bits + endianness tag) - MOOTED by docs-misc-1: the accepted eval-able repr DELIBERATELY chose bits-form for all BitTypes (exactness over friendliness; str() already leads with the decoded value). Do not re-litigate per-type value-form reprs.
+- float.py:214-220 (specialize trailing-underscore params) - MOOTED by lows-docs-1: the underscore names are a uniform bittypes-wide convention (string/buffer/int/float all use them); only the line-225 prose backtick mismatch is real and lows-docs-1 fixes it.
+- pytypes.py:260-283, 62-73 (instance params annotated/labeled `type`) - MOOTED by lows-docs-1 (drops the wrong annotations; the 62-73 half already rewritten by pytypes-1's instance-method conversion).
+- aggregate_types.py:185 (malformed 'units [Iterable | DataClassType]):' Args line) - MOOTED by lows-docs-2.
+
+**Before:**
+
+```python
+# conversions/__init__.py: 0 bytes; import bytemaker.conversions as c -> dir(c) has no public names
+# structs.py:655-657 (verbatim)
+    """Declare a fixed-count array field: ``colors: list[int] = array(UInt16, 8)``.
+    Sugar for ``field(element * count)`` with a plain-list checker type."""
+# bittype.py:350-352 (verbatim)
+    def to_bits(self) -> BitVector:
+        """DEPRECATED
+        Use the `bits` property instead.
+# Observed today: UInt8(3).to_bits() under simplefilter('always') -> 0 warnings emitted
+# fields.pyi:162: def __getattr__(name: str) -> Any: ...   (u65+ types as Any)
+```
+
+**After:**
+
+```python
+# Observed on the patched copy (deprecation item):
+#   UInt8(3).to_bits()            -> DeprecationWarning: BitType.to_bits() is deprecated; use the .bits property
+#   UInt8.from_bits(bits)         -> DeprecationWarning: UInt8.from_bits() is deprecated; use the constructor: UInt8(bits=...)
+#   plain suite: 855 passed (54 warnings from the 11 not-yet-migrated test call sites);
+#   -W error::DeprecationWarning enumerates exactly those 28 parametrized tests -> migrate them + keep one deprecated_call() test each
+#   oracle redirect verified: legacy aggregate round-trips byte-identical, parity suite green
+# conversions/__init__.py (proposed):
+from bytemaker.conversions.aggregate_types import (  # noqa: F401
+    from_bits_aggregate, from_bits_individual, from_bytes_aggregate,
+    from_bytes_individual, to_bits_aggregate, to_bits_individual,
+    to_bytes_aggregate, to_bytes_individual,
+)
+from bytemaker.conversions.ctypes_ import ...  # ctype helpers, same pattern
+from bytemaker.conversions.pytypes import ...  # pytype helpers, same pattern
+__all__ = [...]
+# array() docstring (proposed):
+    """Declare a fixed-count array field: ``colors: list[int] = array(UInt16, 8)``.
+    Sugar for ``field(element * count)`` with a plain-list checker type.
+
+    element: scalar BitType class or nested Struct class per slot.
+    count:   fixed element count (length is invariant).
+    endian:  force this array's byte order; None (default) inherits the record's.
+    default: initial list value; omitted -> field is required.
+    """
+```
+
+**Behavior change.** to_bits()/from_bits() now emit DeprecationWarning at runtime (values returned unchanged); the oracle no longer calls them internally (equivalent property/constructor calls, verified byte-identical + suite green). Everything else is exports/docstrings/stub - no runtime change. from bytemaker.conversions import to_bytes_aggregate starts working.
+
+**Tests to add.** pytest.deprecated_call() for to_bits and from_bits; -W error::DeprecationWarning run must be green after migrating the 11 bittypes_test.py call sites (verified list); import test: from bytemaker.conversions import to_bytes_aggregate; for the stub, a typing smoke file asserting x: u128 reveals int reads under the checker (mypy/pyright job if one exists).
+
+**Risks / sync obligations / review notes.** DeprecationWarnings in any remaining user code (sole user, intended signal). Oracle edit risk handled by the verified-equivalence + parity-suite procedure. Stub ladder additions must stay in sync with docs-misc-4's __all__. None for the re-exports (additive). REVIEWER NIT: the suite count is 854, not 855 as claimed in one behavior line.
+
+> ⚖️ **Decision needed:** to_bits/from_bits: warn now + migrate callers (recommended), or delete outright per the '# TODO remove' since the sole user can absorb it in one commit? Warning first is proposed because the methods still appear in 11 test sites and possibly downstream scripts.
+
+<sub>covers: `ux|bytemaker/conversions/__init__.py|1`, `ux|bytemaker/structs.py|648-657`, `ux|bytemaker/fields.pyi|9-11, 28-156`, `ux|bytemaker/bittypes/bittype.py|350-372`, `ux|bytemaker/bittypes/float.py|362-390`, `ux|bytemaker/bittypes/string.py|43-44`, `ux|bytemaker/bittypes/string.py|43`, `ux|bytemaker/bittypes/float.py|214-220`, `ux|bytemaker/conversions/pytypes.py|260-283, 62-73`, `ux|bytemaker/conversions/aggregate_types.py|185`</sub>
+
+---
+
+## 6. Ergonomic surprises: fix N * Cls reflected array sugar and honor pop's explicit default=None
+
+**Priority:** soon · [`bytemaker/bittypes/bittype.py:bittype.py:79-80; pop() in native:1143-1163 / speedup:1257-1280 / bwbs:1078-1096; structs.py:1180-1187; bitvector.pyi:210-216`](../../bytemaker/bittypes/bittype.py#L79) · **✓ verified on a patched copy**
+
+**Problem.** Two working-looking APIs quietly do the wrong thing. (1) BitTypeMeta.__rmul__ delegates via cls.__mul__(count), but on a class object that resolves to the INSTANCE value operator (Int.__mul__) from the class MRO, not the metaclass array sugar - so 4 * UInt8 raises "Int.__mul__() missing 1 required positional argument: 'other'" while UInt8 * 4 builds an Array. (2) pop()'s default parameter defaults to None and the guard tests 'default is not None', so the API cannot distinguish 'no default given' from an explicit default=None: bv.pop(99, default=None) raises IndexError, contradicting the docstring's 'If a default is provided and the index is out of bounds, the default is returned' - in all three backends, and reachable from Struct BoundBits.pop which forwards default.
+
+**Fix.** CHECKLIST:
+- bittype.py:79-80 - __rmul__ dispatches through the metaclass explicitly: 'return type(cls).__mul__(cls, count)', with a comment saying why (class-object attribute lookup finds the instance operator first). THREE-IMPL NOTE: metaclass exists once; not a backend issue.
+- pop() sentinel, ALL THREE backends (native:1143-1163, speedup:1257-1280, bwbs:1078-1096): module-level _MISSING = object(); signature 'default: Any = _MISSING' (add Any to each file's typing_redirect import block - runtime is safe regardless via 'from __future__ import annotations', but the checker needs it); guard 'if default is not _MISSING: return default'; docstring line 'an explicit default=None is honored'. APPLY AFTER bitvector-behavior-8: its rewritten shared prologue contains the same 'if default is not None' line - make the sentinel swap in its new text (one line + signature per backend).
+- structs.py:1180-1187 - BoundBits.pop(index=None, default=_MISSING) forwards the default only when given (b.pop(index) vs b.pop(index, default)); structs.py already defines _MISSING.
+- bitvector.pyi:210-216 - retype the pop overloads: (index only) -> int, (index, default: T) -> Union[int, T]; drop the 'default: None = None' overload spelling.
+- fixed.py:49 pop(index=None, default=None) always raises (length-invariant); align its signature cosmetically in the same pass (no behavior).
+
+**Before:**
+
+```python
+# bittype.py:79-80 (verbatim)
+    def __rmul__(cls, count: int):
+        return cls.__mul__(count)
+# pop prologue, all three backends (verbatim; native:1144 / speedup:1258 / bwbs:1079)
+        self, index: Optional[int] = None, default: Optional[T] = None
+    ...
+            if default is not None:
+                return default
+# Observed today:
+#   4 * UInt8                        -> TypeError: Int.__mul__() missing 1 required positional argument: 'other'
+#   BitVector('1010').pop(99, None)  -> IndexError (contradicts the docstring; bwbs wording even says 'pop from empty bitarray')
+#   BitVector('1010').pop(99, 9)     -> 9
+```
+
+**After:**
+
+```python
+# Observed on the patched copy (all three backends):
+#   4 * UInt8                        -> Array(UInt8 * 4, endian='big')   (== UInt8 * 4)
+#   BitVector('1010').pop(99, None)  -> None                             (explicit default honored)
+#   BitVector('1010').pop(99, 9)     -> 9                                (unchanged)
+#   BitVector('1010').pop(99)        -> IndexError                       (no default still raises;
+#       message text is bitvector-behavior-8's 'pop index 99 out of range...' once that lands)
+#   pop() / pop(0)                   -> last/first bit                   (happy paths unchanged)
+```
+
+**Behavior change.** N * Cls now equals Cls * N (was: unconditional TypeError, so nothing depended on it). pop(i, default=None) returns None instead of raising - the behavior the docstring always promised; every other pop path identical. Full suite green on the patched copy with zero test edits for this pattern (the behavior-8 parity tests pin pop semantics going forward).
+
+**Tests to add.** assert repr(4 * UInt8) == repr(UInt8 * 4) (and a struct built from N * Cls fields packs identically); three-backend parity: pop(99, None) is None, pop(99) raises IndexError, pop(-1, 'd') after behavior-8 pops the last bit (not the sentinel); BoundBits.pop with and without default.
+
+**Risks / sync obligations / review notes.** Code relying on pop(x, None) raising would break - that usage contradicted the documented contract and the suite has none. The _MISSING sentinel must be swapped inside bitvector-behavior-8's new prologue if that lands first (called out there and here). Stub edit only affects type checking. REVIEWER LANDMINE: the designer's internal apply_patches.py MISSES the pop signature line (the def pop( line carries a trailing "# type: ignore" its pattern does not match) - replaying that script verbatim makes BitVector().pop() return None (3 test failures). Apply from the JSON checklist (which prescribes the correct signature), never from the script. Pop line numbers cited are from the patched copy, not pristine.
+
+<sub>covers: `ux|bytemaker/bittypes/bittype.py|79-80`, `ux|bytemaker/bitvector/bitvector_native.py|1134-1163`</sub>
+
+---

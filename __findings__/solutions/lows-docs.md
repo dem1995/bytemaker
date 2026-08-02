@@ -1,0 +1,555 @@
+# Solutions — Low-severity patterns: docstrings & AI-tone
+
+> Proposed fixes for the [findings](../README.md) in this area — every solution independently re-checked by an adversarial reviewer; 4 flag(s) found and resolved by revision. **Nothing has been applied to the source; these are proposals for review.**
+
+## Strategy
+
+39 findings (31 docstring + 8 ai-tone; the tasking said 47 but the group file contains 39 - verified by count). Clustered into 6 patterns. Moot check against all 13 accepted solution files: 9 refs fully MOOTED (int.py:562 by docs-misc-3; float.py:42 by float-5; bwbs oct/bin 533-535/549-551 by bitvector-polish-1; bwbs 419-438 stale block by bitvector-polish-3; pytypes 309/333 and 312 by pytypes-2; utils 314-325 by aggregate-utils-5; buffer.py 40-45 orphan literal by buffer-1) and 1 partially mooted (pytypes 62-73 half by pytypes-1; the 260-283 half is live). 29 live refs remain. Apply notes: apply AFTER the medium/high solutions land, since several live fixes sit in regions those solutions shift (narrowing-6 rewrites the Int class docstring but keeps the dangling sentence; bitvector-behavior-5 rewrites the head of the BitsConstructible docstring whose tail lows-docs-5 trims; buffer-1's accepted text reuses the 'door' phrase lows-docs-5 removes - one wording call needed). All live before-texts were read verbatim from the repo today; signature/behavior claims were runtime-checked (Float has no __index__, String.specialize / Plan.num_bytes / LegacyRecordPlan.parse/pack docstrings are None, fixed.py frombytes/fromfile raise ValueError, bitarray-backend __contains__ ends on a guarded return).
+
+_6 solutions — 0 apply-now, 0 empirically verified on a patched copy._
+
+---
+
+## 1. Phantom or mislabeled parameters: docstrings name arguments that do not exist, or label an instance argument as a type
+
+**Priority:** soon · [`bytemaker/bittypes/int.py:int.py 205-219; pytypes.py 260, 281-283; float.py 225`](../../bytemaker/bittypes/int.py#L205)
+
+**Problem.** Recurring pattern: a docstring (or signature annotation) names a parameter or symbol that does not exist. Three sub-shapes: (a) a Parameters entry for an argument absent from the signature, with the real receiver (self) undocumented - to_bitstring documents 'integer (int)' but the value comes from `self: Int | int`; (b) an instance argument annotated/labeled as a type - pytype_to_bits and pytype_to_bytes declare `py_prim: type` while the prose correctly says 'The python instance' and the body calls type(py_prim); (c) prose that backticks a near-miss identifier - float.py specialize's prose says `packing_format_letter` while the parameter is `packing_format_letter_`. All three mislead a reader (or an IDE user, for the wrong annotation) about what to pass. Same defect family the accepted docs-misc-2 fixed for to_pyint's phantom `bitstring` param; these are the remaining instances.
+
+**Fix.** RULE: every documented parameter name must appear in the signature; when the value comes from the receiver, document `self` (and its accepted types), never a phantom name. An argument that receives an instance must not be annotated or labeled `type` - use the untyped `name: description` form (or Any), as pytypes-1's accepted rewrite already does for ConversionInfo.to_bytes. Backticked identifiers in prose must match the real symbol, or be de-backticked into plain words (int.py:625's parallel specialize already says 'If a packing format letter is provided' - copy that norm).
+CHECKLIST:
+- bytemaker/bittypes/int.py:205-219 - drop the phantom '- integer (int)' entry; document that the value comes from `self` (an Int or plain int, callable as Int.to_bitstring(5, ...)); keep signed/bit_length/rep_format. Mirrors accepted docs-misc-2 (to_pyint).
+- bytemaker/conversions/pytypes.py:62-73 half - MOOTED by pytypes-1 (rewrites ConversionInfo.to_bytes as an instance method with 'py_prim: The Python instance').
+- bytemaker/conversions/pytypes.py:260-283 half - LIVE: change `def pytype_to_bits(py_prim: type)` to `def pytype_to_bits(py_prim)` and `def pytype_to_bytes(py_prim: type, ...)` likewise; the docstring prose already says 'instance' and needs no change. Coordinate: endianness-2 adds a validation line inside pytype_to_bytes; no textual overlap.
+- bytemaker/bittypes/float.py:225 - de-backtick the prose to 'If a packing format letter is provided, ...' matching int.py:625's identical sentence (the Args entry at 235 already documents `packing_format_letter_` correctly). Apply after float-1/float-2, which edit other regions of float.py but not lines 221-242.
+- bytemaker/utils.py:314-325 - MOOTED by aggregate-utils-5 (fixes the phantom ':param bits:' -> n_bits and restyles the docstring).
+- bytemaker/conversions/pytypes.py:309, 333 - MOOTED by pytypes-2 (replaces the phantom type 'PyTypeWithDefaultBytes' with the real ConversionConfig contract in both docstrings).
+
+**Before:**
+
+```python
+# --- int.py 205-219 (to_bitstring; sig is (self: Int | int, signed=True, bit_length=None, rep_format=None)) ---
+        """
+        Convert an integer to a bitstring.
+
+        Parameters:
+        - integer (int): The integer to convert.
+        - signed (bool, optional): Whether the integer should be treated as signed.
+            Default is True.
+        - bit_length (int, optional): The length of the bitstring.
+        - rep_format (Optional[str], optional): The format for signed integers.
+            Can be "twos_complement", "signed_magnitude", or "ones_complement".
+            Default is "twos_complement".
+
+        Returns:
+        - str: The bitstring representation of the integer.
+        """
+
+# --- pytypes.py 260 / 281-283 ---
+def pytype_to_bits(py_prim: type) -> BitVector:
+...
+def pytype_to_bytes(
+    py_prim: type, endianness: Literal["big", "little"] = "big"
+) -> bytes:
+
+# --- float.py 225-227 (specialize prose; the parameter is packing_format_letter_) ---
+        If `packing_format_letter` is provided, the subclass will also be a
+            `StructPackedBitType` and use `struct`'s packing/unpacking functions
+            with the provided letter.
+```
+
+**After:**
+
+```python
+# --- int.py to_bitstring ---
+        """
+        Convert an integer to a bitstring.
+
+        Parameters:
+        - self (Int | int): The integer to convert. Callable on an instance
+            (``x.to_bitstring()``) or directly (``Int.to_bitstring(5, ...)``).
+        - signed (bool, optional): Whether the integer should be treated as signed.
+            Default is True.
+        - bit_length (int, optional): The length of the bitstring.
+        - rep_format (Optional[str], optional): The format for signed integers.
+            Can be "twos_complement", "signed_magnitude", or "ones_complement".
+            Default is "twos_complement".
+
+        Returns:
+        - str: The bitstring representation of the integer.
+        """
+
+# --- pytypes.py ---
+def pytype_to_bits(py_prim) -> BitVector:
+...
+def pytype_to_bytes(
+    py_prim, endianness: Literal["big", "little"] = "big"
+) -> bytes:
+
+# --- float.py specialize prose (matches int.py:625's wording) ---
+        If a packing format letter is provided, the subclass will also be a
+            `StructPackedBitType` and use `struct`'s packing/unpacking functions
+            with the provided letter.
+```
+
+**Behavior change.** Docstring/annotation-only except the pytypes annotation change, which only alters the static contract (runtime never enforced it: the bodies call type(py_prim)). No runtime behavior change.
+
+**Tests to add.** Add a doclint spot-test (test/doc_consistency_test.py) that parses Google-style '- name (type):' entries and asserts each documented name is in inspect.signature(fn).parameters:
+  import inspect, re
+  def documented_params(fn):
+      return re.findall(r'^\s*-?\s*(\w+) \(', fn.__doc__ or '', re.M)
+  def test_no_phantom_params():
+      from bytemaker.bittypes.int import Int
+      sig = set(inspect.signature(Int.to_bitstring).parameters)
+      assert set(documented_params(Int.to_bitstring)) <= sig | {'self'}
+Plus one assert that pytype_to_bits's py_prim parameter has no `type` annotation after the edit.
+
+**Risks / sync obligations / review notes.** Minimal. The pytypes annotation change could surface new type-checker output where callers passed types by mistake - that is the point. float.py line numbers shift after float-1; apply by content, not line number.
+
+<sub>covers: `docstring|bytemaker/bittypes/int.py|205-219`, `docstring|bytemaker/conversions/pytypes.py|62-73, 260-283`, `docstring|bytemaker/bittypes/float.py|225`, `docstring|bytemaker/utils.py|314-325`, `docstring|bytemaker/conversions/pytypes.py|309, 333`</sub>
+
+---
+
+## 2. Unedited text: copy-paste leftovers, typos, broken sentences, and malformed field-list formatting
+
+**Priority:** later · [`bytemaker/bitvector/bitvector_with_bitarray_speedup.py:bwbs 1166/1254; native 1238/1278; aggregate_types 100-125, 185-186; bittype 288-317; int 32-46`](../../bytemaker/bitvector/bitvector_with_bitarray_speedup.py#L1166)
+
+**Problem.** Recurring pattern: text copied from a sibling (or an earlier draft) and never re-edited for its new home. Shapes: wrong class/prefix name left from the copy source (oct/bin '0x', Float's 'Int', startswith/endswith 'the bitarray'); word-dropping or dangling sentences (__eq__/__ne__ 'they might have internal bit representations', Int's '...for signed and unsigned integers,'); malformed field-list syntax ('units [Iterable | DataClassType]):' with a stray paren); a mid-sentence backslash line-continuation that renders as run-together text; an unclosed quote; a stale commented-out docstring block. Most of this cluster is already mooted by accepted solutions; five live sites remain. THREE-BACKENDS NOTE: every bitvector item here was checked against all three BitVector implementations - the bitarray/BitVector naming defects are unique to the bitarray backend (native and speedup carry the correct text), but the bonus 'stop exclusive)' missing-paren typo is NOT: bitvector_native.py:1238 and :1278 carry the identical sentence, so that one fix spans two files (bitvector_speedup.py words those docstrings differently and carries neither spelling - grep-verified clean).
+
+**Fix.** RULE: re-read copied text in its new context; the class name, prefix literal, and sentence must survive a read-aloud. Fix by substituting the sibling file's correct wording where one exists (it usually does).
+CHECKLIST:
+- bwbs.py:533-535 (oct '0x' -> '0o') - MOOTED by bitvector-polish-1.
+- bwbs.py:549-551 (bin '0x' -> '0b') - MOOTED by bitvector-polish-1.
+- bwbs.py:1166, 1254 - LIVE: 'Checks if the bitarray starts/ends with' -> 'Checks if the BitVector starts/ends with', matching bitvector_native.py:1236 and bitvector_speedup.py:1365. Bonus in the same two docstrings: 'stop exclusive)' is missing its open paren -> 'stop (exclusive)'; the identical typo lives in bitvector_native.py:1238 and :1278 - apply the same one-character fix there too (all affected backends covered: bitvector_speedup.py grep-verified clean, its startswith/endswith docstrings use different wording without the typo). Leave the inline comments at 1221/1293 alone (they legitimately reference the bitarray storage). Coordinate: bitvector-behavior-2 edits code at 1183/1272 in the same methods; no textual overlap with the summary lines.
+- float.py:42 ('this `Int`' in the Float docstring) - MOOTED by float-5.
+- pytypes.py:312 ('thee') - MOOTED by pytypes-2.
+- int.py:562 (unclosed 'Default is "twos_complement.') - MOOTED by docs-misc-3.
+- aggregate_types.py:185-186 - LIVE: 'units [Iterable | DataClassType]): The objects to convert to bytes' -> 'units (AggregateTypeByteConvertible): The objects to convert to bytes' (the real annotation, line 176). Do NOT edit the identical text in _legacy_aggregate.py:350 by default - frozen-oracle divergence on cosmetics is acceptable; per the maintainer's sync-both-paths preference the same one-line edit MAY be applied there too, with zero behavior risk.
+- aggregate_types.py:100-116 - LIVE: remove the mid-sentence backslash continuation and add a Returns block (see after-text). Apply the identical de-backslash to the adjacent count_bits_in_aggregate_type (119-125), which shares the quirk (verification corrected the finding's 'unlike the siblings' framing - both wrappers have it). Optionally note the TypeError-on-unsupported behavior once aggregate-utils-2 lands.
+- bittype.py:288-317 - LIVE: complete the broken sentence in BOTH __eq__ and __ne__: see after-text ('...may still have differing internal bit representations...').
+- int.py:32-46 - LIVE: finish the dangling sentence ('...for signed and unsigned integers,' -> '...integers respectively.') and harmonize the two section headings ('Class Attributes:' 15-dash vs 'Instance Attributes' 19-dash -> same form with matching underline). MUST be applied ON TOP of narrowing-6, whose accepted after-text inserts a C-promotion paragraph but reproduces the dangling comma verbatim; fixing the comma here also patches narrowing-6's text.
+- bwbs.py:419-438 (stale commented from_bytes/frombytes block documenting a nonexistent endianness-parameter signature) - MOOTED by bitvector-polish-3.
+
+**Before:**
+
+```python
+# --- bwbs.py 1166 (and 1254 with 'ends') ---
+        Checks if the bitarray starts with the given substring.
+        If start and stop are provided, the check is performed only
+            on the bits between the start (inclusive) and stop exclusive) indices.
+
+# --- bittype.py 292-293 (identical at 309-310) ---
+        Two bittypes are equal if their values are equal. Note that this means that
+        they might have internal bit representations (-0 and +0 are still equal, though)
+
+# --- aggregate_types.py 184-185 ---
+    Args:
+        units [Iterable | DataClassType]): The objects to convert to bytes
+
+# --- int.py 30-35 (as also reproduced by narrowing-6's after-text) ---
+    A `BitType` that represents an integer.
+
+    Is further subclassed into `SInt` and `UInt` for signed and unsigned integers,
+
+    Class Attributes:
+    ---------------
+```
+
+**After:**
+
+```python
+# --- bwbs.py 1166 (and 1254 with 'ends') ---
+        Checks if the BitVector starts with the given substring.
+        If start and stop are provided, the check is performed only
+            on the bits between the start (inclusive) and stop (exclusive) indices.
+
+# --- bittype.py __eq__ and __ne__ ---
+        Two bittypes are equal if their values are equal. Note that two equal
+        BitTypes may still have differing internal bit representations
+        (-0 and +0 are equal, though).
+
+# --- aggregate_types.py ---
+    Args:
+        units (AggregateTypeByteConvertible): The objects to convert to bytes
+
+# --- aggregate_types.py count_bits_in_unit_type (100-106) ---
+    """
+    Function to count the number of bits in a UnitType -
+        a Python type, ctype, or BitType (bytemaker type).
+
+    Cached per type.
+
+    Returns:
+        int: The number of bits in the unit type.
+    """
+
+# --- int.py class docstring head ---
+    A `BitType` that represents an integer.
+
+    Is further subclassed into `SInt` and `UInt` for signed and unsigned
+        integers respectively.
+
+    Class Attributes:
+    -----------------
+```
+
+**Behavior change.** Docstring/comment text only; zero runtime change.
+
+**Tests to add.** Sweep-guard greps (doclint script or one-shot at apply time):
+  rg -n 'prefixed by 0x' bytemaker/bitvector    # only hex() docstrings may hit
+  rg -n 'the bitarray (starts|ends)' bytemaker  # expect 0
+  rg -n 'stop exclusive\)' bytemaker           # expect 0 (bwbs 1166/1254 AND native 1238/1278)
+  rg -n 'thee ' bytemaker                       # expect 0
+  rg -n 'units \[' bytemaker/conversions        # expect 0
+  rg -n 'integers,$' bytemaker/bittypes/int.py  # expect 0 (dangling comma)
+Spot assert: 'differing internal bit representations' in both BitType.__eq__.__doc__ and BitType.__ne__.__doc__.
+
+**Risks / sync obligations / review notes.** Only sequencing: the int.py edit depends on narrowing-6's rewritten docstring; apply by content. The _legacy_aggregate.py sibling of the units line is left divergent by default (frozen oracle), with an explicit opt-in to sync.
+
+<sub>covers: `docstring|bytemaker/bitvector/bitvector_with_bitarray_speedup.py|533-535`, `docstring|bytemaker/bitvector/bitvector_with_bitarray_speedup.py|549-551`, `docstring|bytemaker/bitvector/bitvector_with_bitarray_speedup.py|1166, 1254`, `docstring|bytemaker/bittypes/float.py|42`, `docstring|bytemaker/conversions/pytypes.py|312`, `docstring|bytemaker/bittypes/int.py|562`, `docstring|bytemaker/conversions/aggregate_types.py|185-186`, `docstring|bytemaker/conversions/aggregate_types.py|100-116`, `docstring|bytemaker/bittypes/bittype.py|288-317`, `docstring|bytemaker/bittypes/int.py|32-46`, `docstring|bytemaker/bitvector/bitvector_with_bitarray_speedup.py|419-438`</sub>
+
+---
+
+## 3. Over-general or contradicted behavior claims: docstrings state one of N cases as universal, or contradict the adjacent code/doc
+
+**Priority:** soon · [`bytemaker/structs.py:structs 848-854, 655-657; plans 84-92; fields.pyi 1-12 / fields.py 19-22; bittype 535-537; fixed 20-24; bwbs 1320-1321, 864-884; native 263-266`](../../bytemaker/structs.py#L848)
+
+**Problem.** Recurring pattern: a docstring describes only one of the cases the code actually handles, presented as the universal rule - or flatly contradicts the adjacent authoritative doc/code. Instances: sizedview's blanket 'returns a BoundField' (false for nested-Struct and Array fields); array()'s 'Sugar for field(element * count)' (omits the endian/default keywords that are its whole point over that spelling); FieldSpec's dotted-name story (nested Structs only; Array leaves also produce 'arr.0'); the fields.py/fields.pyi box-acceptance sentence (SupportsIndex only; float boxes go via SupportsFloat / Float.__float__ - runtime-confirmed Float has no __index__ - plus the undefined internal label 'post-D2' in the same sentence); StructPackedBitType's class docstring ('calculated based on the endianness') contradicting its own packing_format property (always '>'); FixedLengthBitVector's closed raising-list omitting frombytes/fromfile (runtime-confirmed both raise ValueError); the bitarray backend's find() omitting the subsequence case its own rfind/index/rindex document; the native __init__ restating buffer semantics without the copy note its own __new__ makes; and the bitarray __contains__ whose '-> bool / False otherwise' contract is honored by an unreachable-but-sloppy guarded fall-through where the siblings use assert + unconditional return.
+
+**Fix.** RULE: when behavior branches per input kind, enumerate the kinds or say 'for a scalar field' etc. - never state the common case as universal; when two docstrings in one class/file pair describe the same knob, one defers to the other (the speedup backend's __init__ -> __new__ deferral is the model). One item (bwbs __contains__) is fixed code-side to make the documented contract structurally true, matching the two sibling backends.
+CHECKLIST:
+- structs.py:848-854 - qualify per field kind: scalar -> BoundField; nested Struct -> the child's own sizedview; Array -> AttributeError (access the live list via the field itself). See after-text.
+- structs.py:655-657 - document endian/default: keep the sugar sentence but add what array() adds over `field(element * count)`. See after-text.
+- plans.py:84-92 - extend the dotted-name sentence: '...``name`` is dotted for their leaves (``"child.x"``); Array elements flatten the same way with numeric leaves (``"arr.0"``).'
+- fields.pyi:4-7 AND fields.pyi:7 (one edit, two refs) - name both box channels and drop the internal 'post-D2' milestone label: '...plain ints and BitType boxes - integer boxes via SupportsIndex (Int.__index__), float boxes via SupportsFloat (Float.__float__) - matching _FloatAlias.__set__.'
+- fields.py:19-22 - same sentence in the runtime module: '...accept anything the narrowing store accepts, including BitType boxes via ``__index__``/``__float__``.' (narrative style preserved; it is the house style in this file).
+- bittype.py:535-537 - class-attribute line -> 'The struct-packing format (always big-endian ">"); endianness is applied later at the bytes boundary by BitType.__bytes__().' - matching the property's own correct docstring at 558-560.
+- fixed.py:22-24 - add the two bitarray-backend growers to the enumerated raising list: '..., length-changing slice assignment, and the in-place growers ``frombytes``/``fromfile`` raise :class:`ValueError`.'
+- bwbs.py:1320-1321 - add the subsequence clause to find(), matching its own rfind/index/rindex and both siblings: 'Finds the first occurrence of the given bit in the BitVector, or of the subsequence of bits if provided.'
+- bitvector_native.py:264-266 - replace __init__'s restated buffer/source story with the speedup backend's deferral: 'See ``__new__`` for construction semantics (buffer= copies on this backend).' so the two docstrings cannot drift again.
+- bwbs.py:864-884 - CODE fix: replace the final 'if isinstance(item, bitarray):' guard with 'assert isinstance(item, bitarray)' + unconditional return, matching bitvector_native.py:908-910 / bitvector_speedup.py; the guard is unreachable-false today (item is always a bitarray by that point) but the -> bool contract should be structurally true. THREE-BACKENDS NOTE: only the bitarray backend drifts; native and speedup already end with assert + unconditional return.
+
+**Before:**
+
+```python
+# --- structs.py 848-854 ---
+        """Width-carrying live view of this record's fields.
+
+        ``t.sizedview.<field>`` returns a :class:`BoundField` — a live lvalue
+        handle. The handle and its ``.bits`` are live; width is invariant;
+        reads promote to plain values, stores narrow, width-breaking
+        mutations raise; ``.boxed()`` detaches a snapshot.
+        """
+
+# --- structs.py 655-657 ---
+    """Declare a fixed-count array field: ``colors: list[int] = array(UInt16, 8)``.
+    Sugar for ``field(element * count)`` with a plain-list checker type."""
+
+# --- fields.pyi 4-7 ---
+truthfully: reads are plain int/float, writes and the synthesized __init__
+parameters accept anything the narrowing store accepts - plain ints and,
+post-D2, BitType boxes (which satisfy SupportsIndex via Int.__index__).
+
+# --- bwbs.py 882-884 (__contains__ tail; -> bool) ---
+        if isinstance(item, bitarray):
+            first_index = self.find(item)
+            return first_index != -1
+```
+
+**After:**
+
+```python
+# --- structs.py sizedview ---
+        """Width-carrying live view of this record's fields.
+
+        For a scalar field, ``t.sizedview.<field>`` returns a
+        :class:`BoundField` — a live lvalue handle. A nested-Struct field
+        returns the child's own sizedview; an Array field raises (use the
+        field directly for its live list). The handle and its ``.bits``
+        are live; width is invariant; reads promote to plain values,
+        stores narrow, width-breaking mutations raise; ``.boxed()``
+        detaches a snapshot.
+        """
+
+# --- structs.py array() ---
+    """Declare a fixed-count array field: ``colors: list[int] = array(UInt16, 8)``.
+    Like ``field(element * count)`` with a plain-list checker type, plus the
+    knobs that spelling lacks: ``endian`` sets the array's byte order and
+    ``default`` its field default."""
+
+# --- fields.pyi module docstring ---
+truthfully: reads are plain int/float, writes and the synthesized __init__
+parameters accept anything the narrowing store accepts - plain ints and
+BitType boxes: integer boxes via SupportsIndex (Int.__index__), float
+boxes via SupportsFloat (Float.__float__), matching _FloatAlias.__set__.
+
+# --- bwbs.py __contains__ tail (matches the sibling backends) ---
+        assert isinstance(item, bitarray)
+        first_index = self.find(item)
+        return first_index != -1
+```
+
+**Behavior change.** Docstring-only except the bwbs __contains__ tail: today the fall-through is unreachable (item is always a bitarray at that point), so the assert form is behavior-identical on every reachable path while making the -> bool contract structurally honest and backend-consistent.
+
+**Tests to add.** Spot asserts in test/doc_consistency_test.py:
+  assert 'scalar' in type(t).sizedview.fget.__doc__ and 'Array' in ... (after fix)
+  assert 'endian' in bytemaker.structs.array.__doc__
+  assert 'frombytes' in FixedLengthBitVector.__doc__
+  assert 'subsequence' in bwbs.BitVector.find.__doc__
+  assert '__float__' in Path('bytemaker/fields.pyi').read_text() and 'post-D2' not in it
+  assert 'post-D2' not in (bytemaker.fields.__doc__ or '')
+Runtime guard for the __contains__ code fix: `assert (object() in BitVector('0b10')) is False` and `assert (BitVector('0b1') in BitVector('0b10')) is True` on the bitarray backend.
+
+**Risks / sync obligations / review notes.** sizedview/array docstrings sit in structs.py regions untouched by structs-1/2/3 - no overlap. The fields.pyi edit shares the file with docs-misc-4 (which only inserts __all__ after line 14) - compatible. The __contains__ assert would surface (as AssertionError) any future refactor that lets a non-bitarray reach the tail - that is desired, and it is exactly the siblings' behavior.
+
+<sub>covers: `docstring|bytemaker/structs.py|848-854`, `docstring|bytemaker/structs.py|655-657`, `docstring|bytemaker/plans.py|84-92`, `docstring|bytemaker/fields.pyi|4-7`, `docstring|bytemaker/fields.pyi|7`, `docstring|bytemaker/fields.py|19-22`, `docstring|bytemaker/bittypes/bittype.py|535-537`, `docstring|bytemaker/bitvector/fixed.py|22-24`, `docstring|bytemaker/bitvector/bitvector_with_bitarray_speedup.py|1320-1321`, `docstring|bytemaker/bitvector/bitvector_native.py|264-266`, `docstring|bytemaker/bitvector/bitvector_with_bitarray_speedup.py|864-884`</sub>
+
+---
+
+## 4. Missing docstrings on public API: LegacyRecordPlan.parse/pack, Plan.num_bytes, String.specialize
+
+**Priority:** later · [`bytemaker/plans.py:plans.py 215-217, 499, 514; string.py 338-346`](../../bytemaker/plans.py#L215)
+
+**Problem.** Recurring pattern: a public method/property on an exported class is the only undocumented member of an otherwise consistently documented surface. LegacyRecordPlan (in __all__) has docstrings on the class but not on parse/pack, its two record-facing entry points, while sibling Plan documents every public method; Plan.num_bytes is the one bare public accessor next to documented bit_offset/byte_offset; String.specialize is the only specialize in the bittypes family without a docstring (Buffer/SInt/Float all document theirs). Runtime-confirmed: all four __doc__ are None.
+
+**Fix.** RULE: every public member of an __all__-exported class gets at least a one-line docstring in the file's own style (narrative one-liners in plans.py; field-list Args/Returns in bittypes).
+CHECKLIST:
+- plans.py:499-522 - add one-line narrative docstrings to LegacyRecordPlan.parse and .pack (see after-text), matching the sibling Plan method style (e.g. unpack_tuple line 221).
+- plans.py:215-217 - add '"""Record size in whole bytes (num_bits // 8)."""' to the num_bytes property, matching bit_offset/byte_offset one-liners.
+- string.py:338-346 - add a field-list docstring to String.specialize mirroring Buffer.specialize (buffer.py 60-71): num_bits_ is a bit count (this is the bit-counted door, unlike of() which sizes in bytes_per_char units), name_ defaults to _String. Coordinate: string-6 adds the String CLASS docstring at 43-56; no overlap with the method at 338.
+
+**Before:**
+
+```python
+# --- plans.py 499 / 514 ---
+    def parse(self, data: bytes, endianness: Literal["big", "little"]):
+        if len(data) * 8 != self.total * 8:
+...
+    def pack(self, obj, endianness: Literal["big", "little"]) -> bytes:
+        parts = []
+
+# --- plans.py 215-217 ---
+    @property
+    def num_bytes(self) -> int:
+        return self.num_bits // 8
+
+# --- string.py 338-346 ---
+    @classmethod
+    def specialize(cls, num_bits_: int, name_: Optional[str] = None):
+        class _String(cls):
+            _num_bits = num_bits_
+```
+
+**After:**
+
+```python
+# --- plans.py LegacyRecordPlan ---
+    def parse(self, data: bytes, endianness: Literal["big", "little"]):
+        """Box ``data`` back into an instance of the dataclass, one field
+        per byte slice, decoding each with ``bytes_to_bittype``."""
+        if len(data) * 8 != self.total * 8:
+...
+    def pack(self, obj, endianness: Literal["big", "little"]) -> bytes:
+        """Serialize ``obj``'s fields to bytes in ``endianness`` order,
+        coercing non-BitType values C-style via each field's type."""
+        parts = []
+
+# --- plans.py Plan.num_bytes ---
+    @property
+    def num_bytes(self) -> int:
+        """Record size in whole bytes (``num_bits // 8``)."""
+        return self.num_bits // 8
+
+# --- string.py String.specialize (mirrors Buffer.specialize) ---
+    @classmethod
+    def specialize(cls, num_bits_: int, name_: Optional[str] = None):
+        """
+        Returns a subclass of String with the specified number of bits.
+
+        Unlike `of`, which sizes in whole ``bytes_per_char`` units for use
+            as a Struct field type, `specialize` takes a raw bit count.
+
+        Args:
+            num_bits_ (int): The number of bits in the subclass.
+            name_ (Optional[str], optional): The name of the subclass.
+                Defaults to None, meaning the name will be _String.
+
+        Returns:
+            Type[String]: The subclass with the specified number of bits.
+        """
+        class _String(cls):
+            _num_bits = num_bits_
+```
+
+**Behavior change.** Docstring-only; zero runtime change.
+
+**Tests to add.** Spot asserts (extend test/doc_consistency_test.py):
+  from bytemaker.plans import Plan, LegacyRecordPlan
+  from bytemaker.bittypes.string import String
+  for obj in (LegacyRecordPlan.parse, LegacyRecordPlan.pack, Plan.num_bytes, String.specialize):
+      assert (getattr(obj, 'fget', obj)).__doc__, obj
+Today all four are None (runtime-checked), so the test fails before and passes after.
+
+**Risks / sync obligations / review notes.** None beyond line drift: plans-1/plans-2 rewrite unpack_tuple/pack_tuple (220-259), shifting num_bytes's neighborhood by a few lines; apply by content.
+
+<sub>covers: `docstring|bytemaker/plans.py|499-522`, `docstring|bytemaker/plans.py|215-217`, `docstring|bytemaker/bittypes/string.py|338-346`</sub>
+
+---
+
+## 5. AI-tone trims: metaphors, chatty fillers, marketing reassurance, em-dash triads, and a restating comment
+
+**Priority:** later · [`bytemaker/bittypes/buffer.py:buffer 85-91; speedup 789-791, 1856-1858; bwbs 125-135, 1478; aggregate_types 15-18; __init__ 18-20`](../../bytemaker/bittypes/buffer.py#L85)
+
+**Problem.** Recurring pattern: July prose that over-styles relative to the terse declarative reference voice. Shapes: a cute metaphor repeated twice ('the Struct-field door' / 'the bit-counted box door' in Buffer.of); conversational filler ('Please note that ...', 'only really be true'); editorializing value judgments ('which was unusable'); marketing reassurance ('just works' as the package's opening prose); em-dash-plus-triadic rhythm padding (the bwbs __new__ buffer paragraph - which carries one of the bitvector directory's only two em-dashes; the other is in the code comment at bwbs:190, which no item here edits - and the native backend states the identical ruling in a tight parenthetical); and one inline comment that restates the next line. In every case the technical content is correct and worth keeping; only the register is trimmed.
+
+**Fix.** RULE: state the fact, delete the flourish. Keep every technical claim (may-share vs copy, the 13 #16 ruling, the Buffer16 history, the int-constructor caveat); rewrite in the declarative voice the sibling/reference text already uses, preferring the tightest existing in-repo phrasing as the template.
+CHECKLIST:
+- buffer.py:85-91 - LIVE: drop the 'door' framing from Buffer.of: '``of()`` sizes in bytes (whole-byte widths, as Struct byte fields require); ``specialize`` sizes in bits, and sub-byte Buffers stay legal standalone and in legacy aggregates.' Keep the keyword-only rationale and Buffer16 history verbatim. COORDINATION CALL: buffer-1's accepted class-docstring text deliberately echoes 'the Struct-field door'; if this trim is accepted, change buffer-1's line to "sized in bytes (the Struct-field entry point)" in the same commit - one decision, two lines, else the metaphor survives in the class doc while gone from of().
+- bitvector_speedup.py:1856-1858 - LIVE: tighten the BitsConstructible tail sentence: 'An int also constructs a BitVector of that many zero bits, but it is omitted from the type hint because an int does not read as a sequence of bits.' Apply AFTER bitvector-behavior-5, which rewrites the head of this same docstring (and shifts these lines); carry the tightened tail into all three backends' copies of the alias docstring if behavior-5's edit propagates the text (it rewrites all three).
+- bwbs.py:125-135 - LIVE: compress the buffer paragraph to the native backend's framing (bitvector_native.py:175-178 is the in-repo template): see after-text. Drops the paragraph's em-dash and the three-clause triad (the code comment at bwbs:190 keeps its em-dash - maintainer's punctuation, deliberately not edited here); keeps may-share semantics, the resize-lock fact, and the 13 #16 ruling.
+- bitvector_speedup.py:789-791 - LIVE: drop the filler: 'Returns whether this BitVector's bits equal another BitVector's bits; returns NotImplemented for non-BitVector operands.' THREE-BACKENDS NOTE: the native backend's __eq__/__ne__ docstrings carry the same filler (including a 'will only really true' word-drop at native:639) - apply the same tightening there; the bitarray backend's __eq__/__ne__ are rewritten by bitvector-behavior-6, whose ACCEPTED after-text deliberately keeps 'only really be true/false' - leave bwbs as-is and treat those two lines as the recorded exception to the sweep grep.
+- aggregate_types.py:15-18 - LIVE: drop 'which was unusable': '(Previously it attempted ``aggregate_type(*entries)`` and ignored ``is_array`` entirely for scalar types.)' The two mechanical facts already convey the breakage.
+- __init__.py:18-20 - LIVE but MAINTAINER'S-VOICE CALL: 'just works' is also used deliberately in fields.py:13 for the same lazy-alias fact, so it reads as a settled idiom, not a one-off. Option A (recommended for the package's opening prose): '``uN``/``sN`` field aliases exist for any width (e.g. ``from bytemaker import u31``), resolved lazily via :mod:`bytemaker.fields`.' Option B: keep the idiom - then explicitly keep BOTH occurrences for consistency and mark this ref declined.
+- bwbs.py:1478 - LIVE: delete the '# Replace old bits with new bits' comment (it narrates the next line); the genuinely explanatory comments at 1457-1458 and 1469-1470 stay.
+- buffer.py:40-45 - MOOTED by buffer-1 (deletes the orphaned duplicate docstring literal outright).
+
+**Before:**
+
+```python
+# --- buffer.py 85-91 (Buffer.of) ---
+        """Mint a Buffer type sized in **bytes** — the C ``uint8_t buf[N]``
+        count, and the Struct-field door (Struct byte fields hold plain
+        ``bytes`` and need whole-byte widths anyway). ``specialize`` is the
+        bit-counted box door; sub-byte Buffers stay legal standalone and in
+        legacy aggregates. ``nbytes`` is keyword-only so the declaration
+        names its unit — this class's history includes a ``Buffer16`` that
+        read as 16 bytes but meant 16 bits."""
+
+# --- bwbs.py 125-135 (__new__ buffer paragraph) ---
+            `buffer=` is the ONLY sharing spelling, and it is *may-share*:
+            this backend genuinely shares (an immutable source gives a
+            read-only vector; a mutable one a live two-way view that also
+            resize-locks the source while the vector lives; either way the
+            vector itself cannot be resized), while the pure-Python
+            backends copy. Do not rely on independence through buffer=.
+
+        Otherwise, `source` determines the BitVector's bits. Byte-like
+        sources (`bytes`, `bytearray`, `memoryview`) are always **copied**
+        into an independent, writable, resizable vector — on every backend
+        (13 #16 ruling; matches bitarray's own positional-source behavior).
+
+# --- bitvector_speedup.py 789-791 ---
+        Returns whether this BitVector's bits are equal to another object's bits.
+        This will only really be true if both objects are BitVectors.
+```
+
+**After:**
+
+```python
+# --- buffer.py Buffer.of ---
+        """Mint a Buffer type sized in **bytes** — the C ``uint8_t buf[N]``
+        count. Struct byte fields hold plain ``bytes`` and need whole-byte
+        widths, so this is the constructor Struct fields use; ``specialize``
+        sizes in bits, and sub-byte Buffers stay legal standalone and in
+        legacy aggregates. ``nbytes`` is keyword-only so the declaration
+        names its unit — this class's history includes a ``Buffer16`` that
+        read as 16 bytes but meant 16 bits."""
+
+# --- bwbs.py __new__ buffer paragraph (native 175-178 as template) ---
+            `buffer=` is the ONLY sharing spelling, and it is *may-share*:
+            this backend shares memory (read-only for an immutable source;
+            a live, resize-locking view for a mutable one; the vector is
+            never resizable), while the pure-Python backends copy. Do not
+            rely on independence through buffer=.
+
+        Otherwise, `source` determines the BitVector's bits. Byte-like
+        sources (`bytes`, `bytearray`, `memoryview`) are always **copied**
+        into an independent, writable, resizable vector on every backend
+        (13 #16 ruling; matches bitarray's own positional-source behavior).
+
+# --- bitvector_speedup.py __eq__ ---
+        Returns whether this BitVector's bits equal another BitVector's
+        bits; returns NotImplemented for non-BitVector operands.
+```
+
+**Behavior change.** Docstring/comment text only; zero runtime change.
+
+**Tests to add.** Sweep-guard greps after apply (expect 0 hits unless a ref was explicitly declined):
+  rg -n 'door' bytemaker/bittypes/buffer.py
+  rg -n 'Please note that' bytemaker
+  rg -n 'only really' bytemaker          # EXCEPTION: expect exactly 2 hits (bwbs __eq__/__ne__) - bitvector-behavior-6's accepted after-text keeps 'only really be true/false' there; 0 hits in bitvector_speedup.py and bitvector_native.py
+  rg -n 'which was unusable' bytemaker
+  rg -n 'just works' bytemaker           # 0 under Option A; exactly 2 (kept pair) under Option B
+  rg -n 'Replace old bits' bytemaker
+Em-dash budget: rg -n '—' bytemaker/bitvector -> expect exactly 1 hit after the rewrite: the code comment at bwbs.py:190, which no checklist item edits (today's two hits are the docstring em-dash at bwbs.py:134, dropped by the 125-135 rewrite, and that 190 comment, kept).
+
+**Risks / sync obligations / review notes.** Pure wording; the only real risk is coordination drift: (1) buffer-1's accepted text must be updated in the same commit if the door metaphor goes; (2) the BitsConstructible tail edit must land after bitvector-behavior-5 to avoid a merge collision; (3) Option B on 'just works' is a legitimate sole-user style call - record the decision either way so the sweep greps stay meaningful.
+
+<sub>covers: `ai-tone|bytemaker/bittypes/buffer.py|85-91`, `ai-tone|bytemaker/bitvector/bitvector_speedup.py|1856-1858`, `ai-tone|bytemaker/bitvector/bitvector_with_bitarray_speedup.py|125-135`, `ai-tone|bytemaker/bitvector/bitvector_speedup.py|789-791`, `ai-tone|bytemaker/conversions/aggregate_types.py|15-18`, `ai-tone|bytemaker/__init__.py|18-20`, `ai-tone|bytemaker/bitvector/bitvector_with_bitarray_speedup.py|1478`, `ai-tone|bytemaker/bittypes/buffer.py|40-45`</sub>
+
+---
+
+## 6. bittype.py format drift: July narrative-RST docstrings mixed into a field-list-style module - minimal harmonization
+
+**Priority:** later · [`bytemaker/bittypes/bittype.py:27-46, 68-72, 266-274, 276-286, 414-445`](../../bytemaker/bittypes/bittype.py#L27)
+
+**Problem.** bittype.py is a reference-era module whose surviving docstrings use Google/field-list style (Args:/Returns:, :cvar:) - num_bits, value, __eq__, bytes_to_bittype all still do. The July additions (NarrowingWarning/NarrowingConfig, BitTypeMeta, __format__, __Bits__, _promoted_value_op, _inplace_value_op) inject the narrative-RST voice of structs.py/plans.py into the same module: '::' literal blocks, :class: roles, **bold**, em-dash prose, and no Args:/Returns: where parameters and returns are being described. The narrative style is intentional in the NEW files and is not itself a defect; the issue is one module mixing two conventions.
+
+**Fix.** RULE (deliberately minimal, sole-user tiebreak): do NOT restyle class-level narrative docstrings - NarrowingWarning/NarrowingConfig carry a '::' escalation example and cross-references that field lists render worse, and BitTypeMeta/__format__/__Bits__ are short prose blocks with no param story. Harmonize ONLY the two helpers that actually document parameters/returns in prose: give _promoted_value_op and _inplace_value_op an Args:/Returns: tail in the file's own style, keeping their (valuable) C-semantics prose as the summary. Then record the residual mix as accepted drift so it stops being re-reported.
+CHECKLIST:
+- bittype.py:27-46 (NarrowingWarning/NarrowingConfig) - accept as-is (narrative retained; the '::' example is load-bearing). Coordinate: narrowing-1 rewrites the adjacent _warn_narrowing at 51-56 and narrowing-2 adds a helper after it - no overlap with the class docstrings.
+- bittype.py:68-72 (BitTypeMeta) - accept as-is (three-line narrative, no params documented).
+- bittype.py:266-274 (__format__) - accept as-is; docs-misc-1 rewrites the adjacent __repr__ (254-264), so re-check the seam after it lands.
+- bittype.py:276-286 (__Bits__) - accept as-is; bitvector-polish-4 already rewords the parallel __Bits__ docstrings in the three BitVector backends - keep this one consistent with that accepted wording if they diverge.
+- bittype.py:414-445 (_promoted_value_op/_inplace_value_op; cited in the finding body) - HARMONIZE: append Args:/Returns: field lists ONLY (see after-text); the existing prose is kept character-exact - the em-dashes at 417/433 and the **plain** bold stay, per this solution's own do-NOT-restyle rule.
+
+**Before:**
+
+```python
+# --- bittype.py 414-422 ---
+    def _promoted_value_op(self, other, operation):
+        """
+        C-promotion binary op: computes on plain values at full width and
+        returns the **plain** result — no re-boxing, no wrap-at-operator
+        (C never wraps mid-expression; integer promotions convert operands
+        to int first). Width re-attaches only at stores; the narrowing cast
+        spelling is the constructor: ``UInt8(a + b)`` == ``(uint8_t)(a+b)``.
+        Used by the numeric BitTypes (Int, Float).
+        """
+```
+
+**After:**
+
+```python
+# --- bittype.py _promoted_value_op (same treatment for _inplace_value_op) ---
+    def _promoted_value_op(self, other, operation):
+        """
+        C-promotion binary op: computes on plain values at full width and
+        returns the **plain** result — no re-boxing, no wrap-at-operator
+        (C never wraps mid-expression; integer promotions convert operands
+        to int first). Width re-attaches only at stores; the narrowing cast
+        spelling is the constructor: ``UInt8(a + b)`` == ``(uint8_t)(a+b)``.
+        Used by the numeric BitTypes (Int, Float).
+
+        Args:
+            other (Any): The other operand (a BitType is unboxed to its value).
+            operation (Callable): The binary operator to apply.
+
+        Returns:
+            Any: The plain (unboxed) result, or NotImplemented.
+        """
+```
+
+**Behavior change.** Docstring-only; zero runtime change.
+
+**Tests to add.** One-line guard in test/doc_consistency_test.py:
+  from bytemaker.bittypes.bittype import BitType
+  assert 'Args:' in BitType._promoted_value_op.__doc__
+  assert 'Args:' in BitType._inplace_value_op.__doc__
+No other automated check - the accept-as-is entries are a recorded decision, not a diff.
+
+**Risks / sync obligations / review notes.** None mechanical. The main risk is scope creep: restyling the whole module would churn ~10 docstrings the maintainer wrote deliberately; this fix intentionally declines that.
+
+<sub>covers: `docstring|bytemaker/bittypes/bittype.py|27-46, 68-72, 266-274, 276-286`</sub>
+
+---
