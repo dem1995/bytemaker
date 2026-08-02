@@ -1,0 +1,31 @@
+{
+ "group": "bitvector-polish",
+ "coverageComplete": true,
+ "verdicts": [
+  {
+   "title": "Remove the seven commented-out dead-code blocks from the bitarray backend",
+   "ok": true,
+   "issues": "Verified statically and empirically (patched copy: imports on all three backends, no deleted markers remain, 854/854 pass; combined behavior-then-polish copy: all anchors matched, 854/854 pass). All seven extents exact against the real source (419-438, 614-630, 940-943, 1006, 1121-1122, 1201-1216, 1495-1500); before/after snippets verbatim including every boundary line. Staleness audit confirmed: live from_bytes at 1714 supersedes the commented one (which documented an endianness param no live API has); live tobase/hex/oct/bin at 486-562 supersede block 614-630; _endianness exists nowhere in the file outside the commented block (bittype.py's _endianness is a different class); __reversed__ is absent everywhere so the commented __reverse__ is a bodyless misspelled stub with zero unique content; translate/maketrans TODO stubs are kept at bitvector.pyi:268-271. Nits only: (a) the .pyi stubs are equivalent-intent, not 'the same commented stubs' byte-for-byte (pyi maketrans is (x, y=None, z=None) and its translate 'delete' param lacks '| bytes' -- the deleted block's slightly richer draft signatures are lost, trivially); (b) the swap_endianness intent is additionally preserved at bitvector.pyi:221, which the solution did not cite but which strengthens its case."
+  },
+  {
+   "title": "Delete the __main__ debug scratch block at the end of the bitarray backend",
+   "ok": true,
+   "issues": "Verified statically and empirically (patched copy imports, file ends at the BitsConstructible trailing docstring, final size 1695 lines exactly as claimed, 854/854 pass; also passes in the combined behavior+polish copy). Before-snippet verbatim; nothing in the repo runs the module as a script (only imports via bitvector.py and the test parametrizer; docs bitvector.rst uses automodule = import only; benchmarks have their own __main__); block markers confirmed present in the 4-weeks-ago reference .pyc, so it is long-lived scratch, not in-flight work. Nit: the file's last content line is 1826, not 1827 (1827 is the phantom position after the trailing newline; solution's own before-snippet labels the single last print line ':1826-1827'), and the fix text 'delete lines 1761-1827 entirely (the whole block plus the blank line before it)' is self-inconsistent about whether blank line 1760 is inside the stated range. The after-snippet is unambiguous (delete 1760 through EOF; file ends with the closing docstring quote), so this is harmless, but a revision agent applying by line numbers should use 1760-1826/EOF."
+  },
+  {
+   "title": "Replace the to_chararray length assert with an explicit ValueError in all three backends",
+   "ok": true,
+   "issues": "Fully verified, no problems. Before verbatim and byte-identical at speedup 767-770, native 617-620, bitarray 596-599; anchor unique per file; garbled message confirmed in the 4-weeks reference .pyc (long-lived). Empirically reproduced on all three UNPATCHED backends from a neutral cwd: AssertionError with the exact 82-char whitespace-embedded message normally, and UnicodeDecodeError ('utf-8' codec can't decode byte 0xa0) under python -O -- the validation really does vanish. Patched: identical ValueError 'BitVector length 3 is not a multiple of 8; cannot decode with a standard encoding' with and without -O on all three backends; byte-aligned positive case unaffected; no test expects AssertionError from to_chararray (grepped); 854/854 pass."
+  },
+  {
+   "title": "Correct the oct()/bin() docstring prefix claims ('0x' -> '0o'/'0b') in the bitarray backend",
+   "ok": true,
+   "issues": "Fully verified, no problems. Before verbatim at bitarray 533-535 (oct) and 549-551 (bin); these are the only two wrong lines (hex at 518 correctly says 0x; runtime emits 0x/0o/0b). Sibling claims exact: native 556/572 and speedup 711/724 already say 0o/0b. Both refs (the inconsistency finding covering 535+551 and the ux finding covering 551) are covered here exactly once. Patched doc lines and runtime outputs verified on the patched copy."
+  },
+  {
+   "title": "Reword the __Bits__ method docstring to drop the false 'deep' promise in all three backends",
+   "ok": true,
+   "issues": "Verified: the stale line is byte-identical in all three files at the claimed extents (speedup 76-83, native 75-82, bitarray 79-86; 'deep BitVector representation' occurs exactly once per file, so the concrete BitVector.__Bits__ impls at native:1057/speedup:1167/bitarray:986 are untouched); the class docstrings in all three really do state the copy-or-live-view implementor's-choice policy the replacement defers to, and bittype.py:276 __Bits__ really returns self._bits live. Patched copy: 'deep' gone, 'copy or a live view' present, pydoc renders, 854/854 pass. Style nit (keep): the replacement sentence 'The result may be a copy or a live view of the object's bits; which is the implementor's ownership choice (...)' is ungrammatical -- a semicolon cannot introduce the relative clause 'which is...'; use a comma or rephrase ('...of the object's bits; the choice is the implementor's (see the BitsCastable class docstring)'). Purely cosmetic; the content is correct and the RST field-list style is preserved."
+  }
+ ]
+}
