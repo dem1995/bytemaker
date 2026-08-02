@@ -1,0 +1,46 @@
+{
+ "group": "bitvector-behavior",
+ "coverageComplete": true,
+ "verdicts": [
+  {
+   "title": "Make to_bytes() whole-vector right-aligned (integer bytes), documented against left-aligned tobytes()",
+   "ok": true,
+   "issues": "Verified empirically: before-snippets matched all three files verbatim (exact-string patch applied cleanly); after-behavior matches every claimed output on all three backends ('0b101'->b'\\x05' unchanged, '0b0100000011' to_bytes b'@\\x03'->b'\\x01\\x03', to_int unsigned 16387->259, pinned to_int cases 5/-3/5/1 unchanged, empty->b'', int round-trip widths 1-17 holds); full suite still 854 passed with only this patch. The right-alignment policy claim holds: pinned test_to_int (BitVector('101').to_int(signed=False)==5) requires right alignment; left-aligning would yield 160 and force a to_int rewrite, exactly as the decision field argues. bittypes/ never call to_int/to_bytes, and the conversions/ and test callers are byte-aligned, so the ripple claim is accurate. Minor notes only: (a) the before-comment says native 'iterates self._bits via self[...]' but native's old code iterates self[i:byte_end_index] exactly like the bitarray impl (cosmetic misdescription; snippet itself is verbatim); (b) the bytes()-vs-to_bytes divergence itself remains (by design) but is documented only on the to_bytes side \u2014 the finding suggested documenting at both call sites and the .pyi; a .pyi note appears only as a 'consider' in the tests field. Neither is substantive."
+  },
+  {
+   "title": "Route append/insert/remove/extend through _coerce_bit in the bitarray backend",
+   "ok": true,
+   "issues": "Verified empirically: all before-snippets matched verbatim (helper absent, append/extend/insert/remove raw-delegate); after patch, all 16 probe cases (float bits, str bits, append(2), extend str/int/bytes/BitVector, bool, remove) behave identically across native/speedup/bitarray, matching the claimed outputs exactly; _coerce_bit helper text is verbatim from bitvector_speedup.py:128-135 and LaxLiteral01 exists in the target module; full suite still 854 passed with this patch applied. Cosmetic only: (a) the 'after' snippet concatenates the module-level helper and the class methods in one code block with no class context, which a careless applier could misplace \u2014 the placement comment ('module-level, after __annotations__') disambiguates; (b) a residual cross-backend divergence remains in remove()'s missing-bit message ('0 is not in BitVector' vs bitarray's '0 not in bitarray') \u2014 pre-existing and outside this finding's scope (invalid-value handling), worth a mention at most."
+  },
+  {
+   "title": "Compare the coerced bit length, not the raw element count, in FixedLengthBitVector.__setitem__",
+   "ok": true,
+   "issues": "Verified empirically: before-snippet matches fixed.py 75-88 verbatim; after patch, all claimed behaviors reproduce on the active backend (v[0:3]='0x0' now raises with len staying 8; v2[0:8]=bytes([0xFF]) and v3[0:2]='0b11' now accepted; int broadcast, wrong-length raise, extended-slice matching/mismatching, single-index writes all behave as claimed); guard logic also simulated on native and speedup subclasses with identical results; full suite 854 passed. One inaccuracy in the risks text (non-substantive): it cites 'BitType box writes go through this path (bittype.py 232, 592)' but those two lines are FixedLengthBitVector CONSTRUCTION sites (the bits setter and struct-pack path), not __setitem__ callers \u2014 the setter at 225-235 does its own constructed-width validation; __setitem__ is reached via live .bits handout slice writes instead. Suite coverage claim still holds."
+  },
+  {
+   "title": "Restrict bitarray-backend __eq__/__ne__ to BitVector operands, matching the other backends",
+   "ok": true,
+   "issues": "Verified empirically: before-snippet matches bitvector_with_bitarray_speedup.py 633-645 verbatim; after patch, all three backends agree (v==ba False in both operand orders, v!=ba True, BitVector==BitVector unchanged, v==5/v=='101' False, FixedLengthBitVector symmetry holds); full suite 854 passed. The subclass-priority reasoning for returning explicit False on plain bitarray (instead of NotImplemented, which would fall back into bitarray.__eq__ and yield True) is correct and confirmed by the ba==v order test. Grep confirms no in-repo code compares BitVector to a plain bitarray (only the findings docs), so the risk claim is accurate. No issues."
+  },
+  {
+   "title": "Give pop() Python-style negative indexing and honest out-of-range errors on all three backends",
+   "ok": true,
+   "issues": "RESOLVED by orchestrator revision: structs.py:1180-1186 BoundBits.pop comment update added to the solution change set. Original issue: The code fix itself is correct and fully verified: before-snippets match all three files verbatim (native 1155-1160, speedup 1269-1274, bitarray 1084-1089 incl. the 'pop from empty bitarray' wording); after patching all three, every claimed output reproduces (pop(99) message with index+length, pop(-1)->0, pop(-1,9)->0, pop(-4)->1, pop(-5) raises, empty unchanged); the suite showed exactly the claimed 3 failures (test_pop_out_of_bounds_without_default x3 backends), and after the prescribed test edit + new parameterized test, 857 passed. BUT the risks claim 'sole in-repo pop() callers are the tests and the fuzz harness \u2014 none exist in-repo' is FALSE: bytemaker/structs.py:1180-1186 (the BoundBits pop mutator) calls b.pop(index, default) on a BitVector-family object, and its comment at lines 1181-1182 explicitly codifies the OLD contract: 'Mirrors the BitVector contract (None = last bit; negatives are out of bounds there), not list.pop's -1 convention.' After this solution that comment is a false statement of the new contract. Empirically nothing breaks (verified on both unpatched and patched trees: _cur() returns a FixedLengthBitVector handout, whose pop() raises the length violation unconditionally for any index/default, so proxy behavior is identical before/after), but the change set must be revised to (a) update the structs.py:1181-1182 comment to the new negative-index semantics and (b) correct the risks/callers claim. The 'Files to sync' list omits structs.py."
+  },
+  {
+   "title": "Raise ValueError for length-mismatched extended-slice assignment (including empty) on native and speedup",
+   "ok": true,
+   "issues": "Verified empirically: before-snippets match bitvector_native.py 957-961 and bitvector_speedup.py 1064-1070 verbatim; after patching both, all three backends behave identically for every probed case (empty extended-slice raises with EXACTLY the bitarray backend's message text, vector unchanged at len 8; non-empty mismatch raises; empty-to-empty span no-op; v[::-1]='0011' still assigns reversed; unit-step resize preserved; v[::2]='' raises); suite green. Policy (raise, matching list/bitarray semantics, the method's own docstring, and the active backend) is well defended and recorded as a decision. Covering the bitarray-file ref by changing only the OTHER two impls is legitimate since the bitarray backend already had the chosen semantics. No issues."
+  },
+  {
+   "title": "Treat bytearray and memoryview as single substrings in startswith/endswith on all three backends",
+   "ok": true,
+   "issues": "Verified empirically: the before-branch exists verbatim at all four claimed sites (helper in speedup 1444-1445 and native 1321-1322; inline in the bitarray backend's startswith 1183-1184 AND endswith 1272-1273 \u2014 the inline form occurs exactly twice in that file, as the solution says); after the one-line change at each site, startswith/endswith accept bytearray and memoryview identically on all three backends (True/False cases, tuple-of-bytearrays iterable path, __contains__ consistency all confirmed); full suite green. The solution correctly widened the finding's single-file citation to all three implementations per the house rule. No issues."
+  },
+  {
+   "title": "Add bytearray/memoryview to the runtime BitsConstructible unions to match bitvector.pyi",
+   "ok": true,
+   "issues": "Verified empirically: before-snippets match all three modules verbatim, including the bitarray module's malformed __annotations__ string (misplaced bracket producing 'Iterable[LaxLiteral01]]' + ', BitsCastable, bitarray.bitarray]'); bitvector.pyi lines 62-70 does list bytearray/memoryview as claimed; after patching, typing.get_args on all three runtime unions contains {bytes, bytearray, memoryview, str}, the __annotations__ string is now a well-formed union, and observable behavior is unchanged (bytearray/memoryview containment True and negative case False, identical before and after, confirming the 'Iterable-arm fallback' claim); full suite 857 passed with all eight solutions plus the prescribed pop-test update applied. No issues."
+  }
+ ]
+}
