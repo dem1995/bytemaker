@@ -1,0 +1,31 @@
+{
+ "group": "float",
+ "coverageComplete": true,
+ "verdicts": [
+  {
+   "title": "Rewrite the Float encode/decode pair as a correct IEEE-754 codec (signed zero, subnormals, inf, NaN, overflow-to-inf, round-to-nearest-even)",
+   "ok": true,
+   "issues": "Substantively correct; independently re-verified end to end. All three before regions (imports 1-8, getter 81-111, to_binstring 123-211) match the source verbatim. Re-ran on a patched scratch copy: exhaustive decode of all 65536 half patterns matches struct.unpack('>e') (incl. -0.0/inf/NaN and sign of zero), re-encode of every non-NaN half is bit-identical, 200k random doubles encode identically to struct.pack('>e') (ties-to-even confirmed), plus overflow boundary (65520->inf, 65519.99->max finite), subnormal tie (2**-25 -> signed 0), round-up-to-smallest-normal, bfloat16 (20k random values match round-to-nearest of the float32 top-16 reference), and a custom e=6/m=9 format self-consistency sweep; full suite 854 passed. Minor notes only: (1) two BEFORE-narrative details are inaccurate - the old BFloat16(0.1) bits are '0011110111001000', not the claimed truncated '...11001100' pattern, and the cited NaN-pattern decode value -3.429408229125083e+38 corresponds to no obvious BFloat16 pattern (the canonical '1'+all-ones+zeros pattern decodes to -3.402823669209385e+38); direction of both claims is still right. (2) The 'flake8-clean' claim is not reproducible in this environment (flake8 not installed); pyflakes is clean and no line exceeds 88 columns, so the substance holds. (3) Degenerate widths (num_mantissa_bits == 0) still emit a wrong-length NaN encoding ('1' + '0'*-1); acknowledged in risks and identical to the old dead guard - specialize() performs no width validation either way."
+  },
+  {
+   "title": "Swap Float.specialize's base order so the struct-packed value path wins the MRO",
+   "ok": true,
+   "issues": "Fix verified: after the swap, Float.specialize(8,23,'f')(0.1).bits equals Float32 and struct.pack('>f'), and 'value' resolves from StructPackedBitType; suite 854 passed. One edge regression the risks section does not mention: calling specialize WITH a letter on an already-struct-packed class (e.g. Float32.specialize(8,23,'f')) now raises TypeError 'Cannot create a consistent MRO for bases StructPackedBitType, Float32', whereas the old order accepted it (and, because Float32's own MRO already put StructPackedBitType first, even resolved value correctly). Verified that Int.specialize has the identical pre-existing behavior (SInt8.specialize(8,'b') raises the same TypeError on pristine), so the swap makes Float consistent with Int exactly as intended; no in-repo caller (fields.py uses only UInt/SInt widths, tests use Buffer/UInt/SInt specialize) hits this. Note-only, but a revision agent could add it to the risks text."
+  },
+  {
+   "title": "Coerce Float.value setter input with float() instead of isinstance-rejecting non-floats",
+   "ok": true,
+   "issues": "Verified: before snippet matches lines 113-121 verbatim; on the patched copy BFloat16(value=5) -> 5.0, b.value = 3 -> 3.0, value=True -> 1.0, value=object() -> TypeError, value='1.5' -> 1.5, and the _inplace_value_op path (TF19 += 1, FP24 *= 2) works through the coercing setter; suite 854 passed. The numeric-string acceptance and ValueError->TypeError change are honestly flagged in risks/decision. No in-repo caller catches ValueError from this setter. Style note only: the new comment block is fine for this file's voice."
+  },
+  {
+   "title": "Add promoted unary __neg__/__pos__/__abs__ to Int, matching Float",
+   "ok": true,
+   "issues": "Verified: before snippet matches int.py lines 450-453 verbatim; the insert point (after __invert__, before the ordering-comparison block) is correct and purely additive - grep confirms no other __neg__/__pos__/__abs__ in int.py or bittype.py, and structs.py's bound-field wrapper (lines 1023-1030) defines its own unary ops over plain values, so no interaction. Re-ran all behavior claims (-UInt8(5) == -5 plain int, UInt8(-UInt8(5)).value == 251, +SInt8(-3), abs(SInt8(-3)), -SInt8(-128) == 128); suite 854 passed. Comment style matches the file's existing D5 promotion commentary."
+  },
+  {
+   "title": "Fix the Int copy-paste leftovers in the Float class docstring",
+   "ok": true,
+   "issues": "Verified: both one-line before snippets match lines 24 and 42 verbatim; the replacement keeps the file's reference-era field-list docstring style; suite unaffected (854 passed) and the doc smoke assertions hold on the patched copy. Covers all four doc-lens refs (ai-tone 24, docstring 23-24, ux 24, ai-tone 41-42)."
+  }
+ ]
+}
