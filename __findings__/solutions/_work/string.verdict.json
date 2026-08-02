@@ -1,0 +1,36 @@
+{
+ "group": "string",
+ "coverageComplete": true,
+ "verdicts": [
+  {
+   "title": "Reject empty-string keys and values in codepoint_changes instead of compiling a match-everywhere regex",
+   "ok": true,
+   "issues": "Verified: before-snippets verbatim; both claimed assignment routes hit the getter chokepoint (direct _codepoint_changes write caught at first use, instance setter immediately); validation runs exactly once per mapping (1 call across 1000 encode+decode cycles, cache-miss-only as claimed); legitimate None untouched (getter early-returns before the check); BitVector->str normalization still validated post-normalization (probed with a custom HashableMapping, since FrozenDict cannot even hold unhashable BitVector keys); valid/overlapping mappings still round-trip. Residual note for the risks text (pre-existing, not a blocker): class-LEVEL assignment to the PUBLIC name (S.codepoint_changes = FrozenDict({'A': ''}) on the class, not an instance) shadows the classproperty descriptor in S.__dict__ and bypasses both setter and getter validation entirely \u2014 decode silently applies the one-way deletion ('AB' -> 'B', empirically confirmed on the patched copy) and BitVector normalization is bypassed too. This route predates the fix (a classproperty limitation shared by every classproperty in the codebase) and is not one of the routes the solution claims to cover, but it should be named in risks so nobody reads 'chokepoint every consumer reads through' as airtight."
+  },
+  {
+   "title": "Treat an empty codepoint_changes mapping as a no-op in the substitute helpers",
+   "ok": true,
+   "issues": ""
+  },
+  {
+   "title": "Unify the errors= vocabulary: TableString honors 'ignore', and of() validates the policy at mint time",
+   "ok": true,
+   "issues": "All behavior claims reproduced, including the adversarial probes: registered custom handlers (codecs.register_error) mint and decode fine for standard codecs; surrogateescape and backslashreplace work on standard codecs; backslashreplace on tables now rejected at mint (the divergence the finding cited is closed by rejection rather than support \u2014 flagged in the solution's own decision note, appropriate); 'ignore' works with multi-byte table keys; callable-pair exempt; errors=None hits the TypeError branch and gets the named ValueError; inherit-from-cls paths (TableSubclass.of(...), UTF8String.of(...)) are validated as claimed. Two cosmetic nits: (1) the table mint error renders with a stray space, 'table codecs support errors= 'strict', ...' \u2014 drop the space or move the = ; (2) a caution on the verification method that applies to every '854 passed' claim in this group: the repo's test/ dir is a package (test/__init__.py), so pytest prepends the REPO root to sys.path and pointing pytest at the in-repo test dir silently tests the PRISTINE tree no matter what PYTHONPATH says \u2014 I confirmed the suite result independently by copying test/ beside the patched package and running with an import-path canary (855 passed = 854 + canary asserting bytemaker.__file__ is the patched copy). Residual gaps already acknowledged in risks: lookup_error checks the global registry, not per-codec applicability; post-mint class-attr writes (T.errors = 'bogus') still act strict for tables."
+  },
+  {
+   "title": "Require nbytes to be a whole number of bytes_per_char units in String.of()",
+   "ok": true,
+   "issues": "Verified: before verbatim; all three rejection paths fire (explicit bpc, table-derived bpc, inherited class-attr bpc via U16.of(nbytes=5)); nchars sizing and whole-multiple widths unaffected; the existing odd-width table mints in text_fields_test.py (TruncT1 nbytes=1 with MON_TABLE, Long1 nbytes=1 with a multi-char-value table) still mint and pass because their tables derive bpc=None \u2014 full suite green (854). Two notes, neither blocking: (1) residual by-design gap worth one line in risks \u2014 multi-byte standard codecs WITHOUT explicit bytes_per_char= (String.of(nbytes=5, encoding='utf-16-le')) still mint and still cannot decode their own padded output, since bpc is only 'known' when passed/derived/inherited; the fix cannot see it, but the risks text reads as if mis-sized declarations are now impossible. (2) One previously-functioning (if degenerate) corner is now refused: odd nbytes + uniform multi-byte table + errors='replace'/'ignore' could parse (partial trailing unit -> U+FFFD/skipped) even though it could never re-encode; parse-only users of such fields lose that. Defensible under the round-trip invariant and no repo/test caller relies on it, but it belongs in the decision note alongside the 'ignore' question."
+  },
+  {
+   "title": "Validate pad and terminator as byte values (0-255 or None) at mint time in String.of()",
+   "ok": true,
+   "issues": ""
+  },
+  {
+   "title": "Add the missing String class docstring, folding the field-schema knob comment into it",
+   "ok": true,
+   "issues": ""
+  }
+ ]
+}
