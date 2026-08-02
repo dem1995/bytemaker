@@ -1,0 +1,94 @@
+{
+ "group": "docs-misc",
+ "findings": [
+  {
+   "title": ".pyi has no __all__, diverging star-import surface from .py",
+   "file": "bytemaker/fields.pyi",
+   "lines": "1-162",
+   "lens": "inconsistency",
+   "severity": "medium",
+   "confidence": "high",
+   "description": "The runtime module fields.py defines __all__ with exactly 11 names (u8,u16,u32,u64,s8,s16,s32,s64,f16,f32,f64), so `from bytemaker.fields import *` binds only those 11. The stub fields.pyi declares ~131 alias classes (u1..u64, s1..s64, f16/f32/f64) plus `__getattr__` and defines NO __all__. A type checker resolving `from bytemaker.fields import *` against the stub therefore treats every declared class as star-exported, while at runtime the same star-import yields only 11 names. The public star-import surface the checker sees does not match what the interpreter actually produces.",
+   "evidence": "fields.py:41-53 `__all__ = [\"u8\",\"u16\",\"u32\",\"u64\",\"s8\",\"s16\",\"s32\",\"s64\",\"f16\",\"f32\",\"f64\"]`. Runtime repro: `from bytemaker.fields import *` -> star-import count: 11 -> ['f16','f32','f64','s16','s32','s64','s8','u16','u32','u64','u8']. fields.pyi has no `__all__` (grep for __all__ in fields.pyi: No matches found) yet declares e.g. `class u1(_UIntAlias): ...` (line 28) through `class s64(_SIntAlias): ...` (line 156).",
+   "suggestion": "Add an `__all__` to fields.pyi matching fields.py's 11 entries (u8/u16/u32/u64, s8/s16/s32/s64, f16/f32/f64) so the checker's `*`-import surface agrees with the runtime. The lazily-resolvable uN/sN classes can remain declared for direct `from bytemaker.fields import u17` imports without being star-exported.",
+   "ref": "inconsistency|bytemaker/fields.pyi|1-162"
+  },
+  {
+   "title": "SInt.value setter docstring promise that non-two's-complement formats 'reject out-of-range values' is unreachable on standard widths",
+   "file": "bytemaker/bittypes/int.py",
+   "lines": "601-609",
+   "lens": "inconsistency",
+   "severity": "medium",
+   "confidence": "high",
+   "description": "The `SInt.value` setter comment states that only two's complement wraps and that 'The other (non-two's-complement) formats have no C analogue and still reject out-of-range values.' That rejection path (via `Int.to_bitstring`'s range check for sign_magnitude/ones_complement) is only reached when this setter actually runs. For SInt8/16/32/64 the setter is shadowed by `StructPackedBitType.value` (because skip_struct_packing is False under the default global config), which two's-complement-WRAPS out-of-range values instead of rejecting them. So the documented reject-vs-wrap distinction holds for odd widths but is silently violated for the standard widths, compounding the int_format-ignored bug above: the doc describes behavior the code does not deliver at those widths.",
+   "evidence": "Setter comment + code (lines 601-609):\n        if self.int_format == \"twos_complement\":\n            # C-style narrowing conversion: wrap into the signed range\n            # ... The other\n            # (non-two's-complement) formats have no C analogue and still\n            # reject out-of-range values.\n            wrapped = ((value + (1 << (n - 1))) % (1 << n)) - (1 << (n - 1))\n            ...\n            value = wrapped\nRepro: SInt8(0, int_format='signed_magnitude'); s.value = 200 -> no exception, s reads back -56 (StructPackedBitType.value ran, two's-complement wrap). By the docstring's rule a sign-magnitude store of 200 into 8 bits should raise (Int.to_bitstring(200, bit_length=8, rep_format='signed_magnitude') does raise ValueError in isolation).",
+   "suggestion": "Resolve the root skip_struct_packing divergence (finding 1); once SInt8/16/32/64 honor the instance int_format, the reject path becomes reachable and the docstring becomes true. Alternatively, if standard widths are two's-complement-only by design, delete the misleading 'reject out-of-range values' claim from this setter (it never applies to the widths users actually reach here) and document that non-two's-complement is only supported at non-standard widths / via specialize.",
+   "ref": "inconsistency|bytemaker/bittypes/int.py|601-609"
+  },
+  {
+   "title": "__repr__ Returns line misstates the actual repr format",
+   "file": "bytemaker/bittypes/bittype.py",
+   "lines": "254-264",
+   "lens": "docstring",
+   "severity": "medium",
+   "confidence": "high",
+   "description": "The __repr__ docstring's Returns clause describes a format string that does not match what the method produces. It shows a spurious '(value)' after the class name and claims the bits slot renders the value ('bits={self.value}'), but the code renders 'bits={self.bits}' (a BitVector) with no '(value)' segment. Actual output: UInt6(bits=FixedLengthBitVector('101000'), endianness=big). A reader relying on the docstring would expect a different, non-round-trippable string. This is pre-existing (identical in the 4-weeks-ago reference; not on the already-reported list) and still present.",
+   "evidence": "Docstring: \"Returns:\\n            str: ClassName(value)(bits={self.value}, {endianness=self.endianness})\". Code: `return (f\"{self.__class__.__name__}(bits={self.bits}, endianness={self.endianness})\")`. Verified output: `UInt6(bits=FixedLengthBitVector('101000'), endianness=big)`.",
+   "suggestion": "Rewrite the Returns line to match the code, e.g. \"str: ClassName(bits=<BitVector>, endianness=<endianness>)\", dropping the '(value)' fragment and the '{self.value}' reference.",
+   "verifyReason": "Confirmed by reading bytemaker/bittypes/bittype.py:254-264 and by running the code. The __repr__ Returns clause (line 260) reads \"str: ClassName(value)(bits={self.value}, {endianness=self.endianness})\" but the body (lines 262-264) is `f\"{self.__class__.__name__}(bits={self.bits}, endianness={self.endianness})\"`, producing the verified output `UInt6(bits=FixedLengthBitVector('101000'), endianness=big)`. Two concrete mismatches: (1) a spurious \"(value)\" segment after the class name that never appears in output, and (2) the docstring claims the bits slot renders the numeric value (`{self.value}` -> 40) when the code renders the BitVector repr (`{self.bits}`). The docstring even asserts the repr \"can be used to recreate the object,\" so a wrong format description undermines that stated contract. This is a real, factually-incorrect Returns clause on a public dunder in a reference-era field-list-style file (not the intentional July narrative style), so it falls squarely under the \"Returns that lie\" flag category rather than being a style nitpick. Fair and actionable. Kept confidence high (mismatch is exact and runtime-verified). Severity medium is slightly generous since __repr__ is developer-facing and the true format is self-evident from the one-line body, but the Returns clause does actively misdescribe output, so medium stands rather than downgrading to low.",
+   "ref": "docstring|bytemaker/bittypes/bittype.py|254-264"
+  },
+  {
+   "title": "to_pyint documents a nonexistent `bitstring` parameter and omits its real params",
+   "file": "bytemaker/bittypes/int.py",
+   "lines": "76-89",
+   "lens": "docstring",
+   "severity": "medium",
+   "confidence": "high",
+   "description": "The Parameters section documents a leading `bitstring (str): The bitstring to convert.` argument, but the method signature is `to_pyint(self: BitType | BitsConstructible, signed=None, bin_format=...)` \u2014 there is no `bitstring` parameter. The bit source is passed as `self` (the method converts `self`, coercing a BitType/BitVector/BitsConstructible to a bitstring internally). A reader following the docstring would try to pass a `bitstring=` argument that does not exist. This is pre-existing (byte-identical to the 4-weeks-ago reference int.pyc), so it is not new drift, but it actively misdescribes the current signature.",
+   "evidence": "Docstring: 'Parameters:\\n        - bitstring (str): The bitstring to convert.\\n        - signed (Optional[bool], optional) ...' vs signature `def to_pyint(self: BitType | BitsConstructible, signed: Optional[bool] = None, bin_format: Literal[...] = \"twos_complement\")` \u2014 no `bitstring` param exists; `self` is undocumented.",
+   "suggestion": "Replace the phantom `bitstring (str)` entry with documentation of the actual receiver (`self`: a BitType / BitVector / BitsConstructible whose bits are converted), keeping `signed` and `bin_format`.",
+   "verifyReason": "Verified against current code at bytemaker/bittypes/int.py:69-89. The signature is `def to_pyint(self: BitType | BitsConstructible, signed=None, bin_format=...)` \u2014 there is no `bitstring` parameter. Yet the docstring's Parameters section (line 80) leads with `- bitstring (str): The bitstring to convert.`, a parameter that does not exist. The actual bit source is `self` (converted at lines 96-105, accepting a BitType/BitVector/BitsConstructible), and it is undocumented. This is a genuine, concrete docstring/signature mismatch that misdescribes the API, not a flag of the intentional narrative house style (this is a field-list style docstring, appropriate for this reference-era file). It is accurate, specific, actionable, and worth attention. The finding fairly notes it is pre-existing (byte-identical to the 4-weeks-ago reference) rather than new drift; that caveat is honest and does not diminish the defect. Severity medium is fair since it actively misdescribes the signature, though at the lower end because to_pyint is normally called as a bound method (`x.to_pyint()`), reducing the odds a reader actually tries to pass the phantom `bitstring=` positional; confidence high since the mismatch is plainly visible in the read.",
+   "ref": "docstring|bytemaker/bittypes/int.py|76-89"
+  },
+  {
+   "title": "SInt docstring points readers at a `Config` class that does not exist (should be SignedConfig)",
+   "file": "bytemaker/bittypes/int.py",
+   "lines": "545-547, 561",
+   "lens": "docstring",
+   "severity": "medium",
+   "confidence": "high",
+   "description": "The SInt docstring twice tells the user to use \"the `Config` class\" to change the signed integer format, but the only such class in the module (and the one the constructor actually reads at line 582) is `SignedConfig`. There is no `Config` symbol anywhere in the package. A user searching for `Config` to set `signed_int_format` would fail. Pre-existing (matches the reference), not new drift, but it is a stale/wrong cross-reference in current code.",
+   "evidence": "'To change the signed integer format, use the `Config` class (or set the `int_format` parameter in the constructor).' and 'If this is left as `None`, the format will be taken from the `Config` class.' \u2014 but the class is `class SignedConfig:` (line 525) and `__init__` reads `SignedConfig.signed_int_format` (line 582).",
+   "suggestion": "Rename `Config` to `SignedConfig` in both places, matching the actual class name and the constructor's `int_format = SignedConfig.signed_int_format` default.",
+   "verifyReason": "Verified directly in bytemaker/bittypes/int.py. The SInt docstring says \"use the `Config` class\" (line 545-546) and \"the format will be taken from the `Config` class\" (line 561), but no `class Config` exists anywhere in the package (grep for `class Config\\b` across bytemaker/ returns zero matches). The real class is `SignedConfig` (line 525), which is what `__all__` exports (line 935) and what the constructor actually reads as its default: `int_format = SignedConfig.signed_int_format` (line 582). A user searching the package for `Config` to set `signed_int_format` would find nothing. This is a genuine stale/wrong cross-reference in public-API documentation, exactly the \"stale refs\" category the audit says to flag \u2014 not a nitpick and not the intentional house narrative style. It appears twice, reinforcing that it is a real error rather than a one-off typo. Medium severity is fair: it misleads a reader looking up the symbol but does not cause runtime breakage or silently wrong output. Confidence high: every claim (two docstring lines, the actual class name, the constructor default, absence of any `Config`) is directly confirmed. One caveat: the report's parenthetical \"matches the reference\" could not be checked because the reference tree ships only .pyc files, not int.py source, but that historical note is not load-bearing to the verdict.",
+   "ref": "docstring|bytemaker/bittypes/int.py|545-547, 561"
+  },
+  {
+   "title": "__repr__ claims it can recreate the object but eval(repr(x)) raises NameError",
+   "file": "bytemaker/bittypes/bittype.py",
+   "lines": "254-264",
+   "lens": "ux",
+   "severity": "medium",
+   "confidence": "high",
+   "description": "The __repr__ docstring promises a reconstructable representation (\"That can be used to recreate the object\"), but the produced string cannot be eval'd. It emits UInt8(bits=FixedLengthBitVector('00101000'), endianness=big): FixedLengthBitVector is not a name in any normal user namespace, and endianness=big is a bare (unquoted) identifier, so eval(repr(x)) fails with NameError. A repr that advertises round-trip but doesn't is a classic debugging footgun \u2014 users copy it into a REPL or a test fixture and it blows up cryptically.",
+   "evidence": "Docstring: \"Returns a string representation of the BitType.\\n        That can be used to recreate the object.\" Actual: repr(UInt8(40)) == \"UInt8(bits=FixedLengthBitVector('00101000'), endianness=big)\"; eval(repr(UInt8(40))) raises \"NameError: name 'FixedLengthBitVector' is not defined\".",
+   "suggestion": "Either make repr round-trip (e.g. f\"{cls.__name__}(bits=BitVector('{self.bits.to01()}'), endianness={self.endianness!r})\" and ensure BitVector is importable where users eval, or emit the value form UInt8(40, endianness='big')), or drop the \"can be used to recreate the object\" promise from the docstring. Quote the endianness string with !r regardless.",
+   "verifyReason": "Accurate and reproduced. bittype.py:254-264 __repr__ docstring promises \"That can be used to recreate the object,\" but I confirmed by execution that repr(UInt8(40)) == \"UInt8(bits=FixedLengthBitVector('00101000'), endianness=big)\" and eval(repr(x)) raises NameError: name 'FixedLengthBitVector' is not defined. Both defects the finding cites are real: FixedLengthBitVector (defined in bytemaker/bitvector/fixed.py) is not a name in a normal user namespace, and endianness=big is a bare unquoted identifier. This is exactly the kind of lying Returns/docstring the audit is meant to flag, not the intentional narrative style (this is a field-list-style mature file, and the objection is factual, not tonal). A __repr__ documented as round-trippable that isn't is a genuine, non-nitpick footgun. Downgrading severity from high to medium: this is a misleading doc on a debugging-aid method that fails loudly with a clear NameError rather than causing silent breakage or data corruption, so it does not rise to the \"user-facing breakage\" bar for high. Confidence stays high (behavior fully reproduced). Note for context: the same repr and docstring exist verbatim in the 4-weeks-ago reference tree (bittypes/bittype.cpython-311.pyc), so this is a long-standing issue, not a July regression, but it remains present and actionable in current code.",
+   "ref": "ux|bytemaker/bittypes/bittype.py|254-264"
+  },
+  {
+   "title": "__repr__ docstring documents a stale/garbled format that does not match the output",
+   "file": "bytemaker/bittypes/bittype.py",
+   "lines": "259-260",
+   "lens": "ux",
+   "severity": "medium",
+   "confidence": "high",
+   "description": "The Returns line describes the repr format as ClassName(value)(bits={self.value}, {endianness=self.endianness}) \u2014 which is internally inconsistent (says bits={self.value}, i.e. the bits slot holds the value; has a malformed {endianness=...} f-string fragment; and a phantom leading (value) group). The real output is ClassName(bits=<bits>, endianness=<endianness>). A developer reading the docstring to understand or match the repr format is actively misled.",
+   "evidence": "Docstring: \"str: ClassName(value)(bits={self.value}, {endianness=self.endianness})\". Actual return: f\"{self.__class__.__name__}(bits={self.bits}, endianness={self.endianness})\" \u2192 \"UInt8(bits=FixedLengthBitVector('00101000'), endianness=big)\".",
+   "suggestion": "Rewrite the Returns line to match the real template: \"ClassName(bits=<BitVector>, endianness=<endianness>)\", and fix it in tandem with any round-trip change above.",
+   "verifyReason": "Confirmed by reading bytemaker/bittypes/bittype.py directly. The __repr__ docstring Returns line (259-260) reads: \"str: ClassName(value)(bits={self.value}, {endianness=self.endianness})\". The actual code (262-264) returns f\"{self.__class__.__name__}(bits={self.bits}, endianness={self.endianness})\". Every sub-claim checks out: (a) phantom leading \"(value)\" group not present in output; (b) docstring puts self.value in the bits slot while code uses self.bits \u2014 these are genuinely different attributes (.value = plain decoded number, .bits = BitVector); (c) the \"{endianness=self.endianness}\" fragment is a malformed/garbled brace placement vs the code's \"endianness={self.endianness}\". This is a broken Returns line that misleads a developer trying to understand or reproduce the repr format \u2014 squarely the \"Returns that lie / stale examples\" category the audit is meant to flag, not the intentional narrative house style (this is a reference-era field-list file where a Returns block is expected). Minor imprecision in the candidate's own evidence (its illustrative \"UInt8(bits=FixedLengthBitVector('00101000')...\" rendering depends on how .bits stringifies) is not load-bearing and does not weaken the finding. Severity medium is fair: it misleads but only on the repr surface, not on data/round-trip correctness. Confidence high: the mismatch is verbatim and unambiguous.",
+   "ref": "ux|bytemaker/bittypes/bittype.py|259-260"
+  }
+ ]
+}

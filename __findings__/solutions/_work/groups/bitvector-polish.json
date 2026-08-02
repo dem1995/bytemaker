@@ -1,0 +1,80 @@
+{
+ "group": "bitvector-polish",
+ "findings": [
+  {
+   "title": "oct() and bin() docstrings claim '0x' prefix on the bitarray backend (fixed in the other two)",
+   "file": "bytemaker/bitvector/bitvector_with_bitarray_speedup.py",
+   "lines": "535, 551",
+   "lens": "inconsistency",
+   "severity": "medium",
+   "confidence": "high",
+   "description": "In the bitarray backend, oct()'s docstring says 'Convert the BitVector to an octal string prefixed by 0x' and bin()'s docstring says 'prefixed by 0x'. The code returns '0o'+... and '0b'+... respectively, so both docstrings are wrong. The native and speedup backends carry the corrected wording ('prefixed by 0o' and 'prefixed by 0b'). This is a fix applied to two implementations but not the third; the reference tree (v0.11.0) shows the bitarray file already had the '0x' error four weeks ago, so it was simply left un-synced.",
+   "evidence": "bitarray backend:\n    line 535:  Convert the BitVector to an octal string prefixed by 0x.  (oct(), returns '0o'+...)\n    line 551:  Convert the BitVector to a binary string prefixed by 0x.  (bin(), returns '0b'+...)\nvs native/speedup:\n    native oct.__doc__: 'Convert the BitVector to an octal string prefixed by 0o.'\n    native bin.__doc__: 'Convert the BitVector to a binary string prefixed by 0b.'\nRuntime confirms code emits 0o/0b in all three; only the bitarray docstrings disagree.",
+   "suggestion": "Update the two docstrings in bitvector_with_bitarray_speedup.py to say '0o' (oct) and '0b' (bin), matching the code and the other two backends.",
+   "ref": "inconsistency|bytemaker/bitvector/bitvector_with_bitarray_speedup.py|535, 551"
+  },
+  {
+   "title": "Debug __main__ scratch block with bare print() statements shipped in a library module",
+   "file": "bytemaker/bitvector/bitvector_with_bitarray_speedup.py",
+   "lines": "1761-1779",
+   "lens": "sloppy-code",
+   "severity": "medium",
+   "confidence": "high",
+   "description": "The active-backend BitVector module ends with an `if __name__ == \"__main__\":` block full of exploratory `print(...)` calls (bitarray subclass checks, type prints). It is dead scratch code that ships inside the installed package; it never runs on import but signals an unfinished module and clutters the file.",
+   "evidence": "```python\nif __name__ == \"__main__\":\n    print(\"-------------------------------\")\n    print(issubclass(BitVector, bitarray))\n    ...\n    print(a_bitarray); print(a_bitarray_2); print(bitArray2)\n```",
+   "suggestion": "Delete the block (or move any still-useful snippet into a test).",
+   "ref": "sloppy-code|bytemaker/bitvector/bitvector_with_bitarray_speedup.py|1761-1779"
+  },
+  {
+   "title": "Large blocks of commented-out dead code throughout the bitarray BitVector implementation",
+   "file": "bytemaker/bitvector/bitvector_with_bitarray_speedup.py",
+   "lines": "420-437, 614-630, 940-942, 1006, 1121-1122, 1201-1213, 1495-1500",
+   "lens": "sloppy-code",
+   "severity": "medium",
+   "confidence": "high",
+   "description": "Many multi-line stretches of commented-out code remain: an old from_bytes/frombytes pair (420-437), hex/oct/bin/to_base bodies (614-630), isinstance dispatch experiments (940-942, 1201-1213), a commented __reverse__ (1006), swap_endianness (1121-1122), and translate/maketrans stubs (1495-1500). Commented code rots and obscures what the module actually does.",
+   "evidence": "e.g. lines 614-630:\n```python\n# def hex(self, sep: Optional[str] = None, bytes_per_sep: int = 1) -> str:\n#     ...\n# def oct(self) -> str:\n#     return ba2base(8, self)\n# def bin(self) -> str:\n#     return ba2base(2, self)\n```",
+   "suggestion": "Remove; git history preserves anything worth recovering.",
+   "ref": "sloppy-code|bytemaker/bitvector/bitvector_with_bitarray_speedup.py|420-437, 614-630, 940-942, 100"
+  },
+  {
+   "title": "__Bits__ docstring promises a \"deep\" copy that the class docstring explicitly disclaims",
+   "file": "bytemaker/bitvector/bitvector_speedup.py",
+   "lines": "65-70, 76-83",
+   "lens": "docstring",
+   "severity": "medium",
+   "confidence": "high",
+   "description": "The BitsCastable class docstring was rewritten (since the 4-weeks-ago reference, where it was just the placeholder 'BitsCastable') to describe the live-.bits policy: it now says whether __Bits__ returns a copy or a live view is the implementor's choice, and gives BitType as an example that deliberately returns its bits *live* and width-locked. But the __Bits__ method docstring was left unchanged and still promises a *deep* representation. The two docstrings on the same protocol now directly contradict each other, and the method-level promise is the one that is wrong: an implementor is explicitly permitted (and BitType is documented) to return a live view, not a deep copy. This same stale 'deep' line is present identically in bitvector_native.py:76 and bitvector_with_bitarray_speedup.py:80, so the drift is consistent across all three backends.",
+   "evidence": "Class docstring (lines 66-70): \"Constructors copy-construct from the result... whether __Bits__ itself returns a copy or a live view is the implementor's ownership choice. (BitType returns its internal bits live and width-locked, per the live-.bits policy; construct a BitVector for a snapshot.)\"  --- but the method docstring (line 77) still says: \"Returns a deep BitVector representation of the object.\"  Confirmed against the 4-weeks-ago reference: the class docstring then was merely 'BitsCastable' while __Bits__ already read 'Returns a deep BitVector representation of the object.'",
+   "suggestion": "Reword the __Bits__ method docstring to match the class docstring, e.g. \"Returns a BitVector representation of the object; may be a copy or a live view (implementor's choice).\" Drop the word 'deep'. Apply the same fix to bitvector_native.py and bitvector_with_bitarray_speedup.py so all three backends agree.",
+   "verifyReason": "Verified against current code and the 4-weeks-ago reference. In all three backends (bitvector_speedup.py:65-83, bitvector_native.py:64-82, bitvector_with_bitarray_speedup.py:68-86) the BitsCastable *class* docstring now states \"whether __Bits__ itself returns a copy or a live view is the implementor's ownership choice. (BitType returns its internal bits live and width-locked...)\", while the __Bits__ *method* docstring on the same protocol still says \"Returns a deep BitVector representation of the object.\" These directly contradict: a live view is neither \"deep\" nor a copy. I confirmed the flagship implementor really does this \u2014 bittypes/bittype.py:276-286, __Bits__ returns self._bits with a docstring saying \"Returns the internal bits **live and width-locked**.\" So the method-level \"deep\" promise is the wrong one. The contradiction is a substantive semantic drift, not the intentional house narrative style, and misleads anyone implementing the protocol. Severity medium is fair (internal protocol docstring, misleads an implementor rather than an end user); confidence high. One imprecision in the report's evidence: the ref class docstring was not \"merely 'BitsCastable'\" \u2014 extracted from the ref .pyc it read \"...should not be a shallow copy (unless you want the cast object to share memory...)\", i.e. it already hedged; the report cited the class-name co_const by mistake. This does not affect the core finding, which is real and actionable, and the fix (drop \"deep\", say \"may be a copy or a live view\") is correct.",
+   "ref": "docstring|bytemaker/bitvector/bitvector_speedup.py|65-70, 76-83"
+  },
+  {
+   "title": "to_chararray() validates length with assert (stripped under -O) and the message contains a run of stray whitespace",
+   "file": "bytemaker/bitvector/bitvector_speedup.py",
+   "lines": "768-770",
+   "lens": "ux",
+   "severity": "medium",
+   "confidence": "high",
+   "description": "Public API to_chararray() enforces the 'length must be a multiple of 8' precondition with a bare assert. Under `python -O` the assert is stripped and bytes(self).decode() then fails later with a cryptor error (or silently drops the partial byte via tobytes padding), so the validation vanishes in optimized runs. Separately, the backslash line-continuation inside the assert string embeds ~16 spaces of source indentation into the runtime message (verified length 82 chars, most of it whitespace): \"...multiple of 8                to use a standard encoding\".",
+   "evidence": "assert len(self) % 8 == 0, \"BitVector length must be a multiple of 8\\\n    to use a standard encoding\"",
+   "suggestion": "Replace the assert with an explicit `if len(self) % 8: raise ValueError(f\"BitVector length {len(self)} is not a multiple of 8; cannot decode with a standard encoding\")`, and collapse the continuation so the message has no embedded indentation.",
+   "verifyReason": "Verified against current code at bytemaker/bitvector/bitvector_speedup.py:768-769. to_chararray() is a public method (no underscore, documented) whose 'length must be a multiple of 8' precondition is guarded by a bare assert on caller-supplied input. Confirmed empirically: under `python -O` the assert is stripped and to_chararray('utf-8') on a 3-bit vector raises a cryptic `UnicodeDecodeError: 'utf-8' codec can't decode byte 0xa0` instead of the intended message, so the validation vanishes in optimized runs. The two other asserts in this file (lines 472/475) are legitimate internal-invariant checks inside _check_invariants ('test helper'), so line 768 is a genuine outlier, not house style. The backslash line-continuation embeds a 16-space run into the runtime string; reproduced total message length is 82 chars, e.g. 'BitVector length must be a multiple of 8                to use a standard encoding'. This is new code (the file did not exist in the reference tree). Fair, accurate, and actionable. Keeping confidence high (all claims reproduced) but severity medium rather than high: under normal (non -O) execution the assert still fires and the only defect is an ugly whitespace-laden message; the cryptic/vanished-validation degradation only manifests under -O, a less common mode, so it is a real but not always-user-facing breakage.",
+   "ref": "ux|bytemaker/bitvector/bitvector_speedup.py|768-770"
+  },
+  {
+   "title": "bin() docstring says the result is 'prefixed by 0x' (should be 0b)",
+   "file": "bytemaker/bitvector/bitvector_with_bitarray_speedup.py",
+   "lines": "551",
+   "lens": "ux",
+   "severity": "medium",
+   "confidence": "high",
+   "description": "In the active backend, bin()'s docstring wrongly states the output is prefixed by 0x. The code returns `\"0b\" + self.to01(...)`. The pure-Python sibling has correct wording ('prefixed by 0b', bitvector_native.py:572). Both oct() and bin() in this file were evidently copy-pasted from hex() and never edited, so a developer sees the wrong prefix for the binary method too.",
+   "evidence": "\"\"\"\\n        Convert the BitVector to a binary string prefixed by 0x.\"  (line 551, method returns \"0b\" + self.to01(...))",
+   "suggestion": "Fix the docstring to 'Convert the BitVector to a binary string prefixed by 0b.' to match the code and the native backend.",
+   "verifyReason": "Verified at bytemaker/bitvector/bitvector_with_bitarray_speedup.py:551: the bin() docstring reads \"Convert the BitVector to a binary string prefixed by 0x.\" but the method returns `\"0b\" + self.to01(sep, bytes_per_sep)` (line 562). The native sibling has the correct wording at bitvector_native.py:572 (\"prefixed by 0b\"), confirming this is a copy-paste-from-hex slip that was fixed in one backend but not the other. This IS the active backend: bitvector.py:3-8 imports BitVector from bitvector_with_bitarray_speedup whenever bitarray is installed (the preferred speedup path). This is a factual lie in a public API docstring, not the intentional narrative style (the file uses reference-era Args:/Returns: field lists), so it meets the \"DO flag broken docstrings\" bar. The same copy-paste error also affects oct() at line 535 (\"prefixed by 0x\", returns \"0o\"), corroborating the diagnosis, though only bin() was reported. Fair and actionable (one-char fix). Severity is borderline medium/low since it is a convenience helper whose method name and runtime output both signal \"binary,\" limiting real confusion; kept at medium because it is an outright wrong statement in public docs. Confidence high \u2014 code and docstring quoted verbatim.",
+   "ref": "ux|bytemaker/bitvector/bitvector_with_bitarray_speedup.py|551"
+  }
+ ]
+}

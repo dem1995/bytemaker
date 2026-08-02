@@ -1,0 +1,43 @@
+{
+ "group": "plans",
+ "findings": [
+  {
+   "title": "unpack_tuple silently returns garbage on wrong-length input in the shiftmask tier (struct tier raises)",
+   "file": "bytemaker/plans.py",
+   "lines": "220-236",
+   "lens": "bug",
+   "severity": "medium",
+   "confidence": "high",
+   "description": "unpack_tuple is documented as part of the public bulk escape hatch (Plan docstring, lines 122-124: \":meth:`unpack_tuple` ... are the public bulk escape hatch\"). Its behavior on a wrong-length `data` argument depends on which tier the record compiled to, and the two tiers disagree incompatibly. The struct tier delegates to `struct_obj.unpack(data)`, which raises `struct.error` if the buffer is not exactly num_bytes. The shiftmask tier does `int.from_bytes(bytes(data), self._int_order)` with NO length check, so any length is accepted: too-long input reads from the wrong byte positions and returns silently-wrong values; too-short input fabricates a record with missing high bytes read as zero. A user of the escape hatch who passes a slice of the wrong width gets a clean exception with a struct-tier record but silent data corruption with a shiftmask-tier record of the same logical layout. (Struct.parse guards length upstream at structs.py:757, so the normal .parse() path is safe; this bites only direct escape-hatch use.)",
+   "evidence": "Code: `raw = int.from_bytes(bytes(data), self._int_order)` (line 224) has no length validation, unlike the struct tier's `return self.struct_obj.unpack(data)` (line 223).\n\nRepro output (Shift = shiftmask tier UInt4+UInt4+UInt8 = 2 bytes; Str = struct tier UInt16 = 2 bytes):\n== unpack_tuple, 4 bytes given, 2 expected ==\nshiftmask -> (1, 1, 34)   (silent garbage)\nstruct    -> error: unpack requires a buffer of 2 bytes\n== unpack_tuple, 1 byte given, 2 expected ==\nshiftmask -> (1, 1, 0)    (silent, fabricated)\nstruct    -> error: unpack requires a buffer of 2 bytes",
+   "suggestion": "In unpack_tuple, validate the shiftmask branch's input length before decoding, e.g. `data = bytes(data); if len(data) != self.num_bytes: raise ValueError(...)` (or `struct.error` to match the struct tier), so both tiers reject wrong-length buffers identically.",
+   "ref": "bug|bytemaker/plans.py|220-236"
+  },
+  {
+   "title": "shiftmask unpack_tuple silently decodes wrong-sized data into garbage",
+   "file": "bytemaker/plans.py",
+   "lines": "220-236",
+   "lens": "ux",
+   "severity": "medium",
+   "confidence": "high",
+   "description": "unpack_tuple is documented as the 'public bulk escape hatch' (line 122-124), so users call it directly. On the shiftmask tier it does int.from_bytes(bytes(data), ...) with NO length check, then shifts/masks bits out of that int. Wrong-sized input therefore returns a plausible-looking tuple of wrong values instead of raising. The struct tier, by contrast, DOES raise (struct.error: 'unpack requires a buffer of N bytes'), so the same public method fails loudly on one tier and silently corrupts on the other. This is a classic silent-wrong footgun: a user who slices one byte short gets a tuple back and no indication anything is amiss.",
+   "evidence": "raw = int.from_bytes(bytes(data), self._int_order)  (line 224) with no length guard. Confirmed empirically on a U4+U12 shiftmask plan (num_bytes=2): plan.unpack_tuple(b'\\x12') returns (0, 18) and plan.unpack_tuple(b'\\x12\\x34\\x56') returns (3, 1110); the aligned tier raises 'unpack requires a buffer of 3 bytes' for the same mistake.",
+   "suggestion": "At the top of unpack_tuple (or just before int.from_bytes), guard: `if len(data) != self.num_bytes: raise ValueError(f\"expected {self.num_bytes} bytes, got {len(data)}\")` so both tiers reject wrong-sized input with the same clear message.",
+   "verifyReason": "Accurate and fair, but claimed severity is too high. VERIFIED: plans.py:224 does `raw = int.from_bytes(bytes(data), self._int_order)` with no length guard on the shiftmask tier, then shifts/masks. The struct tier (plans.py:222-223) delegates to struct.Struct.unpack, which raises. Empirically reproduced exactly: for a U4+U12 shiftmask plan (num_bytes=2), plan.unpack_tuple(b'\\x12') returns (0, 18) and plan.unpack_tuple(b'\\x12\\x34\\x56') returns (3, 1110) with no error, whereas the correct b'\\x12\\x34' yields (1, 564) and the equivalent aligned/struct-tier plan raises \"unpack requires a buffer of 3 bytes\". So the same public method fails loudly on one tier and returns a plausible-but-wrong tuple on the other -- a genuine silent-wrong footgun, not a nitpick and not a style complaint. The premise that users call this directly is also confirmed: both plans.py:122-124 and the structs.py:38 module docstring explicitly promote `T.plan.unpack_tuple` / `iter_tuples` as the public \"bulk escape hatch\" for \"tuple-hungry hot loops\". DOWNGRADE to medium because the claimed \"high\" overstates exposure: the documented primary entry point Struct.parse (structs.py:829-832) already guards `if len(data) != n: raise ValueError(...)` before delegating, so the common, documented path is safe on both tiers; the corruption is only reachable when a user deliberately bypasses parse into the low-level, expressly performance-oriented hatch. That is a real cross-tier inconsistency worth fixing and the suggested one-line length guard is apt and cheap, but it is not main-path user-facing breakage. Confidence high: behavior, docstring promotion, and public reachability all proven.",
+   "ref": "ux|bytemaker/plans.py|220-236"
+  },
+  {
+   "title": "shiftmask pack_tuple silently ignores wrong number of values (zip truncation)",
+   "file": "bytemaker/plans.py",
+   "lines": "249-259",
+   "lens": "ux",
+   "severity": "medium",
+   "confidence": "high",
+   "description": "pack_tuple on the shiftmask tier zips self.shift_masks against values. If the caller passes too FEW values, zip stops early and the missing fields are silently packed as their initial 0 bits; if too MANY, the extras are silently dropped. Either way the caller gets bytes back with no error. The struct tier raises struct.error ('pack expected N items ... got M') for the same mistake, so the public method is again loud on one tier and silent on the other.",
+   "evidence": "`for (shift, mask, sign_bit, swap, nbytes), v in zip(self.shift_masks, values):` (lines 250-252). Confirmed on the U4+U12 shiftmask plan (needs 2 values): plan.pack_tuple([5]) returns bytes 5000 (missing field silently 0) and plan.pack_tuple([5,6,7]) returns 5006 (extra 7 dropped); the aligned tier raises 'pack expected 2 items for packing (got 1)'.",
+   "suggestion": "Guard at the start of pack_tuple: `if len(values) != len(self.fields): raise ValueError(f\"expected {len(self.fields)} values, got {len(values)}\")`, applied to both tiers so behavior is uniform and the error names the mismatch.",
+   "verifyReason": "Confirmed by direct reproduction. plans.py:250-252 zips self.shift_masks against values, so on the shiftmask tier pack_tuple silently zero-fills missing fields (too-few) and drops extras (too-many) with no error, while the struct tier raises struct.error for the same mistake. Reproduced with a real UInt4+UInt12 Struct (shiftmask, 2 bytes): pack_tuple([5]) -> 0500 (field b silently 0), pack_tuple([5,6,7]) -> 6500 (extra 7 dropped); the aligned UInt8+UInt8 plan raises 'pack expected 2 items for packing (got 1)'. This is NOT internal-only: plans.py:122-124 and structs.py:38 explicitly document pack_tuple/unpack_tuple/iter_tuples as the 'public bulk escape hatch' for hot loops, so a user calling pack_tuple directly with a wrong-length sequence is a real, invited misuse. The tier a record lands on is an invisible implementation detail, so the loud-vs-silent split is unpredictable to callers, and the silent case produces wrong bytes with no signal (data corruption). The suggested uniform len(self.fields) length guard on both tiers is correct and actionable. Downgraded from high to medium: the primary path Struct.pack() always feeds a correctly-sized internal tuple, so this only bites direct escape-hatch users passing wrong-length sequences (narrower blast radius than user-facing breakage), but silent wrong output on a documented public method still clearly warrants attention. Not a nitpick, not a flag of the intentional narrative docstring style.",
+   "ref": "ux|bytemaker/plans.py|249-259"
+  }
+ ]
+}

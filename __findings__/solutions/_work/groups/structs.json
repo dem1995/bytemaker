@@ -1,0 +1,54 @@
+{
+ "group": "structs",
+ "findings": [
+  {
+   "title": "BoundBits width-preserving mutators (setall/invert/sort) silently no-op instead of writing through",
+   "file": "bytemaker/structs.py",
+   "lines": "1069-1073",
+   "lens": "bug",
+   "severity": "high",
+   "confidence": "high",
+   "description": "BoundBits (minted by `struct.sizedview.<field>.bits`) is documented as a live handle where \"Width-preserving mutation writes through\" and \"mutators are defined explicitly below so their results write back through the width-validating store\". Only a hand-picked set of mutators is overridden (__setitem__, __delitem__, __iadd__, append, extend, insert, pop, remove, clear, reverse). Every OTHER BitVector mutator falls through __getattr__, which returns `getattr(self._cur(), name)` where `_cur()` builds a FRESH throwaway BitVector from the slot. Calling such a mutator therefore mutates the throwaway and silently drops the write to the struct. BitVector's in-place, width-preserving mutators setall/invert/sort are exactly this case: they should write through (like the overridden `reverse`) but instead silently do nothing. This is silent data loss in a documented, public feature.",
+   "evidence": "structs.py __getattr__ (readers only):\n    def __getattr__(self, name):\n        # Reader methods (to01, hex, to_bytes, count, ...) delegate to a\n        # fresh derivation; mutators are defined explicitly below ...\n        return getattr(self._cur(), name)\nand the class docstring: \"Width-preserving mutation writes through\".\n\nRepro (python -c):\n  setall   before=00110011 after=00110011  -> NO-OP (bug)\n  invert   before=00110011 after=00110011  -> NO-OP (bug)\n  sort     before=00110011 after=00110011  -> NO-OP (bug)\nContrast, the overridden `reverse` DOES write through:\n  after reverse value 11110000\nBitVector confirms these are in-place width-preserving mutators (return None): `setall ret None bv now 1111`, `invert ret None bv2 now 0011`, `sort ret None bv3 now 0011`.",
+   "suggestion": "Treat unknown attribute access uniformly against a known mutator allow/deny set instead of returning the throwaway's bound method verbatim. Either (a) add explicit RMW overrides for the remaining width-preserving in-place mutators (setall, invert, sort) that call `_write(b)` after mutating, mirroring `reverse`; or (b) in __getattr__, wrap any callable whose name is a known in-place mutator so it performs read-modify-write-back, and let width-changing ones raise at _write. At minimum, do not silently return a bound method that mutates a copy the caller can never see.",
+   "ref": "bug|bytemaker/structs.py|1069-1073"
+  },
+  {
+   "title": "Codec protocol docstring falsely claims scalar BitType classes provide parse/pack",
+   "file": "bytemaker/structs.py",
+   "lines": "139-150",
+   "lens": "bug",
+   "severity": "medium",
+   "confidence": "high",
+   "description": "The Codec protocol docstring states \"Scalar BitType classes, Struct classes, and Array objects all provide num_bits plus parse/pack; composition ... should demand only this.\" That is false for scalar BitType classes: UInt16/SInt16/Float32 etc. have `num_bits` but NO `parse`/`pack` methods (they use the constructor + `bytes()`), so `isinstance(UInt16, Codec)` is False and `UInt16.parse` raises AttributeError. Generic code written to the documented contract (accept any Codec, call `.parse`/`.pack`) will reject or crash on scalar BitTypes. Separately, the protocol declares `pack(self, value) -> bytes`, but `Struct.pack(self)` takes no `value` argument, so the arity claimed by the protocol also disagrees with the Struct implementation the docstring lists.",
+   "evidence": "Docstring: \"Scalar BitType classes, Struct classes, and :class:`Array` objects all provide ``num_bits`` plus ``parse``/``pack``\".\nProtocol body: `def pack(self, value) -> bytes: ...` vs `Struct.pack(self)` (no value param).\nRepro (python -c):\n  S class is Codec True\n  Array is Codec True\n  UInt16 is Codec False\n  (BitType) has parse False / has pack False / has num_bits True",
+   "suggestion": "Correct the docstring to match reality: only Struct classes and Array objects satisfy this protocol; scalar BitType classes expose `num_bits` but serialize via the constructor and `bytes()`, not `parse`/`pack`. If scalar BitTypes are meant to be first-class Codecs, add thin `parse`/`pack` shims to BitType; otherwise stop asserting they satisfy the protocol. Also reconcile the `pack(self, value)` signature with `Struct.pack(self)` (e.g. document that Struct packs `self`, or that the protocol's `pack` value is the record itself).",
+   "ref": "bug|bytemaker/structs.py|139-150"
+  },
+  {
+   "title": "Codec protocol advertises pack(self, value) but Struct.pack(self) takes no value -- two incompatible pack conventions under one protocol",
+   "file": "bytemaker/structs.py",
+   "lines": "148-150",
+   "lens": "inconsistency",
+   "severity": "medium",
+   "confidence": "high",
+   "description": "The Codec protocol declares `pack(self, value) -> bytes` and its docstring states Struct classes and Array objects both \"provide num_bits plus parse/pack\", implying a uniform codec calling convention. But the two members disagree on pack's signature: Array.pack(self, values) takes the sequence to encode (matching the protocol), while Struct.pack(self) takes NO argument and encodes `self`. Additionally the abstraction level differs: Array satisfies Codec at the INSTANCE level (an Array object has parse+pack), whereas Struct satisfies it at the CLASS level (parse is a classmethod, pack is an unbound instance method needing a materialized instance). Because Codec is only runtime_checkable (attribute-existence only), `isinstance(SomeStruct, Codec)` returns True despite the signature mismatch, so generic code written against `codec.pack(value)` silently breaks when handed a Struct.",
+   "evidence": "Protocol (structs.py:148-150): `def parse(self, data) -> Any: ...` / `def pack(self, value) -> bytes: ...`\nDocstring (structs.py:141-143): \"Scalar BitType classes, Struct classes, and :class:`Array` objects all provide ``num_bits`` plus ``parse``/``pack``\".\nActual signatures (verified): `Struct.pack sig: (self) -> 'bytes'` (no value param); `Array.pack sig: (values) -> 'bytes'`.\n`isinstance(SomeStruct, Codec)` -> True (attribute-existence only), so the mismatch is invisible to the runtime check.",
+   "suggestion": "Reconcile the abstraction: document (or model) that Struct fulfils Codec at the class level with pack bound to an instance (pack()), while Array fulfils it at the instance level with pack(values). If the protocol is meant to describe a callable `pack(value)->bytes`, note that a Struct CLASS is not a drop-in Codec instance (use `s.pack()`), and consider tightening the protocol docstring so generic-codec callers are not misled by the passing isinstance check.",
+   "ref": "inconsistency|bytemaker/structs.py|148-150"
+  },
+  {
+   "title": "field(Struct, default=...) silently shares one mutable instance across all Structs",
+   "file": "bytemaker/structs.py",
+   "lines": "631-645",
+   "lens": "ux",
+   "severity": "medium",
+   "confidence": "high",
+   "description": "A nested-Struct default supplied via field(default=SomeStruct(...)) is stored once and stored by reference for every instance (the descriptor and _bm_from_tuple never deep-copy struct values), so mutating the field on one instance mutates the shared default on all instances -- the classic mutable-default footgun, silent and wrong. Verified live: with `a: Inner = field(Inner, default=Inner(5))`, `o1.a.x = 99` makes `o2.a.x == 99`. The _ArrayField docstring (352-363) explicitly acknowledges this hazard for struct *array* elements, but field()'s own docstring gives no warning for the scalar nested-Struct case and there is no defensive copy.",
+   "evidence": "def field(bittype: Any, *, default: Any = _MISSING) -> Any:\n    ...\n    return _FieldSpec(bittype, default)",
+   "suggestion": "Either deep/detach-copy a mutable (Struct/Array) default per instance at __init__ time, or at minimum document the aliasing in field()'s docstring the way _ArrayField documents it, and recommend a default_factory-style pattern for mutable defaults.",
+   "verifyReason": "Accurate and live-verified. With `a: Inner = field(Inner, default=Inner(5))`, two default-constructed Outers share one Inner: `o1.a is o2.a` is True, and `o1.a.x = 99` makes `o2.a.x == 99`. Confirmed the code path in bytemaker/structs.py: the __init__ codegen (lines 522-534) binds a scalar Struct default once into a shared function-default argument (`_d_{n}`), and _StructField.__set__ (lines 272-277) type-checks but stores by reference with no copy \u2014 the classic mutable-default footgun, silent and data-corrupting.\n\nThe inconsistency the finding names is real and squarely the maintainer's concern: for the array case the code goes out of its way to avoid shared defaults (per-instance list() copy via _coerce_seq, plus the generator-materialization comment at lines 525-532), and _ArrayField's docstring (lines 357-363) explicitly documents the analogous struct-element aliasing hazard. Yet field()'s docstring (lines 631-644) gives no warning for the scalar nested-Struct case and no defensive copy is made. Immutable/numeric defaults are unaffected (verified: `field(UInt8, default=7)` stays independent), so the finding is correctly scoped to mutable Struct defaults \u2014 not overclaimed.\n\nThis is a UX/behavior+doc gap, not a complaint about the intentional narrative docstring style, so it does not fall under the protected house-style exclusion. Trigger is somewhat narrow (requires an explicit mutable nested-Struct default), which keeps it at medium rather than high, but the maintainer's own array-side handling shows this class of bug is treated as worth fixing/documenting. Minor imprecision in the report: it attributes the sharing partly to _bm_from_tuple, but that is the parse path; the default aliasing actually originates in __init__'s shared default arg. The conclusion (no defensive copy for the default anywhere) and the descriptor claim are correct, so this does not undermine the finding. Severity medium / confidence high is fair.",
+   "ref": "ux|bytemaker/structs.py|631-645"
+  }
+ ]
+}

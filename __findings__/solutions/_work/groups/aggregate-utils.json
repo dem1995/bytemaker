@@ -1,0 +1,92 @@
+{
+ "group": "aggregate-utils",
+ "findings": [
+  {
+   "title": "is_instance_of_union crashes on empty iterables and mis-matches non-empty ones",
+   "file": "bytemaker/utils.py",
+   "lines": "133-135",
+   "lens": "bug",
+   "severity": "high",
+   "confidence": "high",
+   "description": "The single-arg iterable-generic branch is logically inverted and unsafe. `return bool(obj) or is_instance_of_union(next(iter(obj)), type_args[0])` is meant to accept an iterable if it is empty OR its first element matches the element type. But (a) for a NON-empty iterable `bool(obj)` is True, so the function returns True without ever checking the element type -- so e.g. a list of strings is reported as an instance of `List[int]`; and (b) for an EMPTY iterable `bool(obj)` is False, so evaluation proceeds to `next(iter(obj))`, which raises `StopIteration`. Because the caller on line 132 wraps this in an `any(...)` generator, PEP 479 turns the StopIteration into a `RuntimeError`. This is reachable from the public API: `BitsConstructible` (used by `BitVector.__contains__` etc.) contains `Iterable[Union[Literal[0,1], int]]`, so `[] in some_bitvector` hits this path. Unchanged from the 4-week reference, but the observations only mention this helper for its call count, not this defect -- so it is a new finding.",
+   "evidence": "utils.py line 133-135:\n```\n        elif isinstance(obj, type_origin):\n            if len(type_args) == 1 and isinstance(obj, Iterable):\n                return bool(obj) or is_instance_of_union(next(iter(obj)), type_args[0])\n```\nRepro 1 (public API crash):\n```\n>>> from bytemaker.bitvector import BitVector\n>>> bv = BitVector([1,0,1,1])\n>>> [] in bv\nRuntimeError: generator raised StopIteration\n```\nRepro 2 (false positive + crash directly):\n```\n>>> from bytemaker.utils import is_instance_of_union\n>>> from typing import List\n>>> is_instance_of_union(['x','y'], List[int])   # wrong element type\nTrue\n>>> is_instance_of_union([], List[int])\nStopIteration\n```",
+   "suggestion": "Handle emptiness explicitly and check the element only when present, e.g. `if not obj: return True` (or False, per intended semantics) then `return all(is_instance_of_union(el, type_args[0]) for el in obj)` -- or at minimum guard the `next(iter(obj))` so an empty iterable does not raise, and check the element type instead of short-circuiting on `bool(obj)`.",
+   "ref": "bug|bytemaker/utils.py|133-135"
+  },
+  {
+   "title": "count_bits_in_unit_type returns None for unsupported types, yielding an opaque TypeError downstream",
+   "file": "bytemaker/_legacy_aggregate.py",
+   "lines": "68-88",
+   "lens": "bug",
+   "severity": "medium",
+   "confidence": "high",
+   "description": "`count_bits_in_unit_type` is annotated `-> int` and has no final `else: raise`. When `unit_type` is none of CType/BitType/PyType/DataClassType, all `if`/`elif` branches are skipped and the function implicitly returns `None`. Callers immediately do arithmetic on the result (e.g. `count_bytes_in_unit_type` computes `(count_bits_in_unit_type(unit_type) + 7) // 8`, and `from_bytes_aggregate` line 421 does the same), so a user who passes an unsupported field type gets the cryptic `TypeError: unsupported operand type(s) for +: 'NoneType' and 'int'` instead of a clear 'unsupported type' error. `count_bits_in_aggregate_type` (line 99-103) has the same latent issue when summing an unknown field type. The `-> int` contract is also violated.",
+   "evidence": "_legacy_aggregate.py lines 82-88 (no trailing else/raise):\n```\n    elif is_subclass_of_union(unit_type, DataClassType):\n        size_in_bits = 0\n        field_types = resolve_field_types(unit_type)\n        for field in dataclasses.fields(unit_type):\n            size_in_bits += count_bits_in_unit_type(field_types[field.name])\n        return size_in_bits\n```\nRepro:\n```\n>>> from bytemaker._legacy_aggregate import count_bits_in_unit_type, count_bytes_in_unit_type\n>>> class Foo: pass\n>>> count_bits_in_unit_type(Foo)\nNone\n>>> count_bytes_in_unit_type(Foo)\nTypeError: unsupported operand type(s) for +: 'NoneType' and 'int'\n```",
+   "suggestion": "Add a final `else: raise TypeError(f\"Cannot count bits in {unit_type}: not a CType, BitType, PyType, or dataclass\")` (mirroring the error style already used in to_bits_individual/from_bits_individual) so unsupported types fail with a clear message rather than propagating None into arithmetic.",
+   "ref": "bug|bytemaker/_legacy_aggregate.py|68-88"
+  },
+  {
+   "title": "to_bits_aggregate raises TypeError on unconvertible input but sibling to_bytes_aggregate silently returns b''",
+   "file": "bytemaker/_legacy_aggregate.py",
+   "lines": "281-285, 357-375",
+   "lens": "inconsistency",
+   "severity": "medium",
+   "confidence": "high",
+   "description": "The two frozen-oracle serializers for the same aggregate concept disagree on how they handle an object that is neither a UnitType, a dataclass, nor iterable-of-convertibles. to_bits_aggregate has an explicit else that raises a clear TypeError; to_bytes_aggregate has NO final else \u2014 none of its if/elif branches fire, ret_bytes stays an empty bytearray, and it silently returns b''. A caller who passes a bad value gets a loud, actionable error from the bits path but a silent, wrong-length b'' from the bytes path (which then only surfaces much later as a confusing size-mismatch, or not at all). Sibling serializers should fail symmetrically.",
+   "evidence": "to_bits_aggregate (lines 281-285):\n    else:\n        raise TypeError(\n            f\"Cannot convert {convertible_object} to bits because the unit type\"\n            f\" is not a CType, YType, or PyType\"\n        )\n\nto_bytes_aggregate (357-375) has only three branches and no else:\n    ret_bytes = bytearray()\n    if is_instance_of_union(units, UnitType): ...\n    elif isinstance(units, DataClassType): ...\n    elif isinstance(units, Iterable): ...\n    return bytes(ret_bytes)\n\nRepro:\n    to_bits_aggregate(NotConvertible())  -> TypeError: Cannot convert ... to bits because the unit type is not a CType, YType, or PyType\n    to_bytes_aggregate(NotConvertible()) -> returns b'' (no error)",
+   "suggestion": "Add a matching final `else: raise TypeError(...)` to to_bytes_aggregate mirroring the to_bits_aggregate message, so both serializers reject unconvertible input the same way. (Sync into both paths per the frozen-oracle coordination rule.)",
+   "ref": "inconsistency|bytemaker/_legacy_aggregate.py|281-285, 357-375"
+  },
+  {
+   "title": "from_bytes_aggregate(is_array=True) behavior diverges between the public dispatcher and the frozen oracle",
+   "file": "bytemaker/_legacy_aggregate.py",
+   "lines": "430-446",
+   "lens": "inconsistency",
+   "severity": "medium",
+   "confidence": "high",
+   "description": "conversions/aggregate_types.py documents and ships a deliberate fix: from_bytes_aggregate(..., is_array=True) now returns a list of decoded entries, and its own docstring calls the old oracle behavior 'unusable'. That fix was applied to the public dispatcher path only; the frozen oracle's is_array=True branch still does aggregate_type(*arr_entry_list), producing a single record whose fields are the decoded entries \u2014 the exact 'unusable' behavior. The same public function name now behaves two different ways depending on which module you call, and the two coexisting implementations of the same concept are out of sync. The oracle is deliberately frozen (do not delete), but per the coordination rule a behavior change is supposed to be synced into both paths; here only one side was updated.",
+   "evidence": "aggregate_types.py docstring (lines 15-18): \"One deliberate behavior fix vs 0.12: ``from_bytes_aggregate(..., is_array=True)`` now returns a ``list``... (Previously it attempted ``aggregate_type(*entries)``, which was unusable...)\"\n\nOracle still has the old code (_legacy_aggregate.py 430-446):\n        else:\n            arr_entry_list = list()\n            ...\n            retval = aggregate_type(*arr_entry_list)\n\nRepro on a 2-entry buffer of a UInt8 pair dataclass:\n    dispatcher is_array=True -> list [Pair(a=1,b=2), Pair(a=3,b=4)]\n    oracle     is_array=True -> Pair(a=Pair(a=1,b=2), b=Pair(a=3,b=4))",
+   "suggestion": "Sync the array fix into the oracle branch (return the list of decoded entries) and update the differential test, so _legacy_aggregate.from_bytes_aggregate(is_array=True) matches the documented public behavior. If the oracle's is_array path is intentionally never exercised, at minimum note that in the branch, but the two paths for one public function should not silently disagree.",
+   "ref": "inconsistency|bytemaker/_legacy_aggregate.py|430-446"
+  },
+  {
+   "title": "count_bits_in_unit_type silently returns None for unrecognized types",
+   "file": "bytemaker/_legacy_aggregate.py",
+   "lines": "68-87",
+   "lens": "ux",
+   "severity": "medium",
+   "confidence": "high",
+   "description": "count_bits_in_unit_type is an if/elif chain over CType/BitType/PyType/DataClassType with NO final else and no fallback raise. If a user annotates an aggregate field with anything else (a plain object, a typing construct, a forgotten import that resolved to the wrong symbol, a Struct subclass), the function falls off the end and returns None. That None then flows into caller arithmetic \u2014 e.g. count_bits_in_aggregate_type does 'size_in_bits += count_bits_in_unit_type(...)' (line 102) and from_bytes_individual does '(count_bits_in_unit_type(field_type) + 7) // 8' \u2014 producing a cryptic 'unsupported operand type(s) for +=: int and NoneType' far from the field that actually caused it, with no field name or type in the message. This is a classic fail-late/fail-cryptic footgun.",
+   "evidence": "    if is_subclass_of_union(unit_type, CType):\n        return ctypes.sizeof(unit_type) * 8\n    elif is_subclass_of_union(unit_type, BitType):\n        return unit_type.num_bits\n    elif is_subclass_of_union(unit_type, PyType):\n        ...\n    elif is_subclass_of_union(unit_type, DataClassType):\n        ...\n        return size_in_bits   # <- last branch; no else, no final return/raise",
+   "suggestion": "Add a final 'else: raise TypeError(f\"Cannot size field type {unit_type!r}: not a ctype, BitType, supported Python type, or dataclass\")' so an unsupported annotation fails immediately with the offending type named, instead of surfacing as a NoneType arithmetic error somewhere downstream.",
+   "verifyReason": "Accurate and verified. bytemaker/_legacy_aggregate.py:68-87 is an if/elif chain over CType/BitType/PyType/DataClassType with no final else and no fallback raise, so an unrecognized-but-valid type annotation (e.g. a Struct subclass) causes issubclass to return False for all four branches and the function falls off the end returning None. I confirmed the downstream arithmetic claims: line 102 does 'size_in_bits += count_bits_in_unit_type(...)' and line 111/421 do '(count_bits_in_unit_type(...) + 7) // 8', either of which would raise a cryptic 'unsupported operand type(s) ... int and NoneType' with no field name/type. The cached wrapper at conversions/aggregate_types.py:100-116 faithfully propagates the None (it just calls _orig and caches the result), so caching does not fix it. The suggested 'else: raise TypeError(...)' is a correct, actionable fix.\n\nDowngraded from high to medium on two fair grounds. (1) Severity: the task defines high as 'a doc that actively misleads / user-facing breakage.' This is a fail-late/fail-cryptic footgun on an already-erroneous input (annotating a field with an unsupported type is itself a user error); it degrades the error message rather than breaking a working path, which fits medium. (2) Scope/novelty: the affected surface is the LEGACY aggregate path, not the headline Struct API, and _legacy_aggregate.py is the deliberately frozen oracle ('kept verbatim... Do not modify... except to sync a deliberate upstream behavior change into both paths'); per project memory this path has near-zero backward-compat pressure and one user. Notably this exact issue is ALREADY documented in the maintainer's prior analysis (observations/04-bitvector-and-cruft.md:82-87, 'no final else/raise; an unrecognized type falls through to an implicit return None... The cached wrapper inherits this'), so it is not a new finding \u2014 though the concrete instance is still present in current code. Confidence remains high: the code behaves exactly as the report describes.",
+   "ref": "ux|bytemaker/_legacy_aggregate.py|68-87"
+  },
+  {
+   "title": "to_bytes_aggregate silently returns b'' for unrecognized input instead of raising",
+   "file": "bytemaker/_legacy_aggregate.py",
+   "lines": "357-375",
+   "lens": "ux",
+   "severity": "medium",
+   "confidence": "high",
+   "description": "to_bytes_aggregate has three branches (UnitType / DataClassType / Iterable) and NO else. If 'units' is none of these (e.g. None, a bare custom object, a dict passed by mistake), the function skips every branch and returns bytes(bytearray()) == b''. The caller gets empty bytes with no error, which then corrupts a larger record or writes a zero-length blob \u2014 a silent-wrong data-loss trap. This directly contradicts its sibling to_bits_aggregate (lines 281-285), which for the exact same unrecognized-input case raises TypeError. Two functions that are supposed to be duals disagree on error handling, so behavior depends on which serializer path the user happens to call.",
+   "evidence": "    if is_instance_of_union(units, UnitType):\n        ret_bytes = to_bytes_individual(units, endianness=endianness)\n    elif isinstance(units, DataClassType):\n        ...\n    elif isinstance(units, Iterable):\n        ...\n    return bytes(ret_bytes)   # <- no else; unrecognized 'units' returns b''",
+   "suggestion": "Mirror to_bits_aggregate: add 'else: raise TypeError(f\"Cannot convert {units!r} to bytes: not a ctype, BitType, Python primitive, dataclass, or iterable\")' so silently producing empty output becomes impossible and the two dual functions behave consistently.",
+   "verifyReason": "Verified accurate against current code. bytemaker/_legacy_aggregate.py:357-375 (to_bytes_aggregate) has exactly three branches \u2014 is_instance_of_union(units, UnitType), isinstance(units, DataClassType), isinstance(units, Iterable) \u2014 and NO else, returning bytes(ret_bytes) where ret_bytes was initialized to bytearray() at line 357. So unrecognized input (None, a bare custom object) silently yields b''. The dual to_bits_aggregate at lines 281-285 does raise TypeError for the same fall-through case (\"else: raise TypeError(...Cannot convert...)\"), and from_bits_aggregate raises too, so the bytes serializer is the lone branch that fails silently \u2014 a real inconsistency and a silent-wrong/data-loss trap. This is a genuinely NEW angle: observations/01-two-parallel-systems.md:48-51 cites the bits-path raise but never notes that the bytes path lacks it. Two nits keep this from high/perfect: (1) the description's \"dict passed by mistake\" example is imprecise \u2014 a non-empty dict IS Iterable and hits the Iterable branch rather than falling through to b'' (only an empty dict {} yields b''); the core trap still holds via None/bare objects. (2) This lives in the deliberately-frozen LEGACY fallback path (_legacy_aggregate.py docstring: reference/oracle impl), not the headline Struct API, and per maintainer memory the sole user weights the legacy path low \u2014 so high severity overstates it. Downgraded to medium/high-confidence: the structural claim and dual-disagreement are directly verified, the fix (mirror to_bits_aggregate's else: raise TypeError) is correct and actionable.",
+   "ref": "ux|bytemaker/_legacy_aggregate.py|357-375"
+  },
+  {
+   "title": "twos_complement docstring documents a parameter that does not exist and a wrong return semantics label",
+   "file": "bytemaker/utils.py",
+   "lines": "314-325",
+   "lens": "ux",
+   "severity": "medium",
+   "confidence": "high",
+   "description": "The signature is 'def twos_complement(number, n_bits=32)', but the docstring documents ':param bits:' \u2014 there is no 'bits' parameter; the real second parameter is 'n_bits'. A developer relying on the docstring (or an IDE surfacing it) will try twos_complement(5, bits=8) and get 'unexpected keyword argument bits'. The ':return:' line also says it returns 'A string representing the two's complement', which is correct here, but the mismatched param name is the load-bearing DX error. This is also a style/format drift: this one function uses ':param:/:return:' RST field lists while the rest of utils.py (twos_complement_bit_length, is_instance_of_union, etc.) uses Google-style 'Args:/Returns:'.",
+   "evidence": "def twos_complement(number, n_bits=32):\n    \"\"\"\n    Convert an integer to its two's complement representation.\n\n    :param number: The integer to convert.\n    :param bits: The bit width for the two's complement representation.\n    :return: A string representing the two's complement of the number.\n    \"\"\"",
+   "suggestion": "Rename the docstring param to match the signature: ':param n_bits: The bit width ...'. For consistency with the rest of the file, prefer the Google-style 'Args:/Returns:' block used by the neighboring twos_complement_bit_length.",
+   "verifyReason": "Verified in current code at bytemaker/utils.py:314-321. Signature is `def twos_complement(number, n_bits=32)` but the docstring documents `:param bits:` (line 319) \u2014 no `bits` parameter exists; the real one is `n_bits`. A developer trusting the docstring/IDE hint would call `twos_complement(5, bits=8)` and get a TypeError, so this is a genuine, actionable DX defect, not a nitpick. The secondary format-drift claim is also accurate: the neighboring `twos_complement_bit_length` (line 286) and other functions in the file (lines 102/106, 154/158, 291/295) all use Google-style `Args:/Returns:`, while only this function uses `:param:/:return:` RST field lists \u2014 a real within-module inconsistency, and utils.py is a reference-era mature file, so this is not the protected new-code narrative style. Minor overstatement in the report: it flags the `:return:` line as questionable before conceding it is correct \u2014 the return semantics are in fact fine, so the load-bearing issue is the phantom param name plus the style drift. Severity medium and confidence high are fair.",
+   "ref": "ux|bytemaker/utils.py|314-325"
+  }
+ ]
+}

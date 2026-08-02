@@ -1,0 +1,43 @@
+{
+ "group": "pytypes",
+ "findings": [
+  {
+   "title": "ConversionInfo.to_bytes/from_bytes/num_bytes classmethods reference instance-only fields and always raise AttributeError",
+   "file": "bytemaker/conversions/pytypes.py",
+   "lines": "53-81",
+   "lens": "inconsistency",
+   "severity": "medium",
+   "confidence": "high",
+   "description": "`ConversionInfo` is a @dataclass whose `to_bits`, `from_bits`, and `num_bits` are per-instance fields (assigned per registered type). The three @classmethod helpers `num_bytes`, `to_bytes`, and `from_bytes` call `cls.num_bits(...)`, `cls.to_bits(...)`, and `cls.from_bits(...)` -- attributes that exist only on instances, never on the class object `cls`. Every invocation (on the class or on an instance, since these are classmethods bound to the class) raises `AttributeError: type object 'ConversionInfo' has no attribute 'num_bits'`. The docstrings promise working byte conversions but the methods are dead/broken. They are also unused anywhere in the package, masking the breakage. Inconsistent contract: docstring says X (converts), code does Y (crashes). (File is byte-identical to the 4-weeks-ago reference, so pre-existing.)",
+   "evidence": "```\n@classmethod\ndef to_bytes(cls, pytype) -> bytes:\n    ...\n    return bytes(cls.to_bits(pytype))   # cls has no to_bits\n```\nRepro:\n```\n>>> ConversionInfo.to_bytes(5)\nAttributeError: type object 'ConversionInfo' has no attribute 'to_bits'\n>>> ConversionConfig.get_conversion_info(int).num_bytes(5)\nAttributeError: type object 'ConversionInfo' has no attribute 'num_bits'\n```",
+   "suggestion": "Make these instance methods (drop @classmethod, use `self.num_bits`/`self.to_bits`/`self.from_bits`), or delete them if they are genuinely unused. As instance methods they would work and match how the fields are populated.",
+   "ref": "inconsistency|bytemaker/conversions/pytypes.py|53-81"
+  },
+  {
+   "title": "bits_to_pytype docstring documents nonexistent parameter names and wrong type",
+   "file": "bytemaker/conversions/pytypes.py",
+   "lines": "302-314",
+   "lens": "docstring",
+   "severity": "medium",
+   "confidence": "high",
+   "description": "The Args block for bits_to_pytype names two parameters (`bytes_obj` and `py_prim_type`) that do not exist in the signature `def bits_to_pytype(bits_obj: BitVector, pytype: type)`. It also mislabels the first parameter's type as `(bytes)` when it is actually a BitVector. A reader following the docstring would pass the wrong keyword names and expect a bytes argument. This looks like a copy-paste from bytes_to_pytype (whose params really are `bytes_obj`/`pytype`) left unedited.",
+   "evidence": "Signature: `def bits_to_pytype(bits_obj: BitVector, pytype: type):`  Docstring: \"Args:\\n        bytes_obj (bytes): The bits object to convert to a Python primitive\\n        py_prim_type (type): The type of the Python primitive to convert to.\"",
+   "suggestion": "Rename the documented params to `bits_obj (BitVector)` and `pytype (type)` to match the signature; fix the type annotation from `bytes` to `BitVector`.",
+   "verifyReason": "Verified in current code at bytemaker/conversions/pytypes.py:302-314. Signature is `def bits_to_pytype(bits_obj: BitVector, pytype: type)`, but the Args block documents `bytes_obj (bytes)` and `py_prim_type (type)` \u2014 neither param name exists in the signature, and the type `bytes` is wrong (actual type is BitVector; the description text even says \"The bits object\"). A caller following the docstring would use the wrong keyword names (raising TypeError) and expect a bytes argument. The copy-paste theory is well supported: the sibling `bytes_to_pytype` (lines 324-340) genuinely has params `bytes_obj (bytes)`/`pytype (type)` with a near-identical Args body, so this block was clearly lifted and left unedited. This is a field-list Args block that misdescribes the signature, not the intentional narrative house style, and it sits on a public conversion function. Medium/high are appropriate.",
+   "ref": "docstring|bytemaker/conversions/pytypes.py|302-314"
+  },
+  {
+   "title": "str/char conversion's num_bits lies (reports 8 bits, encodes the whole string)",
+   "file": "bytemaker/conversions/pytypes.py",
+   "lines": "207-213",
+   "lens": "ux",
+   "severity": "medium",
+   "confidence": "high",
+   "description": "The registered conversion for str advertises a fixed width of 8 bits via num_bits, but to_bits encodes the entire UTF-8 string (24 bits for 'ABC'). Any caller that trusts num_bits/num_bytes for sizing or offset computation (e.g. count_bits_in_unit_type, aggregate layout) will under-count and silently produce wrong offsets/lengths for multi-character strings. This is a silent-wrong trap with no error at the point of misuse.",
+   "evidence": "pytype=str, to_bits=lambda string: BitVector(string.encode(\"utf-8\")), from_bits=lambda bits: bits.to_bytes().decode(\"utf-8\"), num_bits=lambda _: 8. Verified: pytype_to_bytes('ABC') -> b'ABC' (3 bytes) while ConversionInfo.num_bits('ABC') returns 8.",
+   "suggestion": "Make num_bits reflect the actual encoding: num_bits=lambda s: len(s.encode('utf-8')) * 8 (matching the bytesish entries), or restrict the conversion to a single character and validate len(s)==1 in to_bits with a clear error. A width that disagrees with the encoder must not ship.",
+   "verifyReason": "Accurate and reproducible. In bytemaker/conversions/pytypes.py:207-213 the str ConversionInfo registers `to_bits=lambda string: BitVector(string.encode(\"utf-8\"))` (variable width) but `num_bits=lambda _: 8` (fixed). Verified: ConversionInfo.num_bits('ABC') == 8 while pytype_to_bytes('ABC') == b'ABC' (24 bits). This violates the field's own documented contract (line 44: \"num_bits ... The number of bits in the BitVector representation of the Python instance\"). The width is consumed for layout by count_bits_in_unit_type (_legacy_aggregate.py:81, which calls `num_bits(\"\")` with a placeholder because it only has a type, not an instance), so the legacy aggregate path mis-sizes str fields. End-to-end repro: a @dataclass with a str field serializes correctly (b'ABC\\x00\\x00\\x00\\x05', 7 bytes) but from_bytes_aggregate raises ValueError \"the # of bits in the bytes object (56) does not match the # of bits in the unit type (40)\". So the encoder/width disagreement is genuine and worth attention.\n\nDowngraded from high to medium on two points that the candidate's framing overstates. (1) The dominant real-world outcome is a LOUD, hard ValueError (from the length checks at _legacy_aggregate.py:318/410), not the claimed \"silent-wrong trap with no error at the point of misuse\" -- silent truncation only occurs in narrower paths (e.g. an exactly-1-char str, or is_array slicing). (2) This is confined to the LEGACY aggregate path; the headline new Struct engine handles strings via the bittypes String type, not this ConversionInfo, so the blast radius is a non-primary corner (a str conversion whose full-string variant is even commented out at lines 199-205, suggesting str was never fully committed to). Confidence stays high: the num_bits/encoder disagreement and the crash are directly reproduced. The suggested fix (num_bits=lambda s: len(s.encode('utf-8'))*8, matching the bytesish entries at line 220, or single-char validation) is sound. Note the REF snapshot lacks conversions/, so no historical diff was possible; assessed against current code only.",
+   "ref": "ux|bytemaker/conversions/pytypes.py|207-213"
+  }
+ ]
+}

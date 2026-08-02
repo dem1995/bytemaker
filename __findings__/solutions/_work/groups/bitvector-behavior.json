@@ -1,0 +1,139 @@
+{
+ "group": "bitvector-behavior",
+ "findings": [
+  {
+   "title": "FixedLengthBitVector slice-setitem guard uses len(value) instead of bit-length, both false-blocking valid writes and false-allowing width changes",
+   "file": "bytemaker/bitvector/fixed.py",
+   "lines": "79-88",
+   "lens": "bug",
+   "severity": "high",
+   "confidence": "high",
+   "description": "The width-invariance guard in FixedLengthBitVector.__setitem__ compares the slice span to `len(value)`, the element count of the RAW source, rather than the number of bits the value contributes once coerced to a BitVector. For any non-BitVector BitsConstructible whose element count differs from its bit length (str like '0b..'/'0x..'/'0o..', bytes, bytearray, memoryview), the two disagree. This produces two opposite failures: (1) FALSE ALLOW that actually breaks the invariant this class exists to protect -- e.g. `v[0:3] = '0x0'` passes because len('0x0')==3==span, but BitVector('0x0') is 4 bits, so the base setitem resizes the 'fixed' vector from 8 to 9 bits; (2) FALSE BLOCK of legitimate length-preserving writes -- e.g. `v[0:8] = bytes([0xFF])` (8 bits into an 8-bit slice) and `v[0:2] = '0b11'` (2 bits into a 2-bit slice) both raise ValueError even though the base BitVector accepts them. Since this class backs BitType box storage (per the module docstring, guarding e.g. a 6-bit UInt6 against a width change), the false-allow case is a real silent-corruption path. fixed.py is new (did not exist in the 4-week-ago reference), so this is a new bug.",
+   "evidence": "Guard code:\n```\n79  if isinstance(key, slice) and not isinstance(value, int):\n80      span = len(range(*key.indices(len(self))))\n81      try:\n82          vlen = len(value)          # <-- element count of RAW source, not bit length\n83      except TypeError:\n84          value = BitVector(value)\n85          vlen = len(value)\n86      if vlen != span:\n87          raise self._length_violation()\n88  super().__setitem__(key, value)\n```\nRepro (active bitarray backend; identical on pure-Python backend):\n```\nv = F('0b'+'0'*8)            # 8-bit fixed\nv[0:3] = '0x0'               # len('0x0')==3==span but BitVector('0x0')==4 bits\n# -> len(v) == 9  (invariant broken; guard bypassed)\n\nv2 = F(bytes([0,0]))         # 16-bit fixed\nv2[0:8] = bytes([0xFF])      # 8 bits into 8-bit slice = length-preserving\n# -> WRONGLY raises ValueError (len(bytes([0xFF]))==1 != span 8)\n\nv3 = F('0b11110000')\nv3[0:2] = '0b11'             # 2 bits into 2-bit slice\n# -> WRONGLY raises ValueError\n```\nBase BitVector accepts all three; only FixedLengthBitVector mishandles them.",
+   "suggestion": "Compare against the coerced bit length, not the raw source length. Normalize the value once up front, e.g. `bv = value if isinstance(value, BitVector) else BitVector(value); if len(bv) != span: raise self._length_violation(); super().__setitem__(key, bv)`. (An int value still short-circuits earlier as length-preserving.) This both admits valid length-preserving writes and closes the resize hole.",
+   "ref": "bug|bytemaker/bitvector/fixed.py|79-88"
+  },
+  {
+   "title": "startswith/endswith reject bytearray (a documented BitsConstructible) with a spurious 'bit must be 0 or 1' ValueError",
+   "file": "bytemaker/bitvector/bitvector_speedup.py",
+   "lines": "1444-1459",
+   "lens": "bug",
+   "severity": "medium",
+   "confidence": "high",
+   "description": "_normalize_substrings dispatches a single substring only for `isinstance(substrings, (str, bytes, BitsCastable))`. It omits bytearray and memoryview, which are both listed in the BitsConstructible union in bitvector.pyi. A bytearray therefore falls through to the trailing `Iterable` branch, which iterates its byte values (0-255) and feeds them to BitVector(list_of_substrings) as if they were individual bits, raising `ValueError: bit must be 0 or 1, got 222`. So `v.startswith(bytes([0xde]))` works but `v.startswith(bytearray([0xde]))` crashes, even though `bytearray([0xde]) in v` (via __contains__) works fine. The inconsistency is confusing and the crash is user-facing for a type the API advertises as constructible.",
+   "evidence": "```\nelif isinstance(substrings, (str, bytes, BitsCastable)):   # bytearray / memoryview missing\n    return [BitVector(substrings)]\nelif isinstance(substrings, Iterable):\n    list_of_substrings = list(substrings)\n    if all(isinstance(substring, int) for substring in list_of_substrings):\n        return [BitVector(list_of_substrings)]   # <-- bytearray lands here; 0xde is not a bit\n```\nRepro:\n```\nv = BitVector(bytes([0xde, 0xad]))\nv.startswith(bytes([0xde]))       # True\nv.startswith(bytearray([0xde]))   # ValueError: bit must be 0 or 1, got 222\nbytearray([0xde]) in v            # True (works via __contains__)\n```\n(Same behavior on both backends.)",
+   "suggestion": "Add bytearray and memoryview to the single-substring branch, e.g. `isinstance(substrings, (str, bytes, bytearray, memoryview, BitsCastable))`, so byte-like inputs are treated as one substring consistently with bytes and with __contains__.",
+   "ref": "bug|bytemaker/bitvector/bitvector_speedup.py|1444-1459"
+  },
+  {
+   "title": "bitarray backend rejects float bit values (1.0/0.0) in append/insert/remove/extend that both reference impls accept",
+   "file": "bytemaker/bitvector/bitvector_with_bitarray_speedup.py",
+   "lines": "1036, 1049, 1061, 1101",
+   "lens": "bug",
+   "severity": "high",
+   "confidence": "high",
+   "description": "In the ACTIVE production backend (bitvector.py imports bitvector_with_bitarray_speedup when bitarray is installed), append/insert/remove/extend forward the raw value straight to the bitarray superclass (super().append(value), super().insert(index, value), super().remove(value), super().extend(values)) without routing through _coerce_bit. The two reference implementations (bitvector_native.py and bitvector_speedup.py, the latter being the fuzz-tested twin of the native oracle) both call _coerce_bit, which is documented to accept 'a 0 or 1 (or equal to one of them, e.g. booleans)' and therefore accepts 1.0/0.0. So the same call succeeds on the oracle and silently changes state there, but raises TypeError in the shipped backend, and the two vectors end up with different contents. The differential fuzz test only compares native against speedup, never against the bitarray backend, so this gap is completely untested. It is a real, reachable behavior split between shipped implementations of the same public API.",
+   "evidence": "Repro (native/speedup vs the ACTIVE bitarray backend):\n  append(0.0 )  native=('ok','01010') speedup=('ok','01010') bitarray=('exc','TypeError')\n  append(1.0 )  native=('ok','01011') speedup=('ok','01011') bitarray=('exc','TypeError')\n  insert(0.0)   native ok, speedup ok, bitarray TypeError: 'float' object cannot be interpreted as an integer\n  remove(1.0)   native '101', speedup '101', bitarray TypeError\n  extend([1.0,0.0]) native='110' speedup='110' bitarray=TypeError\nThe backend code has no coercion:\n    def append(self, value: int) -> None:\n        super().append(value)\n    def insert(self, index: int, value: int) -> None:\n        super().insert(index, value)\n    def remove(self, value: int) -> None:\n        super().remove(value)\n    def extend(self, values): ...; super().extend(values)\nCompare bitvector_native.py append: `self._bits.append(_coerce_bit(value))`.",
+   "suggestion": "Route the bit value through _coerce_bit before delegating: append -> super().append(_coerce_bit(value)); insert -> super().insert(index, _coerce_bit(value)); remove -> super().remove(_coerce_bit(value)); and in extend, when the iterable is not a BitVector, coerce each element (mirroring the native/speedup path). Import/define _coerce_bit in this module (it currently lacks it).",
+   "ref": "bug|bytemaker/bitvector/bitvector_with_bitarray_speedup.py|1036, 1049, 1061, 1101"
+  },
+  {
+   "title": "bitarray backend raises TypeError (not ValueError) for invalid bit values in append/insert/remove/extend",
+   "file": "bytemaker/bitvector/bitvector_with_bitarray_speedup.py",
+   "lines": "1036, 1049, 1061, 1101",
+   "lens": "bug",
+   "severity": "medium",
+   "confidence": "high",
+   "description": "Same root cause as the float finding, but the exception TYPE diverges for clearly invalid inputs. When a caller passes an invalid bit such as the string '0'/'1' to append/insert/remove/extend, both reference implementations raise ValueError('bit must be 0 or 1, ...') via _coerce_bit, while the shipped bitarray backend raises TypeError from bitarray's C layer. Code that catches ValueError to validate user input (a natural choice given the reference behavior and the ValueError docstring on remove) will fail to catch it on the production backend.",
+   "evidence": "  append('1') native=('exc','ValueError') speedup=('exc','ValueError') bitarray=('exc','TypeError')\n  insert('0') native ValueError, speedup ValueError, bitarray TypeError: 'str' object cannot be interpreted as an integer\n  remove('1') native ValueError, speedup ValueError, bitarray TypeError\nremove's own docstring in this file: 'Raises: ValueError: If the bit is not found', and _coerce_bit (native/speedup) raises `ValueError(f\"bit must be 0 or 1, got {value!r}\")`.",
+   "suggestion": "Fixing the previous finding (coerce via _coerce_bit before delegating) also fixes the exception type: _coerce_bit raises ValueError for out-of-range/invalid values, matching the oracle and the documented contract.",
+   "ref": "bug|bytemaker/bitvector/bitvector_with_bitarray_speedup.py|1036, 1049, 1061, 1101"
+  },
+  {
+   "title": "Extended-slice assignment of an empty value: bitarray backend raises while native/speedup silently delete",
+   "file": "bytemaker/bitvector/bitvector_with_bitarray_speedup.py",
+   "lines": "908-929",
+   "lens": "bug",
+   "severity": "medium",
+   "confidence": "high",
+   "description": "Assigning an empty value to an extended (step != 1) slice diverges three ways. native (bitvector_native.py __setitem__ slice branch) does self._bits[key] = value._bits on a bytearray, and bytearray has a quirk where `ba[i:j:step] = b''` silently DELETES the stepped positions instead of raising; bitvector_speedup.py reproduces the same behavior (its fuzz twin). The shipped bitarray backend delegates to super().__setitem__ and follows Python list semantics, raising ValueError on any extended-slice length mismatch (including empty). So the same statement silently shrinks the vector on the oracle/fallback backend but raises on the production backend. This is a genuine cross-implementation inconsistency; the silent-delete behavior on native/speedup is itself surprising (no standard Python sequence deletes on an empty extended-slice assignment except bytearray).",
+   "evidence": "v = C('00000000'); v[1:8:2] = C('')\n  native            SILENTLY DELETED -> len=4 '0000'\n  speedup           SILENTLY DELETED -> len=4 '0000'\n  bitarray(ACTIVE)  EXC ValueError: attempt to assign sequence of size 0 to extended slice of size 4\nFor comparison, `list(range(10))[1:8:2] = []` raises ValueError, and `bytearray(range(10))[1:8:2] = b''` deletes -> [0,2,4,6,8,9]. native/speedup inherit the bytearray quirk.",
+   "suggestion": "Pick one semantics and make all three agree. The list-like ValueError (current bitarray behavior) is the least surprising; to adopt it in native/speedup, special-case extended slices in __setitem__ and raise when len(value) != number-of-selected-positions instead of delegating to bytearray. If the silent-delete is intended, document it and replicate it in the bitarray backend.",
+   "ref": "bug|bytemaker/bitvector/bitvector_with_bitarray_speedup.py|908-929"
+  },
+  {
+   "title": "Empty value on an extended slice silently deletes bits (packed) but raises ValueError (bitarray backend)",
+   "file": "bytemaker/bitvector/bitvector_speedup.py",
+   "lines": "1057-1070",
+   "lens": "inconsistency",
+   "severity": "high",
+   "confidence": "high",
+   "description": "`__setitem__` for a slice with a non-int value routes through `chars[key] = value.to01().encode(\"ascii\")` on the 0/1-per-byte `bytearray`. For an EXTENDED slice (step != 1) with an EMPTY value, CPython's bytearray special-cases this and DELETES the selected positions instead of raising \u2014 so a width-locked-looking assignment silently shrinks the vector. The bitarray backend raises ValueError for the same call. This is both a cross-implementation divergence and a direct contradiction of this method's own docstring, which promises \"for non-unit slice steps and index sequences, the lengths must agree.\" (native has the identical behavior; only the bitarray backend, which is the default when bitarray is installed, matches Python's documented extended-slice semantics.) Non-empty mismatched values raise consistently in all three; only the empty case diverges. No parity test covers it.",
+   "evidence": "packed __setitem__ (line 1069): `chars[key] = value.to01().encode(\"ascii\")` with docstring (1048-1051): \"...for non-unit slice steps and index sequences, the lengths must agree.\"\n\nRepro:\n  v = BitVector('1101'); v[0:4:2] = BitVector('')\n  packed  -> v.to01() == '11', len 2   (width silently changed 4->2, no error)\n  native  -> '11', len 2\n  bitarray-> ValueError: attempt to assign sequence of size 0 to extended slice of size 2\nContrast non-empty mismatch (all three agree):\n  v[0:4:2] = BitVector('1') -> ValueError in P, N, and B.",
+   "suggestion": "Before delegating to `bytearray.__setitem__`, when `key` is an extended slice (step != 1) explicitly compare `len(value)` against `len(range(*key.indices(len(self))))` and raise ValueError on mismatch (including the empty-value case), matching the bitarray backend and the documented contract. Add an empty-value extended-slice case to the parity suite.",
+   "ref": "inconsistency|bytemaker/bitvector/bitvector_speedup.py|1057-1070"
+  },
+  {
+   "title": "bitvector.pyi lists bytearray/memoryview in BitsConstructible but the runtime .py union omits them",
+   "file": "bytemaker/bitvector/bitvector_speedup.py",
+   "lines": "1850",
+   "lens": "inconsistency",
+   "severity": "medium",
+   "confidence": "high",
+   "description": "The `.pyi` (described in its own header as the guaranteed spec) was updated so `BitsConstructible = Union[\"BitVector\", bytes, bytearray, memoryview, str, Iterable[_LaxLiteral01], BitsCastable]`, adding `bytearray` and `memoryview`. The runtime `BitsConstructible` in bitvector_speedup.py (and bitvector_native.py) was NOT updated \u2014 it is still `Union[BitVector, bytes, str, Iterable[LaxLiteral01], BitsCastable]`. This is a fresh pyi-vs-py divergence: 4 weeks ago the ref pyi's union also omitted bytearray/memoryview, so the pyi side was changed and the .py side was left behind. The runtime union is not merely cosmetic \u2014 `__contains__` calls `is_instance_of_union(item, BitsConstructible)` against it, and the accompanying prose docstring for the union (lines 1851-1859) also does not mention bytearray/memoryview. (bytearray/memoryview happen to still satisfy the runtime union via the Iterable arm, so behavior does not visibly break, but the declared contract and the runtime object disagree.)",
+   "evidence": "Current pyi (bitvector.pyi lines 62-70): `BitsConstructible = Union[\"BitVector\", bytes, bytearray, memoryview, str, Iterable[_LaxLiteral01], BitsCastable]`\nCurrent runtime (bitvector_speedup.py line 1850): `BitsConstructible = Union[BitVector, bytes, str, Iterable[LaxLiteral01], BitsCastable]`\nRef pyi 4 weeks ago: `Union[\"BitVector\", bytes, str, Iterable[_LaxLiteral01], BitsCastable]` (no bytearray/memoryview) \u2014 so the pyi was the side that changed.",
+   "suggestion": "Add `bytearray` and `memoryview` to the runtime `BitsConstructible` unions in bitvector_speedup.py and bitvector_native.py (and update the trailing prose docstring to mention them) so the spec .pyi and the runtime object agree.",
+   "ref": "inconsistency|bytemaker/bitvector/bitvector_speedup.py|1850"
+  },
+  {
+   "title": "__eq__ equates BitVector to a plain bitarray only on the default (bitarray) backend",
+   "file": "bytemaker/bitvector/bitvector_with_bitarray_speedup.py",
+   "lines": "633-638",
+   "lens": "inconsistency",
+   "severity": "high",
+   "confidence": "high",
+   "description": "The bitarray backend's __eq__ delegates to `super().__eq__(other)`, so a BitVector compares equal to a raw `bitarray` (BitVector is a bitarray subclass). The other two implementations guard with `isinstance(other, BitVector)` and return NotImplemented/False for a plain bitarray. Because bitvector/bitvector.py selects the bitarray backend whenever bitarray is installed (find_spec('bitarray')), this divergent behavior is the one users actually get by default. It also contradicts the shared docstring on all three impls, which says equality 'will only really [be] true if both objects are BitVectors'. This can silently change set/dict membership and `==` results depending on which backend is loaded.",
+   "evidence": "bitarray backend (line 633-638):\n    def __eq__(self, other: object) -> bool:\n        \"\"\"...This will only really true if both objects are BitVectors.\"\"\"\n        return super().__eq__(other)\nvs native (bitvector_native.py:641-643) and speedup (bitvector_speedup.py:792-794):\n    if isinstance(other, BitVector):\n        return self._bits == other._bits  # native\n    return NotImplemented\nRepro (default backend is bitarray):\n    >>> from bitarray import bitarray\n    >>> import bytemaker.bitvector.bitvector_with_bitarray_speedup as ba\n    >>> ba.BitVector('0b101') == bitarray('101')\n    True\n    >>> import bytemaker.bitvector.bitvector_speedup as spd\n    >>> spd.BitVector('0b101') == bitarray('101')\n    False\n    >>> import bytemaker.bitvector.bitvector_native as nat\n    >>> nat.BitVector('0b101') == bitarray('101')\n    False",
+   "suggestion": "Make the bitarray backend's __eq__ mirror the others: return NotImplemented (or False) when `other` is not a BitVector, e.g. `if not isinstance(other, BitVector): return NotImplemented` before delegating. Apply the same guard to __ne__ (which delegates likewise). This restores the documented 'only true if both are BitVectors' contract and cross-backend agreement.",
+   "ref": "inconsistency|bytemaker/bitvector/bitvector_with_bitarray_speedup.py|633-638"
+  },
+  {
+   "title": "tobytes()/__bytes__ and to_int()'s to_bytes() disagree on partial-byte alignment (all three backends)",
+   "file": "bytemaker/bitvector/bitvector_with_bitarray_speedup.py",
+   "lines": "978-984, 1733-1745",
+   "lens": "inconsistency",
+   "severity": "medium",
+   "confidence": "high",
+   "description": "Two conceptually identical 'render the bits as bytes' operations disagree on where the final partial byte's bits go. `bytes(bv)`/`tobytes()` LEFT-aligns the trailing sub-byte (0b101 -> 0xA0 = 10100000), while the transition-era `to_bytes()` RIGHT-aligns it (0b101 -> 0x05 = 00000101). This holds identically in all three backends, so it is not a cross-backend divergence but a single-API inconsistency: the same object serialized two ways gives different bytes for any non-multiple-of-8 length. It is easy to mix these up (e.g. round-tripping via from_bytes/to_bytes vs bytes()). The speedup to_bytes has a comment acknowledging the 'historical accumulate-without-final-shift behavior', suggesting the divergence is known but never reconciled.",
+   "evidence": "Repro (identical across native/speedup/bitarray):\n    BitVector('0b101'): bytes()=b'\\xa0'  to_bytes()=b'\\x05'   (differ)\n    BitVector('0b100000011'): bytes()=b'\\x81\\x80'  to_bytes()=b'\\x81\\x01'  (differ)\nbitarray __bytes__ (line 984) -> self.tobytes() (inherited bitarray.tobytes, left-aligned); to_bytes (line 1837-1847 speedup / 1733 bitarray) right-aligns the tail via `self._buf[full_bytes] >> (8 - tail)`.",
+   "suggestion": "Decide one canonical partial-byte alignment and make tobytes()/__bytes__ and to_bytes() agree (or document the difference prominently at both call sites and in the .pyi). Given to_bytes/from_bytes are marked transition-only, aligning to_bytes with the padded tobytes semantics (left-aligned) would remove the trap.",
+   "ref": "inconsistency|bytemaker/bitvector/bitvector_with_bitarray_speedup.py|978-984, 1733-1745"
+  },
+  {
+   "title": "pop() on out-of-range (or negative) index reports \"pop from empty BitVector\"",
+   "file": "bytemaker/bitvector/bitvector_speedup.py",
+   "lines": "1269-1274",
+   "lens": "ux",
+   "severity": "medium",
+   "confidence": "high",
+   "description": "pop() raises IndexError with the fixed text \"pop from empty BitVector\" for ANY out-of-bounds or negative index, even when the vector is non-empty. Verified: BitVector('0b1010').pop(99) and .pop(-1) both raise \"pop from empty BitVector\" though the vector has 4 bits. The message names neither the offending index nor the actual length, and actively misleads the reader into thinking the vector is empty when it is not.",
+   "evidence": "if index >= len(self) or index < 0:\n    if default is not None:\n        return default\n    raise IndexError(\"pop from empty BitVector\")",
+   "suggestion": "Distinguish the empty case from out-of-range, and include the offending index and length, e.g. raise IndexError(f\"pop index {index} out of range for BitVector of length {len(self)}\") (reserve \"pop from empty\" for len(self) == 0).",
+   "verifyReason": "Accurate and reproducible. In bytemaker/bitvector/bitvector_speedup.py:1271-1274, pop() raises `IndexError(\"pop from empty BitVector\")` for ANY out-of-range or negative index, regardless of the actual length: `if index >= len(self) or index < 0: ... raise IndexError(\"pop from empty BitVector\")`. So BitVector('0b1010').pop(99) and .pop(-1) both claim the vector is empty when it holds 4 bits. The message names neither the offending index nor the length and states a false cause, which misleads debugging. Python's own list.pop distinguishes these (\"pop index out of range\" vs \"pop from empty list\"); this code conflates them. The same wrong message exists identically in bitvector_native.py:1160 and bitvector_with_bitarray_speedup.py:1089, so it is a consistent diagnostic-quality bug, not intentional house style, and the suggested fix (reserve \"pop from empty\" for len==0; otherwise report index and length) is idiomatic and actionable. Not a nitpick and not the narrative-docstring style being flagged. Severity medium is fair: it is a misleading public-API error message that costs debugging time rather than a functional/serialization break; confidence high since the code plainly does this. Minor caveat: rejecting negative indices is itself intentional and documented (\"negative indices are treated as out of bounds\"), but the misleading \"empty\" wording is still wrong for a non-empty vector on that path.",
+   "ref": "ux|bytemaker/bitvector/bitvector_speedup.py|1269-1274"
+  },
+  {
+   "title": "pop() treats negative indices as out-of-bounds, silently returning the default instead of the last bit",
+   "file": "bytemaker/bitvector/bitvector_speedup.py",
+   "lines": "1248-1274",
+   "lens": "ux",
+   "severity": "medium",
+   "confidence": "high",
+   "description": "Every other indexed method (__getitem__, __setitem__/_set_bit, __delitem__, insert) normalizes negative indices Python-style (key += len). pop() alone treats any negative index as out of bounds. With a default supplied this is a silent-wrong trap: BitVector('0b1010').pop(-1, 9) returns 9 instead of popping the last bit (1). A user reasonably expecting list.pop(-1) semantics gets the sentinel back with no error. The docstring even flags this as intentional (\"negative indices are treated as out of bounds\"), but it contradicts the rest of the class and list.pop.",
+   "evidence": "If a default is provided and the index is out of bounds,\nthe default is returned; negative indices are treated as\nout of bounds.\n...\nif index >= len(self) or index < 0:\n    if default is not None:\n        return default",
+   "suggestion": "Normalize negatives like the rest of the class (if index < 0: index += len(self)) before the bounds check, so pop(-1) pops the last bit. If the asymmetry is truly intended, at minimum surface it loudly rather than silently returning the sentinel.",
+   "verifyReason": "Accurate and fair. In bytemaker/bitvector/bitvector_speedup.py, pop() (lines 1248-1287) checks `if index >= len(self) or index < 0` (line 1271) and treats every negative index as out of bounds, whereas the other four indexed methods all normalize negatives Python-style first: __getitem__ (`if key < 0: key += nbits`, lines 1008-1009), _set_bit (lines 1027-1028), __delitem__ (lines 1100-1101), and insert (lines 1237-1238). So pop alone breaks list.pop(-1) semantics. With a default supplied, pop(-1, 9) silently returns the sentinel 9 instead of popping the last bit; without a default, pop(-1) raises the misleading IndexError(\"pop from empty BitVector\") (line 1274) on a non-empty vector. The docstring even codifies the trap: \"negative indices are treated as out of bounds\" (lines 1253-1255). This is a genuine UX/behavioral surprise, distinct from the already-reported \"3 BitVector impls diverge\" item (this is a within-class asymmetry). One cosmetic error in the report: with MSB-first indexing the last bit of 0b1010 is 0, not 1 as the report's parenthetical claims -- but that does not affect the substance (a sentinel is returned instead of the popped bit). Severity medium is fair: real trap but on one of several BitVector backends and at least documented; confidence high since the code is unambiguous.",
+   "ref": "ux|bytemaker/bitvector/bitvector_speedup.py|1248-1274"
+  }
+ ]
+}

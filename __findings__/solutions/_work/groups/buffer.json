@@ -1,0 +1,44 @@
+{
+ "group": "buffer",
+ "findings": [
+  {
+   "title": "Buffer class docstring duplicated as an orphaned bare string literal",
+   "file": "bytemaker/bittypes/buffer.py",
+   "lines": "40-45",
+   "lens": "docstring",
+   "severity": "medium",
+   "confidence": "high",
+   "description": "Immediately after the real class docstring (lines 17-38), a second bare triple-quoted string repeats the opening two paragraphs of that same docstring. It is not the class docstring (the first one already occupies that slot) and is not assigned to anything, so it is inert leftover text -- a copy-paste fragment that was never removed. It duplicates content verbatim and clutters the class body, and a reader/tool sees the same prose twice.",
+   "evidence": "Real docstring at line 17 begins: '\"\"\"\\n    A BitType that represents a buffer of bits.\\n\\n    Use the `specialize` method to create a subclass with the desired number of bits\\n        or use one of the pre-defined subclasses.' ... then lines 40-45 repeat it as a dangling literal:\n    \"\"\"\n    A BitType that represents a buffer of bits.\n\n    Use the `specialize` method to create a subclass with the desired number of bits\n        or use one of the pre-defined subclasses.\n    \"\"\"",
+   "suggestion": "Delete the orphaned string literal at lines 40-45; the class docstring at lines 17-38 already covers this.",
+   "verifyReason": "Verified in current code. bytemaker/bittypes/buffer.py lines 17-38 hold the real class docstring (first statement in the class body, so it becomes Buffer.__doc__). Lines 40-45 are a second, unassigned bare triple-quoted string literal that verbatim repeats the opening two paragraphs (\"A BitType that represents a buffer of bits.\" + the \"Use the `specialize` method...\" paragraph). It is inert leftover text, not a docstring or any binding \u2014 a copy-paste fragment never removed. The candidate's quoted evidence and line numbers match exactly. This is a mechanical dead-code/duplication issue, unrelated to the intentional narrative-vs-field-list house style, so it is a fair, non-nitpick, actionable finding (delete lines 40-45). Severity medium and confidence high are appropriate: it does not mislead about behavior (the real docstring is intact), but duplicated dead prose in a public class body is real sloppiness worth cleaning up.",
+   "ref": "docstring|bytemaker/bittypes/buffer.py|40-45"
+  },
+  {
+   "title": "Buffer.value getter returns the live width-locked bits; mutating the read value silently mutates the box",
+   "file": "bytemaker/bittypes/buffer.py",
+   "lines": "49-51",
+   "lens": "ux",
+   "severity": "medium",
+   "confidence": "high",
+   "description": "Buffer.value returns self.bits, which BitType documents as a live, width-locked handle. So `v = buf.value; v[0] = 1` silently mutates the Buffer in place. Every other BitType's .value returns a fresh plain Python value (int/float/str), so a user reasonably treats .value as a safe read; here it is a live alias. This is a silent-wrong footgun, and the class docstring frames the aliasing ('Identical to bits') as a feature without warning that a caller who mutates the returned vector rewrites the buffer.",
+   "evidence": "`@property\\n    def value(self):\\n        return self.bits` (lines 49-51). Reproduced: `inst.value is inst.bits` -> True; `v = inst.value; v[0] = 1` changes `inst.bits` to '1000...'. Docstring: 'value : BitVector ... Identical to bits.'",
+   "suggestion": "Either return a snapshot copy `return BitVector(self.bits)` from the value getter (matching the safe-read expectation set by other BitTypes), or, if the live alias is intentional, document the hazard explicitly in the property docstring and the class Instance Attributes block so users know reads are mutable.",
+   "verifyReason": "Verified accurate and reproducible. bytemaker/bittypes/buffer.py:49-51 defines `value` as `return self.bits`, and `self.bits` (bytemaker/bittypes/bittype.py:208-222) is documented as \"**live and width-locked**: index and length-preserving slice writes mutate this BitType in place.\" Reproduced: for a Buffer instance, `inst.value is inst.bits` -> True, and `v = inst.value; v[0] = 1` silently flipped `inst.bits` from '00000000' to '10000000'. Confirmed the cross-type contrast: UInt.value returns a plain int (an immutable, safe read); Str/Float/Int all return plain Python values. So a caller reasonably treats `.value` as a snapshot read, but for Buffer it is a live alias \u2014 a genuine silent-wrong footgun, not a nitpick. The Buffer class docstring (buffer.py:36-37) frames the aliasing as a feature (\"Identical to `value`\"/\"Identical to `bits`\") without repeating the mutation hazard that bittype.py attaches to `.bits`. This is a behavioral UX issue, not the intentional house narrative style, so it is fair to flag. Severity medium is right: silent state corruption, but only triggered when a user mutates a value they read back, and Buffer is a specialized type. Confidence high given the clean reproduction. The suggested fix (return a BitVector snapshot, or document the hazard on the value property and the Instance Attributes block) is actionable.",
+   "ref": "ux|bytemaker/bittypes/buffer.py|49-51"
+  },
+  {
+   "title": "Buffer docstring twice tells users to 'use one of the pre-defined subclasses' that do not exist",
+   "file": "bytemaker/bittypes/buffer.py",
+   "lines": "20-21, 43-44",
+   "lens": "ux",
+   "severity": "medium",
+   "confidence": "high",
+   "description": "The Buffer class docstring says 'Use the specialize method ... or use one of the pre-defined subclasses' -- but unlike Int (UInt8, ...) and Float (Float32, ...), no predefined Buffer subclasses exist or are exported. bittypes/__init__.py exports only 'Buffer'. This sends the user hunting for classes like Buffer8/Buffer16 that were removed (the of() docstring even references a former Buffer16), a direct discoverability dead-end. It also appears twice: the class docstring (lines 17-38) is followed by a second bare copy-pasted docstring literal (lines 40-45) sitting dead in the class body.",
+   "evidence": "Line 21 and again line 44: `or use one of the pre-defined subclasses.` Only `Buffer` is exported (`bittypes/__all__` Buffer-ish exports: ['Buffer']). The stray second literal begins line 40: `\"\"\"\\n    A BitType that represents a buffer of bits.\\n ... or use one of the pre-defined subclasses.\\n    \"\"\"`.",
+   "suggestion": "Delete the duplicate bare docstring at lines 40-45. In the real docstring, drop 'or use one of the pre-defined subclasses' (there are none) and instead point users at the actual entry points: `Buffer.of(nbytes=N)` for Struct/byte fields and `Buffer.specialize(num_bits)` for bit-counted boxes.",
+   "verifyReason": "Every claim is verified directly in bytemaker/bittypes/buffer.py. (1) The real class docstring (lines 17-38) says on line 20-21: \"Use the `specialize` method to create a subclass ... or use one of the pre-defined subclasses.\" (2) A second bare copy-pasted docstring literal sits dead in the class body at lines 40-45, repeating \"or use one of the pre-defined subclasses.\" on line 44 \u2014 it is an expression-statement no-op (Python only treats the first string as __doc__). (3) No predefined Buffer subclasses exist or are exported: bittypes/__init__.py imports only `Buffer` (line 2) and exports only \"Buffer\" (line 69), while Int/Float export UInt8/Float32/etc. A package-wide grep for Buffer\\d+ returns exactly one hit \u2014 inside the of() docstring at line 90 referencing a \"``Buffer16``\" that the code itself flags as removed history. So the docstring twice points users at subclasses that were deleted: a genuine discoverability dead-end, compounded by dead duplicated code. This is not the intentional narrative house style being nitpicked; it is a stale/misleading doc plus a dead literal. Adjusted severity to medium (documentation dead-end + dead code; not user-facing breakage or a wrong-output lie, so not high). Confidence high \u2014 all facts confirmed in-file.",
+   "ref": "ux|bytemaker/bittypes/buffer.py|20-21, 43-44"
+  }
+ ]
+}
