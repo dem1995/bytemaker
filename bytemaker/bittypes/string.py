@@ -438,6 +438,14 @@ class String(BitType[str]):
                 f"{cls.__name__}.of(): bytes_per_char must be a positive"
                 f" int, got {bytes_per_char!r}"
             )
+        for byte_param, byte_value in (("pad", pad), ("terminator", terminator)):
+            if byte_value is not None and (
+                not isinstance(byte_value, int) or not 0 <= byte_value <= 0xFF
+            ):
+                raise ValueError(
+                    f"{cls.__name__}.of(): {byte_param} must be a byte"
+                    f" value 0-255 or None, got {byte_value!r}"
+                )
         bpc = bytes_per_char
         bpc_reason = None
         if bpc is None:
