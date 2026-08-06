@@ -71,6 +71,21 @@ def _warn_narrowing(original, stored, target):
     )
 
 
+def _narrow_int(value: int, num_bits: int, signed: bool, target: str) -> int:
+    """C-style narrowing to ``num_bits`` — wrap for signed, mask for
+    unsigned — plus the opt-in :class:`NarrowingWarning` when the store
+    actually changed the value. Every integer value setter routes through
+    here so the truncation and the diagnostic cannot drift apart."""
+    if signed:
+        half = 1 << (num_bits - 1)
+        narrowed = ((value + half) % (half << 1)) - half
+    else:
+        narrowed = value & ((1 << num_bits) - 1)
+    if NarrowingConfig.warn and narrowed != value:
+        _warn_narrowing(value, narrowed, target)
+    return narrowed
+
+
 if TYPE_CHECKING:
     BitSelf = TypeVar("BitSelf", bound="BitType")
 else:
@@ -597,13 +612,14 @@ class StructPackedBitType(BitType[T]):
                 # C-style narrowing: wrap an out-of-range integer to the low
                 # num_bits bits instead of letting struct.pack raise, matching
                 # (uintN_t)/(intN_t) truncation. Floats are packed unchanged.
-                n = self.num_bits
                 # struct's integer format letters are lowercase for signed
-                # types (b/h/i/q) and uppercase for unsigned (B/H/I/Q)
-                if self.packing_format_letter.islower():
-                    value = ((value + (1 << (n - 1))) % (1 << n)) - (1 << (n - 1))
-                else:
-                    value &= (1 << n) - 1
+                # types (b/h/i/q) and uppercase for unsigned (B/H/I/Q).
+                value = _narrow_int(
+                    value,
+                    self.num_bits,
+                    signed=self.packing_format_letter.islower(),
+                    target=type(self).__name__,
+                )
             self._bits = FixedLengthBitVector(
                 struct.pack(self.packing_format, value)
             )

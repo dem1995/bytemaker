@@ -37,6 +37,7 @@ from bytemaker._legacy_aggregate import (  # noqa: F401
     trycast,
 )
 from bytemaker.bittypes import BitType
+from bytemaker.bittypes.bittype import NarrowingConfig
 from bytemaker.bittypes.int import SignedConfig
 from bytemaker.plans import compile_legacy_record_plan
 from bytemaker.typing_redirect import Dict, Literal, Union, get_type_hints
@@ -151,6 +152,11 @@ def _pack_all_plain_numbers(plan, units, endianness):
     if None in letters:
         return None
     if SignedConfig.signed_int_format != "twos_complement":
+        return None
+    if NarrowingConfig.warn:
+        # Checked-store mode: the boxed coercion path is authoritative (it
+        # emits the opt-in NarrowingWarning); the one-call fast path would
+        # wrap silently.
         return None
     values = []
     for name, ftype, letter in zip(plan.names, plan.types, letters):

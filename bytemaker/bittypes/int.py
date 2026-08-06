@@ -6,9 +6,8 @@ from typing import TYPE_CHECKING, Any, overload
 
 from bytemaker.bittypes.bittype import (
     BitType,
-    NarrowingConfig,
     StructPackedBitType,
-    _warn_narrowing,
+    _narrow_int,
 )
 from bytemaker.bitvector import BitsConstructible, BitVector
 from bytemaker.typing_redirect import Final, Literal, Optional, TypeVar
@@ -603,10 +602,7 @@ class SInt(Int):
             # (mod 2**n), matching (intN_t) truncation in C. The other
             # (non-two's-complement) formats have no C analogue and still
             # reject out-of-range values.
-            wrapped = ((value + (1 << (n - 1))) % (1 << n)) - (1 << (n - 1))
-            if NarrowingConfig.warn and wrapped != value:
-                _warn_narrowing(value, wrapped, type(self).__name__)
-            value = wrapped
+            value = _narrow_int(value, n, signed=True, target=type(self).__name__)
         str_bits = Int.to_bitstring(
             value, signed=True, bit_length=n, rep_format=self.int_format
         )
@@ -791,9 +787,9 @@ class UInt(Int):
         # C-style narrowing conversion: keep the low num_bits bits
         # (value modulo 2**num_bits), so out-of-range values wrap instead
         # of raising, matching (uintN_t) truncation in C.
-        masked = value & ((1 << self.num_bits) - 1)
-        if NarrowingConfig.warn and masked != value:
-            _warn_narrowing(value, masked, type(self).__name__)
+        masked = _narrow_int(
+            value, self.num_bits, signed=False, target=type(self).__name__
+        )
         str_bits = Int.to_bitstring(masked, signed=False, bit_length=self.num_bits)
         self.bits = BitVector(str_bits)
 
