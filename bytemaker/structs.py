@@ -136,11 +136,19 @@ DEBUG_VALIDATE = bool(os.environ.get("BYTEMAKER_DEBUG"))
 
 @runtime_checkable
 class Codec(Protocol):
-    """The structural protocol every schema atom satisfies.
+    """The structural protocol the composite schema objects satisfy.
 
-    Scalar BitType classes, Struct classes, and :class:`Array` objects all
-    provide ``num_bits`` plus ``parse``/``pack``; composition (arrays,
-    nesting, section maps) should demand only this.
+    A codec maps ``num_bits // 8`` bytes to a value and back: ``parse(data)``
+    decodes, ``pack(value)`` encodes what ``parse`` returned. Struct
+    *classes* satisfy it -- ``parse`` is a classmethod and the value is the
+    instance, so ``S.pack(s)`` is ``s.pack()`` -- and so do :class:`Array`
+    objects, whose values are lists. Scalar BitType classes do NOT: they
+    carry ``num_bits`` but serialize through the constructor and
+    ``bytes()``, so ``isinstance(UInt16, Codec)`` is False (compose scalars
+    through a Struct or an Array, which are codecs of them). Note that
+    ``runtime_checkable`` checks attribute *presence* only: a Struct
+    *instance* also passes ``isinstance``, but its bound ``pack()`` takes
+    no value argument -- the codec object for a Struct is the class itself.
     """
 
     num_bits: int
