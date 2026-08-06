@@ -643,8 +643,15 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
     def __eq__(self, other: object) -> bool:
         """
         Returns whether this BitVector's bits are equal to another object's bits.
-        This will only really true if both objects are BitVectors.
+        This will only really be true if both objects are BitVectors.
         """
+        if not isinstance(other, BitVector):
+            if isinstance(other, bitarray):
+                # A plain bitarray would compare bit-equal through the
+                # C-level fallback; the documented contract (and the other
+                # backends) reserve equality for BitVectors.
+                return False
+            return NotImplemented
         return super().__eq__(other)
 
     def __ne__(self, other: object) -> bool:
@@ -652,7 +659,10 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
         Returns whether this BitVector's bits are not equal to another object's bits.
         This will only really be false if both objects are BitVectors.
         """
-        return super().__ne__(other)
+        result = self.__eq__(other)
+        if result is NotImplemented:
+            return result
+        return not result
 
     def __lt__(self, other: bitarray) -> bool:
         """
