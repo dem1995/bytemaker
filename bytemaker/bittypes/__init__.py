@@ -1,4 +1,10 @@
-from bytemaker.bittypes.bittype import BitType, StructPackedBitType, bytes_to_bittype
+from bytemaker.bittypes.bittype import (
+    BitType,
+    NarrowingConfig,
+    NarrowingWarning,
+    StructPackedBitType,
+    bytes_to_bittype,
+)
 from bytemaker.bittypes.buffer import Buffer
 from bytemaker.bittypes.float import (
     FP24,
@@ -64,6 +70,8 @@ from bytemaker.bittypes.string import (
 
 __all__ = [
     "BitType",
+    "NarrowingConfig",
+    "NarrowingWarning",
     "StructPackedBitType",
     "bytes_to_bittype",
     "Buffer",
