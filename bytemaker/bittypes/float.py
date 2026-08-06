@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+import math
 import operator
 from typing import TYPE_CHECKING, NoReturn
 
-from bytemaker.bittypes.bittype import BitType, StructPackedBitType
+from bytemaker.bittypes.bittype import (
+    BitType,
+    NarrowingConfig,
+    StructPackedBitType,
+    _warn_narrowing,
+)
 from bytemaker.bitvector import BitVector
-from bytemaker.typing_redirect import Any, Final, Optional, Tuple, TypeVar
+from bytemaker.typing_redirect import Any, Final, Optional, TypeVar
 from bytemaker.utils import classproperty
 
 if TYPE_CHECKING:
@@ -97,12 +103,27 @@ class Float(BitType[float]):
         # The bias is 2^(num_exponent_bits_ - 1) - 1
         # To ensure that about half of the values
         # are negative and half are positive
-        unbiased_exponent: int = exponent - (2 ** (self.num_exponent_bits - 1) - 1)
+        bias: int = 2 ** (self.num_exponent_bits - 1) - 1
 
-        mantissa: int = sum(
+        mantissa: float = sum(
             (self.bits[1 + self.num_exponent_bits + i] * 2 ** -(i + 1))
             for i in range(self.num_mantissa_bits)
         )
+
+        # The all-ones exponent encoding is reserved for
+        # infinities (zero mantissa) and NaNs (nonzero mantissa)
+        if exponent == 2**self.num_exponent_bits - 1:
+            if mantissa == 0:
+                return sign * float("inf")
+            return float("nan")
+
+        # The all-zeros exponent encoding is reserved for signed
+        # zeros and subnormals: there is no implicit leading 1,
+        # and the exponent is fixed at 1 - bias
+        if exponent == 0:
+            return sign * mantissa * 2.0 ** (1 - bias)
+
+        unbiased_exponent: int = exponent - bias
 
         magnitude: float = 2**unbiased_exponent * (1 + mantissa)
 
@@ -119,12 +140,24 @@ class Float(BitType[float]):
                 value, self.num_exponent_bits, self.num_mantissa_bits
             )
         )
+        # Overflow-to-inf is the float analog of integer narrowing: a finite
+        # magnitude too large for this width saturates to signed infinity.
+        # Report it under warn mode, reusing the narrowing emitter.
+        if NarrowingConfig.warn and math.isfinite(value) and math.isinf(self.value):
+            _warn_narrowing(value, self.value, type(self).__name__)
 
     def to_binstring(
         self: Float | float, num_exponent_bits=8, num_mantissa_bits=23
     ) -> str:
         """
         Convert a `float` (or a `Float`) to a binary string.
+
+        Follows IEEE-754 conversion conventions: zeros keep their sign,
+            rounding is to nearest (ties to even),
+            magnitudes below the normal range become subnormals
+            (or signed zero once even the subnormal range is exceeded),
+            magnitudes above the normal range become signed infinity,
+            and NaN encodes as a quiet NaN.
 
         Args:
             num_exponent_bits (int): The number of bits to use for the exponent.
@@ -138,77 +171,69 @@ class Float(BitType[float]):
         else:
             num = self
 
+        sign_bit = "1" if math.copysign(1.0, num) < 0 else "0"
+        exponent_all_ones = "1" * num_exponent_bits
+
+        if math.isnan(num):
+            # Canonical quiet NaN: all-ones exponent, most significant
+            # mantissa bit set, zero payload
+            return sign_bit + exponent_all_ones + "1" + "0" * (num_mantissa_bits - 1)
+        if math.isinf(num):
+            return sign_bit + exponent_all_ones + "0" * num_mantissa_bits
         if num == 0:
-            return "0" + "0" * (num_exponent_bits + num_mantissa_bits)
-        if num == float("inf"):
-            return "0" + "1" * (num_exponent_bits) + "0" * num_mantissa_bits
-        if num == -float("inf"):
-            return "1" + "1" * (num_exponent_bits) + "0" * num_mantissa_bits
-        if num == float("NaN"):
-            return "0" + "1" * (num_exponent_bits + 1) + "0" * (num_mantissa_bits - 1)
+            return sign_bit + "0" * (num_exponent_bits + num_mantissa_bits)
 
-        def get_sign_bit(value) -> int:
-            return 0 if value >= 0 else 1
+        # The bias is 2^(num_exponent_bits - 1) - 1, and the all-ones
+        # biased exponent is reserved for infinities and NaNs
+        exponent_bias = (2 ** (num_exponent_bits - 1)) - 1
+        max_biased_exponent = 2**num_exponent_bits - 1
 
-        def int_to_bin(integer) -> str:
-            return bin(integer)[2:]
+        # abs(num) == fraction * 2**exponent with fraction in [0.5, 1),
+        # i.e. 1.xxx... * 2**(exponent - 1). frexp/ldexp are exact
+        # (Python floats are IEEE-754 doubles; scaling by powers of two
+        # loses no precision), so all rounding below happens in round(),
+        # which rounds to nearest with ties to even -- the IEEE default.
+        fraction, exponent = math.frexp(abs(num))
+        biased_exponent = exponent - 1 + exponent_bias
 
-        def frac_to_bin(fraction, bits) -> str:
-            result = []
-            while fraction and len(result) < bits:
-                fraction *= 2
-                bit = int(fraction)
-                result.append(bit)
-                fraction -= bit
-            return "".join(map(str, result))
-
-        def normalize(binary_int: str, binary_frac: str) -> Tuple[str, int]:
-            combined = binary_int + binary_frac
-            first_one = combined.index("1")
-            normalized = "1." + combined[first_one + 1 :]
-            exponent = len(binary_int) - first_one - 1
-            return normalized, exponent
-
-        def get_exponent_bias(num_exponent_bits: int) -> int:
-            return (2 ** (num_exponent_bits - 1)) - 1
-
-        def int_to_binary(integer: int, bits: int) -> str:
-            binary = bin(integer).replace("0b", "")
-            return binary.zfill(bits)
-
-        def assemble_bits(
-            sign, biased_exponent, mantissa, num_exponent_bits, num_mantissa_bits
-        ) -> str:
+        if biased_exponent >= 1:
+            # Normal candidate: scale so the implicit leading 1 plus the
+            # mantissa form an integer, then round
+            significand = round(math.ldexp(fraction, num_mantissa_bits + 1))
+            if significand == 2 ** (num_mantissa_bits + 1):
+                # Rounding carried into the next binade
+                # (1.11...1 rounded up to 10.00...0)
+                significand //= 2
+                biased_exponent += 1
+            if biased_exponent >= max_biased_exponent:
+                # Magnitude too large for the exponent field:
+                # overflow to signed infinity
+                return sign_bit + exponent_all_ones + "0" * num_mantissa_bits
+            mantissa_field = significand - 2**num_mantissa_bits
             return (
-                f"{sign}"
-                f"{int_to_binary(biased_exponent, num_exponent_bits)}"
-                f"{mantissa[:num_mantissa_bits].ljust(num_mantissa_bits, '0')}"
+                sign_bit
+                + format(biased_exponent, f"0{num_exponent_bits}b")
+                + format(mantissa_field, f"0{num_mantissa_bits}b")
             )
 
-        sign_bit = get_sign_bit(num)
-        abs_num = abs(num)
-
-        integral_part = int(abs_num)
-        fractional_part = abs_num - integral_part
-
-        integral_bin = int_to_bin(integral_part)
-        fractional_bin = frac_to_bin(fractional_part, num_mantissa_bits + 1)
-
-        normalized, exponent = normalize(integral_bin, fractional_bin)
-
-        exponent_bias = get_exponent_bias(num_exponent_bits)
-        biased_exponent = exponent + exponent_bias
-
-        mantissa_bits = normalized.split(".")[1]
-
-        final_binary = assemble_bits(
-            sign_bit,
-            biased_exponent,
-            mantissa_bits,
-            num_exponent_bits,
-            num_mantissa_bits,
+        # Subnormal candidate: all-zeros exponent field, no implicit
+        # leading 1, value == mantissa_field * 2**(1 - bias - num_mantissa_bits).
+        # Rounding to 0 flushes to signed zero
+        mantissa_field = round(
+            math.ldexp(fraction, biased_exponent + num_mantissa_bits)
         )
-        return final_binary
+        if mantissa_field >= 2**num_mantissa_bits:
+            # Rounded up to the smallest normal number
+            return (
+                sign_bit
+                + format(1, f"0{num_exponent_bits}b")
+                + "0" * num_mantissa_bits
+            )
+        return (
+            sign_bit
+            + "0" * num_exponent_bits
+            + format(mantissa_field, f"0{num_mantissa_bits}b")
+        )
 
     @classmethod
     def specialize(

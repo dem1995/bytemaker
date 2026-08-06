@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import operator
 import os
 import struct
@@ -620,9 +621,21 @@ class StructPackedBitType(BitType[T]):
                     signed=self.packing_format_letter.islower(),
                     target=type(self).__name__,
                 )
-            self._bits = FixedLengthBitVector(
-                struct.pack(self.packing_format, value)
-            )
+            try:
+                packed = struct.pack(self.packing_format, value)
+            except OverflowError:
+                # IEEE-754/C conversion semantics for the float widths: a
+                # finite magnitude too large for this type saturates to
+                # signed infinity (matching the pure-Python Float codec)
+                # instead of raising. Report it under warn mode, like the
+                # integer-narrowing path does.
+                if self.py_type is not float:
+                    raise
+                saturated = math.copysign(float("inf"), value)
+                if NarrowingConfig.warn:
+                    _warn_narrowing(value, saturated, type(self).__name__)
+                packed = struct.pack(self.packing_format, saturated)
+            self._bits = FixedLengthBitVector(packed)
         else:
             # ``super().value = value`` does not work: super() proxies do not
             # support attribute assignment, so it raised AttributeError
