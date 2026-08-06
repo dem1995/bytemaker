@@ -78,11 +78,11 @@ class FixedLengthBitVector(BitVector):
         # (An int value broadcasts across the slice: always preserving.)
         if isinstance(key, slice) and not isinstance(value, int):
             span = len(range(*key.indices(len(self))))
-            try:
-                vlen = len(value)
-            except TypeError:
+            # Compare the *bit length* of the coerced value, not the raw
+            # element count: e.g. len('0x0') is 3 but BitVector('0x0') is
+            # 4 bits, and len(bytes([0xFF])) is 1 but 8 bits.
+            if not isinstance(value, BitVector):
                 value = BitVector(value)
-                vlen = len(value)
-            if vlen != span:
+            if len(value) != span:
                 raise self._length_violation()
         super().__setitem__(key, value)
