@@ -765,8 +765,11 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
         """
         cls = type(self)
         if isinstance(encoding, str):
-            assert len(self) % 8 == 0, "BitVector length must be a multiple of 8\
-                to use a standard encoding"
+            if len(self) % 8 != 0:
+                raise ValueError(
+                    f"BitVector length {len(self)} is not a multiple of 8;"
+                    " cannot decode with a standard encoding"
+                )
             return bytes(self).decode(encoding)
         else:
             encoding = {
