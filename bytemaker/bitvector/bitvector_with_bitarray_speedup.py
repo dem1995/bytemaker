@@ -1089,6 +1089,7 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
         """Removes and returns the bit at the given index (zero-indexed).
         All bits to the right of the index are shifted one left.
         If the provided index is None, the rightmost bit is popped.
+        Negative indices count from the end, as with __getitem__.
         If a default is provided and the index is out of bounds,
         the default is returned.
 
@@ -1106,10 +1107,18 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
         """
         if index is None:
             index = len(self) - 1
-        if index >= len(self) or index < 0:
+        raw_index = index
+        if index < 0:
+            index += len(self)
+        if not 0 <= index < len(self):
             if default is not None:
                 return default
-            raise IndexError("pop from empty bitarray")
+            if len(self) == 0:
+                raise IndexError("pop from empty BitVector")
+            raise IndexError(
+                f"pop index {raw_index} out of range for"
+                f" BitVector of length {len(self)}"
+            )
         return super().pop(index)
 
     def remove(self, value: int) -> None:

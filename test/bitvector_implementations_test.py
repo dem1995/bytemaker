@@ -486,8 +486,16 @@ def test_pop_out_of_bounds_without_default(BitVector):
     with pytest.raises(IndexError):
         BitVector("1").pop(5)
     with pytest.raises(IndexError):
-        # negative indices are treated as out of bounds (specified quirk)
-        BitVector("1").pop(-1)
+        # pop(-2) on a length-1 vector normalizes to index -1: out of range
+        BitVector("1").pop(-2)
+
+
+def test_pop_negative_index_counts_from_end(BitVector):
+    # list.pop parity: negatives index from the end; in-bounds negatives
+    # never return the default.
+    assert BitVector("10").pop(-1) == 0
+    assert BitVector("10").pop(-2) == 1
+    assert BitVector("10").pop(-1, 9) == 0
 
 
 def test_remove_missing_bit(BitVector):

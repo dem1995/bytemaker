@@ -1178,8 +1178,8 @@ class BoundBits:
         self._write(b)
 
     def pop(self, index=None, default=None):
-        # Mirrors the BitVector contract (None = last bit; negatives are
-        # out of bounds there), not list.pop's -1 convention.
+        # Mirrors the BitVector contract (None = last bit; negative
+        # indices count from the end, as in list.pop).
         b = self._cur()
         value = b.pop(index, default)
         self._write(b)
