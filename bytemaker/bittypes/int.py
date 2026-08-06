@@ -579,6 +579,18 @@ class SInt(Int):
     ):
         if int_format is None:
             int_format = SignedConfig.signed_int_format
+        elif int_format == "sign_magnitude":  # alias accepted downstream
+            int_format = "signed_magnitude"
+        if int_format not in (
+            "twos_complement",
+            "signed_magnitude",
+            "ones_complement",
+        ):
+            raise ValueError(
+                f"int_format must be one of 'twos_complement',"
+                f" 'signed_magnitude', or 'ones_complement';"
+                f" got {int_format!r}"
+            )
 
         self.int_format: Literal[
             "twos_complement", "signed_magnitude", "ones_complement"
