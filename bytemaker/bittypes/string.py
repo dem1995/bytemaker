@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import codecs
 import re
 from abc import abstractmethod
 from collections.abc import Mapping
@@ -494,6 +495,24 @@ class String(BitType[str]):
             base = String
             ns["encoding"] = classmethod(lambda c, v, _e=enc: BitVector(_e(v)))
             ns["decoding"] = classmethod(lambda c, b, _d=dec: _d(bytes(b)))
+        # Fail a typo'd or codec-unsupported errors= at the declaration,
+        # not at the first unlucky byte. Callable-pair codecs are exempt:
+        # they decide for themselves what (if anything) errors means.
+        if issubclass(base, TableString):
+            if errors not in ("strict", "replace", "ignore"):
+                raise ValueError(
+                    f"{cls.__name__}.of(): table codecs support errors="
+                    f" 'strict', 'replace', or 'ignore', got {errors!r}"
+                )
+        elif issubclass(base, StandardEncodingString):
+            try:
+                codecs.lookup_error(errors)
+            except (LookupError, TypeError):
+                raise ValueError(
+                    f"{cls.__name__}.of(): errors={errors!r} is not a"
+                    f" registered codec error handler (see"
+                    f" codecs.lookup_error)"
+                ) from None
         typename = name or f"{base.__name__}x{nbytes}"
         return type(base)(typename, (base,), ns)
 
@@ -526,9 +545,9 @@ class TableString(String):
     ``bytes`` (multi-byte sequences); values are strings (single characters
     or control codes like ``"[PK]"``). Both directions match
     **longest-first**. Decoding an unmapped byte follows ``errors``
-    ("strict" raises; "replace" yields U+FFFD and advances one byte);
-    encoding an unmapped character always raises (there is no meaningful
-    replacement byte).
+    ("strict" raises; "replace" yields U+FFFD and advances one byte;
+    "ignore" advances one byte and emits nothing); encoding an unmapped
+    character always raises (there is no meaningful replacement byte).
     """
 
     table: Mapping = {}
@@ -585,6 +604,8 @@ class TableString(String):
             else:
                 if cls.errors == "replace":
                     out.append("�")
+                    pos += 1
+                elif cls.errors == "ignore":
                     pos += 1
                 else:
                     raise ValueError(
