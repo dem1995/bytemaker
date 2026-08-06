@@ -27,7 +27,7 @@ else:
 
 class Float(BitType[float]):
     """
-    A BitType that represents an integer.
+    A BitType that represents an IEEE-754-style floating-point number.
 
     Use the `specialize` method to create a subclass with the desired number of
         exponent and mantissa bits
@@ -45,7 +45,7 @@ class Float(BitType[float]):
     base_bit_type : Type[Float]
         The base `BitType` this class derives from. It is `Float`.
     py_type : Type[float]
-        The Pythonic type that this `Int` can be converted to/from. It is `float`.
+        The Pythonic type that this `Float` can be converted to/from. It is `float`.
     num_exponent_bits : int
         The number of bits used to store the exponent.
     num_mantissa_bits : int
