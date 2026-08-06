@@ -247,8 +247,10 @@ class String(BitType[str]):
 
     @classmethod
     def _substitute_forward(cls, value):
+        # Truthiness, not identity: the regex builders treat an empty
+        # mapping as "no substitutions" (no regex), so this must too.
         codepoint_changes = cls.codepoint_changes
-        if codepoint_changes is not None:
+        if codepoint_changes:
             value = cls.perform_codepoint_substitution(
                 value, codepoint_changes, cls._codepoint_change_regex
             )
@@ -256,8 +258,9 @@ class String(BitType[str]):
 
     @classmethod
     def _substitute_reverse(cls, value):
+        # Truthiness, not identity — see _substitute_forward.
         reverse_changes = cls._reverse_codepoint_changes
-        if reverse_changes is not None:
+        if reverse_changes:
             value = cls.perform_codepoint_substitution(
                 value, reverse_changes, cls._reverse_codepoint_change_regex
             )
