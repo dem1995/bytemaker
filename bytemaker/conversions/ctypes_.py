@@ -90,7 +90,7 @@ def ctype_to_bytes(
     if not is_instance_of_union(ctype_obj, CType):  # type: ignore
         raise TypeError(
             f"ctype_to_bytes only accepts _SimpleCData, Structure,"
-            f"Union, and Array objects, not {type(ctype_obj)}."
+            f" Union, and Array objects, not {type(ctype_obj)}."
         )
 
     if endianness != sys.byteorder:
@@ -142,7 +142,7 @@ def bytes_to_ctype(
     if not is_subclass_of_union(ctype_type, CType):
         raise TypeError(
             f"bytes_to_ctype only accepts _SimpleCData, Structure,"
-            f"Union, and Array types, not {ctype_type}."
+            f" Union, and Array types, not {ctype_type}."
         )
 
     ctype_obj = ctype_type.from_buffer_copy(bytes_obj)
