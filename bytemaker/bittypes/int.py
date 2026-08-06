@@ -468,6 +468,20 @@ class Int(BitType[int]):
         # plain -(value + 1). The width-preserving spelling is ~self.bits.
         return ~self.value
 
+    # Unary arithmetic promotes like the binary ops (in C, -uint8_t
+    # computes in int): the result is the plain promoted value, and the
+    # narrowing cast spelling is the constructor, e.g. UInt8(-u).
+    # Mirrors Float.__neg__/__pos__/__abs__.
+
+    def __neg__(self) -> int:
+        return -self.value
+
+    def __pos__(self) -> int:
+        return +self.value
+
+    def __abs__(self) -> int:
+        return abs(self.value)
+
     # Ordering comparisons (value-based, like __eq__; new in the promotion
     # model - they previously did not exist at all).
 
