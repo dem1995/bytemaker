@@ -547,7 +547,7 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
 
     def oct(self, sep: Optional[str] = None, bytes_per_sep: int = 1) -> str:
         """
-        Convert the BitVector to an octal string prefixed by 0x.
+        Convert the BitVector to an octal string prefixed by 0o.
         If `sep` is not None, the string is split into chunks of `bytes_per_sep` bytes
            punctuated by `sep`.
 
@@ -563,7 +563,7 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
 
     def bin(self, sep: Optional[str] = None, bytes_per_sep: int = 1) -> str:
         """
-        Convert the BitVector to a binary string prefixed by 0x.
+        Convert the BitVector to a binary string prefixed by 0b.
         If `sep` is not None, the string is split into chunks of `bytes_per_sep` bytes
            punctuated by `sep`.
 
