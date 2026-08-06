@@ -11,9 +11,9 @@ Each entry has a **status**:
 - ▶ **RECOMMENDED** — the working recommendation, pending the maintainer's final nod. Where a
   recommendation is contingent ("delete *unless* …"), the condition is stated.
 - ⚠ **CHANGES THE PROPOSED PATCH** — this ruling is **not** "apply the solution as written." The
-  applier must **modify** the patch (or add an edit beyond it). Watch these four: **float-1** and
-  **structs-2** *extend* the patch with an edit it doesn't include; **ctypes-1** and **pytypes-3**
-  (Part 1) *change* the patch's chosen option. Every other entry confirms the patch (or defers to it).
+  applier must **modify** the patch (or add an edit beyond it). Watch these five: **float-1** and
+  **structs-2** *extend* the patch with an edit it doesn't include; **ctypes-1**, **pytypes-3**
+  (Part 1), and **float-3** *change* the patch's chosen option. Every other entry confirms the patch (or defers to it).
 
 Most entries are ▶: they were worked through with the maintainer as recommendations. The ✅ items
 were settled explicitly. Nothing here has been applied to the source.
@@ -45,7 +45,7 @@ promotion-to-plain-int arithmetic are evidence the design already half-treats sc
 | # | Decision | Ruling | Status |
 |---|---|---|---|
 | float-1 | Float overflow | ⚠ **Store ±inf (C behavior) + emit a warning** — two edits beyond the base patch | ✅ |
-| float-3 | `Float.value` setter coercion | Accept `float()` incl. numeric strings (constructor symmetry) — low-stakes, likely moot under immutability | ▶ |
+| float-3 | `Float.value` setter coercion | ⚠ **Reject strings** (add `isinstance(value, str)` guard) — per the README answer; changes the patch | ▶ |
 | narrowing-2 | Legacy fast-path in warn mode | **Reroute** through boxed path (diagnostic consistency > debug-mode speed) | ▶ |
 | narrowing-4 | `'sign_magnitude'` alias | **Keep the patch** (normalize-and-accept; harmless — no purge) | ✅ |
 | bitvector-behavior-4 | Extended-slice empty value | **Raise `ValueError`** (list/bitarray semantics) | ▶ |
@@ -90,14 +90,16 @@ routes through the same warning mechanism as integer narrowing, so it is *report
    not present in any verified patch — it needs implementing and testing**, and it couples float-1 to
    narrowing-1 (the warning emitter) and `NarrowingConfig`.
 
-### float-3 — `Float.value` setter coercion · ▶ RECOMMENDED (confirms the patch)
-**Confirm the patch as written** — it already picks accept-strings over the alternative
-(`isinstance(value, str)` rejection to match `struct.pack`). `value = float(value)` accepts ints,
-bools, **and numeric strings**, matching the positional constructor's `py_type()` coercion. Non-numeric input raises
-`TypeError` from `float()`. This diverges from the struct-packed siblings (which reject strings via
-`struct.error`), but favors constructor symmetry.
-**Low-stakes** and **likely mooted** if scalars go immutable (no setter to argue about) — don't
-over-invest. Apply after float-1 (adjacent regions; float-1 leaves this setter untouched).
+### float-3 — `Float.value` setter coercion · ▶ RECOMMENDED · ⚠ changes the patch
+⚠ **Reject strings** — the README answer ("Reject strings.") chooses the alternative the patch did
+*not* take. The patch coerces via `value = float(value)`, which accepts ints, bools, **and numeric
+strings** (constructor symmetry). This ruling instead adds an explicit `isinstance(value, str)` guard
+raising `TypeError` **before** the coercion, so the setter takes real numbers only — matching the
+struct-packed siblings (which reject strings via `struct.error`), at the cost of that symmetry.
+**This changes the patch.** **Low-stakes** and **likely mooted** if scalars go immutable (no setter to
+argue about). Apply after float-1 (adjacent regions; float-1 leaves this setter untouched).
+*(Correction: an earlier version of this record recommended accept-strings, which contradicted the
+README answer; corrected to reject on 2026-08-06.)*
 
 ### narrowing-2 — Legacy fast-path guard in warn mode · ▶ RECOMMENDED
 Keep the guard: when `NarrowingConfig.warn=True`, route legacy dataclass packing through the boxed

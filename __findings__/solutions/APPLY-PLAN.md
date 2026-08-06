@@ -75,7 +75,9 @@ The plan covers all 16 solution files: 14 numbered stages plus 3b (bitvector-pol
    `OverflowError`, store ±inf) so `Float16/32/64` join the uniform contract; (b) make float
    overflow-to-inf emit a `NarrowingWarning` under `NarrowingConfig.warn`, reusing narrowing-1's
    emitter. Both need writing + a warn-mode test mirroring the integer-narrowing tests.
-2. **float-3** — coerce the `Float.value` setter via `float()` (accept-strings; confirms the patch).
+2. **float-3** — ⚠ **reject strings** in the `Float.value` setter: add an `isinstance(value, str)` guard
+   raising `TypeError` **before** the `float()` coercion (per the README answer — this *changes* the
+   patch, which coerces via `float()`).
 3. **float-2** — swap `Float.specialize`'s base order so the struct path wins the MRO.
 4. **float-5** — fix the Int copy-paste leftovers in the Float docstring. *(Fold in lows-ux-5's Float
    bitwise-docstring paragraph and lows-code-9's `to_binstring→to_bitstring` rename here.)*
