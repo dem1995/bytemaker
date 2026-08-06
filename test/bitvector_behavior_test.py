@@ -138,3 +138,23 @@ def test_to_bytes_is_whole_vector_right_aligned(BitVector):
     for w in range(1, 18):
         v = BitVector("1" * w)
         assert int.from_bytes(v.to_bytes(), "big") == v.to_int(signed=False)
+
+
+# ---------------------------------------------------------------- polish-5
+def test_to_chararray_raises_valueerror_on_non_byte_aligned(BitVector):
+    # bare assert -> explicit ValueError (survives python -O; names the length)
+    with pytest.raises(ValueError, match=r"length 3 is not a multiple of 8"):
+        BitVector("0b101").to_chararray("utf-8")
+    assert BitVector(b"hi").to_chararray("utf-8") == "hi"  # byte-aligned unaffected
+
+
+# ------------------------------------------------------------- polish-1 / polish-4
+def test_bitvector_docstring_pins():
+    for mod in _MODULES:
+        assert "0o" in mod.BitVector.oct.__doc__  # polish-1
+        assert "0b" in mod.BitVector.bin.__doc__  # polish-1
+        assert "0x" in mod.BitVector.hex.__doc__
+        bits_castable = getattr(mod, "BitsCastable", None)
+        if bits_castable is not None and bits_castable.__Bits__.__doc__:
+            assert "deep" not in bits_castable.__Bits__.__doc__  # polish-4
+            assert "live view" in bits_castable.__Bits__.__doc__
