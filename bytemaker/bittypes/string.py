@@ -459,6 +459,13 @@ class String(BitType[str]):
                 f"{cls.__name__}.of(): field size must be a positive int,"
                 f" got {nbytes!r}"
             )
+        if bpc is not None and nbytes % bpc:
+            raise ValueError(
+                f"{cls.__name__}.of(): nbytes={nbytes} is not a whole"
+                f" number of {bpc}-byte characters; decode-side"
+                f" pad/terminator handling works in bytes_per_char units,"
+                f" so a partial trailing unit could never decode"
+            )
         ns = {
             "_num_bits": nbytes * 8,
             "pad": pad,
