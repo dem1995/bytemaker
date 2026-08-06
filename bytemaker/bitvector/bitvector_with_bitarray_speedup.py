@@ -431,27 +431,6 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
         bit_array = base2ba(base, string)
         return cls(bit_array)
 
-    # @classmethod
-    # def from_bytes(
-    #         cls: type[Self],
-    #         bytes: bytes,
-    #         endianness: Literal["little", "big"] = "big") -> Self:
-    #     """
-    #     Create a BitVector from a bytes object.
-
-    #     Args:
-    #         bytes (bytes): The bytes object to convert
-    #         endianness (Literal["little", "big"]): The endianness of the BitVector
-
-    #     Returns:
-    #         BitVector: The BitVector created from the bytes object
-    #     """
-    #     return cls(bytes, endianness=endianness)
-
-    # @classmethod
-    # def frombytes(*args, **kwargs):
-    #     raise Warning("frombytes is not implemented. Use from_bytes instead.")
-
     @classmethod
     def from_chararray(
         cls: type[Self],
@@ -628,24 +607,6 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
                     str_list.append(encoding[subbitarray])
                     subbitarray = ""
             return "".join(str_list)
-
-    # def hex(self, sep: Optional[str] = None, bytes_per_sep: int = 1) -> str:
-    #     retstring = ba2base(16, self)
-    #     if sep is not None:
-    #         retstring = sep.join(
-    #             retstring[i: i + bytes_per_sep]
-    #             for i in range(0, len(retstring), bytes_per_sep)
-    #         )
-    #     return retstring
-
-    # def oct(self) -> str:
-    #     return ba2base(8, self)
-
-    # def bin(self) -> str:
-    #     return ba2base(2, self)
-
-    # def to_base(self, base: int) -> str:
-    #     return ba2base(base, self)
 
     # Magic Methods and Overloads
     def __eq__(self, other: object) -> bool:
@@ -965,10 +926,6 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
             key (Union[int, slice, Iterable[int]]): The index/indices of
                 the bit(s) to delete.
         """
-        # if isinstance(key, Iterable):
-        #     key = list(key)
-        # if isinstance(key, Iterable) and not isinstance(key, Sequence):
-        #     key = list(key)
         super().__delitem__(key)
 
     def __len__(self) -> int:
@@ -1030,8 +987,6 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
         """
         self = super().__new__(type(self), self)  # type: ignore[reportCallIssue]
         return self
-
-    # def __reverse__(self) -> Self:
 
     def __deepcopy__(self: Self, memo: dict[int, object]) -> Self:
         """
@@ -1158,9 +1113,6 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
         """
         super().reverse()
 
-    # def swap_endianness(self) -> None:
-    #     self._endianness = "big" if self._endianness == "little" else "little"
-
     # Search and Analysis
     def count(  # type: ignore[reportIncompatibleMethodOverride]
         self,
@@ -1237,23 +1189,6 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
                 ]
             else:
                 raise ValueError("Invalid type in provided iterable")
-
-        # if isinstance(substrings, (bitarray, int, str)):
-        #     conv_substrings = [substrings]
-        # elif isinstance(substrings, Iterable):
-        #     conv_substrings = list(substrings)
-        # else:
-        #     try:
-        #         conv_substrings = [BitVector(substrings)]
-        #     except TypeError:
-        #         pass
-
-        # if isinstance(substrings, Iterable):
-        #     for substring in substrings:
-        #         if isinstance(substring, bitarray):
-        #             conv_substrings.append(substring)
-        #         else:
-        #             conv_substrings.append(BitVector(substring))
 
         if stop is None:
             stop = len(self)
@@ -1531,13 +1466,6 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
             self = accumulated_bits
 
         return self
-
-    # def translate(self,
-    #   table: List[BitVector] | bytes, delete: Optional[List[BitVector] | bytes] = None
-    #   ) -> Self: ... # todo
-
-    # def maketrans(self, fromstr: List[BitVector]|bytes, tostr: List[BitVector]|bytes
-    #   ) -> list[BitVector]: ...  # todo
 
     def join(self: Self, iterable: Iterable[BitsConstructible]) -> Self:
         """
