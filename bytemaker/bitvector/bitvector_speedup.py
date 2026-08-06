@@ -1835,12 +1835,14 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
         return int.from_bytes(source.to_bytes(), byteorder=endianness, signed=signed)
 
     def to_bytes(self, reverse_endianness=False) -> bytes:
-        full_bytes, tail = divmod(self._len, 8)
-        byte_arr = bytearray(self._buf[:full_bytes])
-        if tail:
-            # A trailing partial byte is right-aligned within its byte,
-            # matching the historical accumulate-without-final-shift behavior.
-            byte_arr.append(self._buf[full_bytes] >> (8 - tail))
+        """
+        Converts the BitVector to bytes, RIGHT-aligned: the bits form a
+        big-endian integer, zero-padded on the left to a whole number of
+        bytes. Contrast tobytes()/bytes(), which LEFT-align (zero-pad on
+        the right) a trailing partial byte.
+        """
+        nbytes = (self._len + 7) >> 3
+        byte_arr = bytearray(self._as_int().to_bytes(nbytes, "big"))
 
         if reverse_endianness:
             byte_arr.reverse()

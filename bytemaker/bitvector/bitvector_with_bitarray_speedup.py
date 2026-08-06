@@ -1754,17 +1754,19 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
         return int.from_bytes(copy.to_bytes(), byteorder=endianness, signed=signed)
 
     def to_bytes(self, reverse_endianness=False) -> bytes:
-        byte_arr = bytearray()
-        for i in range(0, len(self), 8):
-            byte = 0
-            byte_end_index = min(i + 8, len(self))
-
-            for bit in self[i:byte_end_index]:
-                byte = (byte << 1) | bit
-            byte_arr.append(byte)
+        """
+        Converts the BitVector to bytes, RIGHT-aligned: the bits form a
+        big-endian integer, zero-padded on the left to a whole number of
+        bytes. Contrast tobytes()/bytes(), which LEFT-align (zero-pad on
+        the right) a trailing partial byte.
+        """
+        value = 0
+        for bit in self:
+            value = (value << 1) | bit
+        byte_arr = bytearray(value.to_bytes((len(self) + 7) // 8, "big"))
 
         if reverse_endianness:
-            byte_arr = reversed(byte_arr)
+            byte_arr.reverse()
         return bytes(byte_arr)
 
 
