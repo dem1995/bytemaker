@@ -627,7 +627,7 @@ class StructPackedBitType(BitType[T]):
             # ``super().value = value`` does not work: super() proxies do not
             # support attribute assignment, so it raised AttributeError
             # whenever skip_struct_packing was true (e.g. any SInt8/16/32/64
-            # under a non-two's-complement SignedConfig). Invoke the next
+            # with a non-two's-complement int_format). Invoke the next
             # value setter in the MRO explicitly instead.
             super(StructPackedBitType, type(self)).value.fset(self, value)
 

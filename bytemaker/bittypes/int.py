@@ -687,13 +687,23 @@ class SInt7(SInt):
     _num_bits = 7
 
 
-class SInt8(StructPackedBitType, SInt):
-    _num_bits = 8
-    packing_format_letter = "b"
+class _StructPackedSInt(StructPackedBitType, SInt):
+    """Shared base of the struct-packable signed widths (SInt8/16/32/64).
+
+    struct's b/h/i/q letters are two's-complement only, so packing applies
+    exactly when *this instance's* ``int_format`` is two's complement —
+    the same per-instance gate ``SInt.specialize`` generates. Any other
+    format falls back to the bit-string path on the MRO.
+    """
 
     @property
     def skip_struct_packing(self):
-        return SignedConfig.signed_int_format != "twos_complement"
+        return self.int_format != "twos_complement"
+
+
+class SInt8(_StructPackedSInt):
+    _num_bits = 8
+    packing_format_letter = "b"
 
 
 class SInt9(SInt):
@@ -724,31 +734,19 @@ class SInt15(SInt):
     _num_bits = 15
 
 
-class SInt16(StructPackedBitType, SInt):
+class SInt16(_StructPackedSInt):
     _num_bits = 16
     packing_format_letter = "h"
 
-    @property
-    def skip_struct_packing(self):
-        return SignedConfig.signed_int_format != "twos_complement"
 
-
-class SInt32(StructPackedBitType, SInt):
+class SInt32(_StructPackedSInt):
     _num_bits = 32
     packing_format_letter = "i"
 
-    @property
-    def skip_struct_packing(self):
-        return SignedConfig.signed_int_format != "twos_complement"
 
-
-class SInt64(StructPackedBitType, SInt):
+class SInt64(_StructPackedSInt):
     _num_bits = 64
     packing_format_letter = "q"
-
-    @property
-    def skip_struct_packing(self):
-        return SignedConfig.signed_int_format != "twos_complement"
 
 
 class SInt128(SInt):
