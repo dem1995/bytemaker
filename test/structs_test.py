@@ -986,10 +986,11 @@ def test_array_field_annotated_checker_spelling_roundtrips():
     assert P.plan.byte_offset("colors.2") == 4
 
 
-def test_array_of_struct_element_aliases_like_nested_struct():
-    """Struct element instances are stored by reference (like a scalar
-    nested-Struct field), so a shared default aliases across instances --
-    documented, consistent behavior, not a snapshot of the elements."""
+def test_struct_valued_defaults_detach_copied_per_instance():
+    """A Struct-valued default (scalar field or array element) is
+    detach-copied per instance at __init__ time, so default-constructed
+    records never share one mutable instance; explicit assignment still
+    stores by reference (live handles, like _StructField)."""
     class RGB(Struct, endian="big"):
         r: UInt8
 
@@ -997,14 +998,92 @@ def test_array_of_struct_element_aliases_like_nested_struct():
         pts: RGB * 1 = [RGB(0)]
 
     a, b = S(), S()
-    assert a.pts[0] is b.pts[0]  # same as scalar nested-struct default
-    # numeric arrays, by contrast, are fully independent (immutable ints)
+    assert a.pts[0] is not b.pts[0]  # each instance owns its default
+    a.pts[0].r = 7
+    assert b.pts[0].r == 0  # ...so mutating one cannot corrupt another
+
+    class Boxed(Struct, endian="big"):
+        c: RGB = field(RGB, default=RGB(5))
+
+    o1, o2 = Boxed(), Boxed()
+    assert o1.c is not o2.c  # scalar nested-Struct default: same rule
+    o1.c.r = 99
+    assert o2.c.r == 5
+
+    shared = RGB(1)
+    p, q = Boxed(c=shared), Boxed(c=shared)
+    assert p.c is shared and q.c is shared  # explicit args still alias
+
+    # numeric arrays were always independent (immutable ints)
     class N(Struct, endian="big"):
         vals: UInt8 * 3 = [0, 0, 0]
 
     x, y = N(), N()
     x.vals[0] = 5
     assert y.vals[0] == 0 and x.vals is not y.vals
+
+
+def test_explicit_default_object_kept_live_via_missing_sentinel():
+    """The _MISSING sentinel (deviation): passing the *exact* default object
+    explicitly keeps a live reference rather than detach-copying it -- the
+    corner an object-identity trigger would get wrong."""
+    class RGB(Struct, endian="big"):
+        r: UInt8
+
+    the_default = RGB(5)
+
+    class Boxed(Struct, endian="big"):
+        c: RGB = field(RGB, default=the_default)
+
+    passed = Boxed(c=the_default)
+    assert passed.c is the_default  # explicit -> live, even for the default obj
+    defaulted = Boxed()
+    assert defaulted.c is not the_default  # omitted -> detach-copied
+
+
+def test_boundbits_backend_extra_mutators_write_through():
+    """In-place mutators BoundBits does not override explicitly (bitarray's
+    setall/invert/sort on the bitarray backend) must write back through the
+    width-validating store, not mutate a throwaway derivation."""
+    n = Nibbles(low=0b0011, high=0)
+    bb = n.sizedview.low.bits
+    if not hasattr(bb, "setall"):
+        pytest.skip("backend has no bitarray extras")
+    bb.setall(1)
+    assert n.low == 0b1111  # wrote through
+    n.low = 0b0011
+    bb.invert()
+    assert n.low == 0b1100
+    n.low = 0b0110
+    bb.sort()
+    assert n.low == 0b0011  # ascending: zeros then ones
+    # readers still pass through, and non-callables are returned as-is
+    assert bb.to01() == "0011"
+    assert bb.count(1) == 2
+
+
+def test_boundbits_width_changing_backend_extra_raises():
+    """A backend extra that grows in place (bitarray's fill pads to a byte
+    boundary) raises at the width-validating write-back; struct untouched."""
+    n = Nibbles(low=0b1010, high=0)
+    bb = n.sizedview.low.bits
+    if not hasattr(bb, "fill"):
+        pytest.skip("backend has no bitarray extras")
+    with pytest.raises(ValueError):
+        bb.fill()
+    assert n.low == 0b1010  # failed mutation leaves the struct untouched
+
+
+def test_codec_class_level_pack_convention():
+    """A Struct CLASS is the codec object: parse is a classmethod and
+    S.pack(s) is s.pack(); Array satisfies Codec at the instance level;
+    scalar BitTypes do not satisfy it at all."""
+    assert isinstance(WarpDestination, Codec)
+    assert isinstance(UInt16 * 4, Codec)
+    assert not isinstance(UInt16, Codec)
+    d = WarpDestination(1, 2, 3, -4, 5)
+    assert WarpDestination.pack(d) == d.pack()
+    assert (UInt16 * 2).pack([1, 2]) == b"\x00\x01\x00\x02"
 
 
 # ------------------------------------------------ field()/array() specifiers

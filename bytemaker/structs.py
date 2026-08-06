@@ -365,10 +365,12 @@ class _ArrayField:
     Scope note: the snapshot copies the list container and narrows numeric
     elements to plain values. Struct *element instances* are stored by
     reference (not deep-copied) -- exactly as a scalar nested-Struct field
-    does via :class:`_StructField` -- so a shared mutable Struct element or
-    a shared Struct-element default aliases across instances the same way a
-    nested-Struct field's default does. Numeric elements are immutable, so
-    numeric arrays are fully independent."""
+    does via :class:`_StructField` -- so explicitly assigning one Struct
+    instance into several records (or slots) aliases it, deliberately.
+    *Defaults* are the exception: ``__init__`` detach-copies Struct-valued
+    defaults, scalar and array-element alike (see ``_generate_methods``),
+    so default-constructed instances never share one. Numeric elements are
+    immutable, so numeric arrays are fully independent."""
 
     __slots__ = ("_slot", "_arr")
 
@@ -500,9 +502,16 @@ def _spec_type_error(owner, field_name, annotation, bittype, want):
 # --------------------------------------------------------------------------
 
 
+_MISSING = object()
+"""Sentinel: a defaulted __init__ parameter the caller left unpassed. A
+Struct-valued default is detach-copied only when its parameter is still
+_MISSING, so explicitly passing even the exact default object keeps a live
+reference (closes the object-identity corner)."""
+
+
 def _generate_methods(cls, field_defs, defaults) -> None:
     names = [n for n, _ in field_defs]
-    env: Dict[str, Any] = {"_new": object.__new__, "_cls": cls}
+    env: Dict[str, Any] = {"_new": object.__new__, "_cls": cls, "_MISSING": _MISSING}
     slot_of = {}
     child_of = {}
     str_of = {}  # String fields: slot holds str; the tuple carries wire bytes
@@ -526,7 +535,9 @@ def _generate_methods(cls, field_defs, defaults) -> None:
             env[f"_dec{i}"] = ftype._decode_wire
 
     # __init__: assignments run through the narrowing descriptors.
+    ftype_of = dict(field_defs)
     params = []
+    stores = {}  # per-field RHS expression; absent means the plain name
     for n in names:
         if n in defaults:
             dflt = defaults[n]
@@ -539,10 +550,35 @@ def _generate_methods(cls, field_defs, defaults) -> None:
                 # rest, exactly as for a list/tuple default).
                 dflt = tuple(dflt)
             env[f"_d_{n}"] = dflt
-            params.append(f"{n}=_d_{n}")
+            # A Struct-valued default is one shared mutable instance living
+            # in __init__.__defaults__; storing it by reference would alias
+            # every default-constructed record to it (the classic mutable-
+            # default footgun: mutate one, corrupt all). Detach-copy at bind
+            # time -- but only when the parameter was actually left at its
+            # default, which the _MISSING sentinel detects exactly, so
+            # explicitly passing even the default object keeps a live
+            # reference. Same for Struct *elements* of an array default
+            # (numeric elements are immutable and _coerce_seq already
+            # snapshots the container). An ill-typed default keeps the plain
+            # store and fails in the descriptor with the usual TypeError.
+            if n in child_of and isinstance(dflt, ftype_of[n]):
+                stores[n] = f"_d_{n}.detach_copy() if {n} is _MISSING else {n}"
+                params.append(f"{n}=_MISSING")
+            elif (
+                n in array_of
+                and array_of[n][1] is not None
+                and all(isinstance(e, ftype_of[n].element) for e in dflt)
+            ):
+                stores[n] = (
+                    f"[_bm_e.detach_copy() for _bm_e in _d_{n}]"
+                    f" if {n} is _MISSING else {n}"
+                )
+                params.append(f"{n}=_MISSING")
+            else:
+                params.append(f"{n}=_d_{n}")
         else:
             params.append(n)
-    body = "".join(f"    self.{n} = {n}\n" for n in names)
+    body = "".join(f"    self.{n} = {stores.get(n, n)}\n" for n in names)
     init_src = f"def __init__(self, {', '.join(params)}):\n{body}"
 
     # _bm_from_tuple: descriptor-bypassing construction from a flat plan
@@ -649,6 +685,10 @@ def field(bittype: Any, *, default: Any = _MISSING) -> Any:
     Returns ``Any`` to type checkers so it is assignable to any field
     annotation; the field's real type comes from the annotation (via
     dataclass_transform), the wire type from ``bittype`` at runtime.
+
+    A Struct-valued ``default`` (scalar or array element) is detach-copied
+    per instance at ``__init__`` time, so default-constructed records never
+    share one mutable instance; immutable defaults are bound as-is.
     """
     return _FieldSpec(bittype, default)
 
