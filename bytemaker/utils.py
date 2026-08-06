@@ -327,9 +327,13 @@ def twos_complement(number, n_bits=32):
     """
     Convert an integer to its two's complement representation.
 
-    :param number: The integer to convert.
-    :param bits: The bit width for the two's complement representation.
-    :return: A string representing the two's complement of the number.
+    Args:
+        number (int): The integer to convert.
+        n_bits (int): The bit width for the two's complement representation.
+            Defaults to 32.
+
+    Returns:
+        str: A string of the number's two's-complement bits.
     """
     if number < 0:
         number = (1 << n_bits) + number
