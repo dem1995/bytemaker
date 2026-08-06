@@ -377,6 +377,12 @@ def to_bytes_aggregate(
         for unit in units:
             ret_bytes.extend(to_bytes_aggregate(unit, endianness=endianness))
 
+    else:
+        raise TypeError(
+            f"Cannot convert {units} to bytes because the unit type"
+            f" is not a CType, YType, or PyType"
+        )
+
     return bytes(ret_bytes)
 
 
