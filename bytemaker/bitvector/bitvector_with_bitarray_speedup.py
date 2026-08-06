@@ -77,7 +77,12 @@ class BitsCastable(Protocol):
         self,
     ) -> BitVector:
         """
-        Returns a deep BitVector representation of the object.
+        Returns a BitVector representation of the object.
+
+        The result may be a copy or a live view of the object's bits,
+            which is the implementor's ownership choice (see the
+            BitsCastable class docstring). Constructors copy-construct
+            from the result either way.
 
         This method is prioritized when BitVectorSubtype(object) is called.
 
