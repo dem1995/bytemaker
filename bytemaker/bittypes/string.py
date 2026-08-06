@@ -42,18 +42,33 @@ def _table_bytes_per_char(table) -> "Tuple[Optional[int], Optional[str]]":
 
 
 class String(BitType[str]):
+    """A ``BitType`` whose value is text (the C ``char name[N]`` field).
+
+    Concrete subclasses supply the codec as a classmethod pair —
+    :meth:`encoding` (``str -> BitVector``) and :meth:`decoding`
+    (``BitVector -> str``): :class:`StandardEncodingString` wraps a Python
+    codec name, :class:`TableString` a ``.tbl``-style byte table. Mint
+    fixed-size field types with :meth:`of`, which also selects the codec.
+
+    When ``num_bits`` is a whole number of bytes, the value round-trips
+    through the field-schema knobs below; sub-byte-width String classes
+    keep the historical exact-width behavior. ``pad`` is the fill byte
+    written after content on encode (None = exact width required);
+    ``terminator`` cuts the *decode* at its first occurrence; ``strip``
+    drops trailing pad bytes on decode; ``truncate`` opts into
+    code-unit-safe truncation on overflow instead of raising; ``errors``
+    is the decode error policy (any registered codec error handler for
+    standard encodings; "strict", "replace", or "ignore" for tables).
+    Cut and strip happen at the BYTE layer, before decoding (a 0xFF pad
+    region is not valid UTF-8; garbage after a terminator is normal in
+    ROM data), in whole character units when ``bytes_per_char`` is known.
+
+    Optional :attr:`codepoint_changes` substitutions are applied to the
+    text after decoding and reversed before encoding.
+    """
+
     py_type = str
 
-    # Field-schema knobs (active when num_bits is a whole number of bytes;
-    # sub-byte-width String classes keep the historical exact-width
-    # behavior). ``pad`` is the fill byte written after content on encode
-    # (None = exact width required); ``terminator`` cuts the *decode* at its
-    # first occurrence; ``strip`` drops trailing pad bytes on decode;
-    # ``truncate`` opts into code-unit-safe truncation on overflow instead
-    # of raising; ``errors`` is the decode error policy where the codec
-    # supports one. Cut and strip happen at the BYTE layer, before decoding
-    # (a 0xFF pad region is not valid UTF-8; garbage after a terminator is
-    # normal in ROM data).
     pad: Optional[int] = 0x00
     terminator: Optional[int] = None
     strip: bool = True
