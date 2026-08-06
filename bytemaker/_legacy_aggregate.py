@@ -85,6 +85,11 @@ def count_bits_in_unit_type(unit_type: UnitType) -> int:
         for field in dataclasses.fields(unit_type):
             size_in_bits += count_bits_in_unit_type(field_types[field.name])
         return size_in_bits
+    else:
+        raise TypeError(
+            f"Cannot count bits in {unit_type} because the unit type"
+            f" is not a CType, YType, PyType, or dataclass"
+        )
 
 
 def count_bits_in_aggregate_type(aggregate_type: type) -> int:
