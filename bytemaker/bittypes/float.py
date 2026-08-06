@@ -266,8 +266,10 @@ class Float(BitType[float]):
             type[Float]: The subclass of `Float` with the specified number of bits.
         """
         if packing_format_letter_ is not None:
-
-            class _Float(cls, StructPackedBitType[float]):
+            # StructPackedBitType comes first so its struct-based value
+            # getter/setter wins the MRO, matching the hand-written
+            # Float16/Float32/Float64 and Int.specialize
+            class _Float(StructPackedBitType[float], cls):
                 num_exponent_bits = num_exponent_bits_
                 num_mantissa_bits = num_mantissa_bits_
                 packing_format_letter = packing_format_letter_
