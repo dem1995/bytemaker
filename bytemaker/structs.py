@@ -1148,9 +1148,27 @@ class BoundBits:
 
     def __getattr__(self, name):
         # Reader methods (to01, hex, to_bytes, count, ...) delegate to a
-        # fresh derivation; mutators are defined explicitly below so their
-        # results write back through the width-validating store.
-        return getattr(self._cur(), name)
+        # fresh derivation and pass straight through. Anything else the
+        # backend provides that mutates in place (bitarray's setall /
+        # invert / sort / bytereverse, ...) must not land on a throwaway
+        # the caller can never see, so every delegated call re-derives at
+        # call time, diffs the derivation around the call, and writes a
+        # changed result back through the same width-validating store the
+        # explicit mutators below use (width-changing growth, e.g.
+        # bitarray's fill, raises there; the struct stays untouched).
+        attr = getattr(self._cur(), name)  # missing names raise eagerly
+        if not callable(attr):
+            return attr
+
+        def delegated(*args, **kwargs):
+            b = self._cur()
+            before = b.copy()
+            result = getattr(b, name)(*args, **kwargs)
+            if b != before:
+                self._write(b)
+            return result
+
+        return delegated
 
     # -- mutators: read-modify-write through the store ------------------------
 
