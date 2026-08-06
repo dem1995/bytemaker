@@ -248,9 +248,16 @@ class Plan:
     def pack_tuple(self, values: Sequence) -> bytes:
         """Encode a flat sequence of plain values into one record's bytes.
 
-        Out-of-range integers narrow C-style (wrap) rather than raising, at
-        every width.
+        ``values`` must hold exactly one entry per leaf field; a wrong
+        count raises ``ValueError`` on both tiers rather than zero-filling
+        missing fields or dropping extras. Out-of-range integers narrow
+        C-style (wrap) rather than raising, at every width.
         """
+        if len(values) != len(self.fields):
+            raise ValueError(
+                f"pack_tuple: expected {len(self.fields)} values,"
+                f" got {len(values)}"
+            )
         if self.tier == "struct":
             try:
                 return self.struct_obj.pack(*values)
