@@ -1,3 +1,11 @@
+"""Sized integer BitTypes: `Int` and its `SInt`/`UInt` families.
+
+Arithmetic follows the C promotion model: binary operators (including the
+bitwise family and `~`) compute on plain values at full width and return a
+plain `int`. Narrowing back to a width happens only at stores — the `value`
+setter and compound assignment — and at the constructor, which is the
+narrowing cast. See the `Int` docstring for the full contract.
+"""
 from __future__ import annotations
 
 import operator
@@ -29,6 +37,15 @@ class Int(BitType[int]):
     A `BitType` that represents an integer.
 
     Is further subclassed into `SInt` and `UInt` for signed and unsigned integers,
+
+    Arithmetic follows the C promotion model. Binary operators — including
+    the bitwise family and `~` — compute on plain values at full width and
+    return a plain `int`: `UInt8(200) + UInt8(100) == 300`, never a wrapped
+    box. Width re-attaches only at stores: the constructor is the narrowing
+    cast (`UInt8(a + b)` wraps like `(uint8_t)(a + b)` in C), and compound
+    assignment (`u += 1`) narrows the result back into the box's width.
+    Out-of-range stores wrap silently by default, as in C; set
+    `NarrowingConfig.warn = True` to make them emit a `NarrowingWarning`.
 
     Class Attributes:
     ---------------
