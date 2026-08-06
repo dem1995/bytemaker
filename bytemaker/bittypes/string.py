@@ -100,6 +100,31 @@ class String(BitType[str]):
             str: The decoded string representation of the input BitVector
         """
 
+    @classmethod
+    def _check_codepoint_changes(cls, mapping) -> None:
+        """Reject zero-length substitution keys and values.
+
+        An empty string compiles to a zero-width regex alternative that
+        matches between every pair of characters, so substitution would
+        silently insert text at every position; and a deletion rule
+        (``{"X": ""}``) cannot be reversed on encode. Neither direction
+        has well-defined semantics, so both are rejected here.
+
+        Args:
+            mapping (HashableMapping[str, str]): The str->str codepoint
+                changes mapping to validate
+
+        Raises:
+            ValueError: If any key or value is an empty string
+        """
+        for k, v in mapping.items():
+            if not k or not v:
+                raise ValueError(
+                    f"{cls.__name__}: codepoint_changes entries must map"
+                    f" non-empty strings to non-empty strings,"
+                    f" got {k!r} -> {v!r}"
+                )
+
     @classproperty
     @classmethod
     def codepoint_changes(cls) -> Optional[HashableMapping[str, str]]:
@@ -132,6 +157,11 @@ class String(BitType[str]):
                         for k, v in codepoint_changes_field.items()
                     }
                 )
+
+        # Validate here rather than only in the setter: class-body and
+        # direct ``_codepoint_changes`` assignments bypass the descriptor,
+        # but every consumer reads through this property.
+        cls._check_codepoint_changes(codepoint_changes_field)
 
         cls._codepoint_changes_cache = (
             hash(cls._codepoint_changes),
@@ -220,6 +250,7 @@ class String(BitType[str]):
                     {cls.decoding(k): cls.decoding(v) for k, v in value.items()}
                 )
 
+        cls._check_codepoint_changes(value)
         cls._codepoint_changes = value
 
     @classmethod
