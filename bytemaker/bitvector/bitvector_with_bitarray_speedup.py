@@ -94,6 +94,16 @@ __annotations__ = {
 """The Union of types that can be used to construct a BitVector."""
 
 
+def _coerce_bit(value: LaxLiteral01) -> int:
+    """Validates that `value` is a 0 or 1 (or equal to one of them,
+    e.g. booleans) and returns it as a plain int."""
+    if value == 0:
+        return 0
+    if value == 1:
+        return 1
+    raise ValueError(f"bit must be 0 or 1, got {value!r}")
+
+
 class BitVector(bitarray, MutableSequence[LaxLiteral01]):
     """
     A mutable sequence of bits.
@@ -1033,7 +1043,7 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
         Args:
             value (int): The bit to append
         """
-        super().append(value)
+        super().append(_coerce_bit(value))
 
     def extend(  # type: ignore[reportIncompatibleMethodOverride]
         self, values: BitsConstructible
@@ -1046,7 +1056,10 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
         """
         if not isinstance(values, (Iterable)) or isinstance(values, str):
             values = BitVector(values)
-        super().extend(values)
+        if isinstance(values, bitarray):
+            super().extend(values)
+        else:
+            super().extend(_coerce_bit(value) for value in values)
 
     def insert(  # type: ignore[reportIncompatibleMethodOverride]
         self, index: int, value: int
@@ -1058,7 +1071,7 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
             index (int): The index at which to insert the bit
             value (int): The bit to insert
         """
-        super().insert(index, value)
+        super().insert(index, _coerce_bit(value))
 
     def pop(  # type: ignore[reportINcompatibleMethodOverride]
         self, index: Optional[int] = None, default: Optional[T] = None
@@ -1098,7 +1111,7 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
         Raises:
             ValueError: If the bit is not found in the BitVector
         """
-        super().remove(value)
+        super().remove(_coerce_bit(value))
 
     def clear(self) -> None:
         """Removes all bits from the BitVector."""
