@@ -1450,7 +1450,7 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
             return [substrings]
         elif isinstance(substrings, int):
             return [BitVector([substrings])]
-        elif isinstance(substrings, (str, bytes, BitsCastable)):
+        elif isinstance(substrings, (str, bytes, bytearray, memoryview, BitsCastable)):
             return [BitVector(substrings)]
         elif isinstance(substrings, Iterable):
             list_of_substrings = list(substrings)

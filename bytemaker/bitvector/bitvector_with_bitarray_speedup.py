@@ -1203,7 +1203,7 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
             conv_substrings = [substrings]
         elif isinstance(substrings, int):
             conv_substrings = [BitVector([substrings])]
-        elif isinstance(substrings, (str, bytes, BitsCastable)):
+        elif isinstance(substrings, (str, bytes, bytearray, memoryview, BitsCastable)):
             conv_substrings = [BitVector(substrings)]
         elif isinstance(substrings, Iterable):
             list_of_substrings = list(substrings)
@@ -1292,7 +1292,7 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
             conv_substrings = [BitVector(substrings)]
         elif isinstance(substrings, int):
             conv_substrings = [BitVector([substrings])]
-        elif isinstance(substrings, (str, bytes, BitsCastable)):
+        elif isinstance(substrings, (str, bytes, bytearray, memoryview, BitsCastable)):
             conv_substrings = [BitVector(substrings)]
         elif isinstance(substrings, Iterable):
             list_of_substrings = list(substrings)
