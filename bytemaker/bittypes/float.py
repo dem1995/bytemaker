@@ -133,8 +133,16 @@ class Float(BitType[float]):
 
     @value.setter
     def value(self, value):
-        if not isinstance(value, float):
-            raise ValueError(f"Expected a float, got {type(value)}")
+        # Reject strings explicitly (maintainer ruling), then coerce like the
+        # constructor's py_type() path and the struct-packed siblings do, so
+        # ints and other real numbers are accepted uniformly across the Float
+        # family. Other non-numeric input raises TypeError from float().
+        if isinstance(value, str):
+            raise TypeError(
+                f"{type(self).__name__} value must be a real number,"
+                f" not a string; got {value!r}"
+            )
+        value = float(value)
         self.bits = BitVector(
             self.__class__.to_binstring(
                 value, self.num_exponent_bits, self.num_mantissa_bits
