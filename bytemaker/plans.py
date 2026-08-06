@@ -218,7 +218,17 @@ class Plan:
 
     # ------------------------------------------------------------------ bulk
     def unpack_tuple(self, data) -> tuple:
-        """Decode one record's bytes into a flat tuple of plain values."""
+        """Decode one record's bytes into a flat tuple of plain values.
+
+        ``data`` must be exactly :attr:`num_bytes` long; a wrong-length
+        buffer raises ``ValueError`` on both tiers rather than decoding
+        from the wrong byte positions.
+        """
+        size = data.nbytes if isinstance(data, memoryview) else len(data)
+        if size * 8 != self.num_bits:
+            raise ValueError(
+                f"unpack_tuple: expected {self.num_bits // 8} bytes, got {size}"
+            )
         if self.tier == "struct":
             return self.struct_obj.unpack(data)
         raw = int.from_bytes(bytes(data), self._int_order)
