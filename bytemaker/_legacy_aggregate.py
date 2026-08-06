@@ -403,8 +403,9 @@ def from_bytes_aggregate(
             ctypes object, BitType, or dataclass.
         aggregate_type (type): The type(s) of the object to convert to.
             Must be a member of UnitType or a dataclass annotated with UnitType members.
-        is_array (bool, optional): Whether the object is an array of the aggregate type.
-            Defaults to False.
+        is_array (bool, optional): Whether ``bytes_obj`` holds consecutive
+            entries of ``aggregate_type``; if so a ``list`` of decoded entries
+            is returned. Defaults to False.
         endianness: The byte order of the input bytes.
             Defaults to "big".
 
@@ -412,48 +413,43 @@ def from_bytes_aggregate(
         Union[UnitType, AggregateTypeByteConvertible]: The object(s) represented by
             the bytes.
     """
+    if is_array:
+        size_in_bits = count_bits_in_aggregate_type(aggregate_type)
+        size_in_bytes = (size_in_bits + 7) // 8
+        arr_entry_list = list()
+        for i in range(0, len(bytes_obj), size_in_bytes):
+            arr_entry_list.append(
+                from_bytes_aggregate(
+                    bytes_obj[i : i + size_in_bytes],
+                    aggregate_type,
+                    endianness=endianness,
+                )
+            )
+        return arr_entry_list
+
     if is_subclass_of_union(aggregate_type, UnitType):
         return from_bytes_individual(bytes_obj, aggregate_type, endianness=endianness)
     else:
         size_in_bits = count_bits_in_unit_type(aggregate_type)
 
-        if not is_array:
-            if len(bytes_obj) * 8 != size_in_bits:
-                raise ValueError(
-                    f"Cannot convert {bytes_obj} to {aggregate_type}"
-                    f" because the # of bits in the bytes object ({len(bytes_obj) * 8})"
-                    f" does not match the # of bits in the unit type ({size_in_bits})"
-                )
+        if len(bytes_obj) * 8 != size_in_bits:
+            raise ValueError(
+                f"Cannot convert {bytes_obj} to {aggregate_type}"
+                f" because the # of bits in the bytes object ({len(bytes_obj) * 8})"
+                f" does not match the # of bits in the unit type ({size_in_bits})"
+            )
 
-            read_fields = list()
-            field_types = resolve_field_types(aggregate_type)
-            for field in dataclasses.fields(aggregate_type):
-                field_type = field_types[field.name]
-                field_size_in_bytes = (count_bits_in_unit_type(field_type) + 7) // 8
-                field_bytes = bytes_obj[:field_size_in_bytes]
-                field_value = from_bytes_aggregate(
-                    field_bytes, field_type, endianness=endianness
-                )
-                read_fields.append(field_value)
-                bytes_obj = bytes_obj[field_size_in_bytes:]
-            retval = aggregate_type(*read_fields)
-
-        else:
-            arr_entry_list = list()
-            size_in_bytes = (size_in_bits + 7) // 8
-            for i in range(0, len(bytes_obj), size_in_bytes):
-                endindex = (
-                    i + size_in_bytes
-                    if i + size_in_bytes < len(bytes_obj)
-                    else len(bytes_obj)
-                )
-                arr_entry_list.append(
-                    from_bytes_aggregate(
-                        bytes_obj[i:endindex],
-                        aggregate_type,
-                        endianness=endianness,
-                    )
-                )
-            retval = aggregate_type(*arr_entry_list)
+        read_fields = list()
+        field_types = resolve_field_types(aggregate_type)
+        for field in dataclasses.fields(aggregate_type):
+            field_type = field_types[field.name]
+            field_size_in_bytes = (count_bits_in_unit_type(field_type) + 7) // 8
+            field_bytes = bytes_obj[:field_size_in_bytes]
+            field_value = from_bytes_aggregate(
+                field_bytes, field_type, endianness=endianness
+            )
+            read_fields.append(field_value)
+            bytes_obj = bytes_obj[field_size_in_bytes:]
+        retval = aggregate_type(*read_fields)
 
     return retval
