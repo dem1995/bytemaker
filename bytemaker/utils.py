@@ -10,6 +10,7 @@ from bytemaker.typing_redirect import (
     ItemsView,
     Iterable,
     Iterator,
+    Literal,
     Mapping,
     Optional,
     Sequence,
@@ -123,16 +124,27 @@ def is_instance_of_union(obj, union_type: type):
 
         type_args = get_args(union_type)
 
+        # If the type is a Literal type
+        #   check if the object equals one of the literal values
+        if type_origin is Literal:
+            return obj in type_args
+
         # If the type is a union type or its instances are iterable
         #   check if the object is an instance of any
         #       of the constituent types
-        #   or if the object is an iterable and its first element
-        #       is an instance of the first type argument
+        #   or if the object is an iterable and all of its elements
+        #       are instances of the single type argument
         if type_origin is Union:
             return any(is_instance_of_union(obj, type_arg) for type_arg in type_args)
         elif isinstance(obj, type_origin):
             if len(type_args) == 1 and isinstance(obj, Iterable):
-                return bool(obj) or is_instance_of_union(next(iter(obj)), type_args[0])
+                # One-shot iterators cannot be inspected without consuming
+                #   them; accept and let the consumer validate the elements
+                if isinstance(obj, Iterator):
+                    return True
+                return all(
+                    is_instance_of_union(element, type_args[0]) for element in obj
+                )
 
             # If the type is a multi-arg, non-union, non-generic type
             else:
