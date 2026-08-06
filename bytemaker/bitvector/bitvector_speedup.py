@@ -1063,9 +1063,18 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
                 self._reset01(chars)
             else:
                 value = self.cast_if_not_bitvector(value)
+                if key.step not in (None, 1):
+                    # Pre-check extended slices: bytearray would silently
+                    # DELETE the selected positions for an empty value
+                    # instead of raising like other sequences.
+                    span = len(range(*key.indices(self._len)))
+                    if len(value) != span:
+                        raise ValueError(
+                            f"attempt to assign sequence of size {len(value)}"
+                            f" to extended slice of size {span}"
+                        )
                 chars = self._to01_bytearray()
-                # bytearray handles resizing for unit-step slices and
-                # enforces matching lengths for extended slices
+                # bytearray handles resizing for unit-step slices
                 chars[key] = value.to01().encode("ascii")
                 self._reset01(chars)
         elif isinstance(key, Iterable):
