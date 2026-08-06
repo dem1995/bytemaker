@@ -3,6 +3,7 @@ from __future__ import annotations
 import operator
 import os
 import struct
+import sys
 import warnings
 from abc import ABC, ABCMeta, abstractmethod
 from typing import TYPE_CHECKING
@@ -49,10 +50,24 @@ class NarrowingConfig:
 
 
 def _warn_narrowing(original, stored, target):
+    # Attribute the warning to the first frame outside bytemaker, however
+    # deep the internal chain is (field descriptor, array coercion, box
+    # setter, __init__): a fixed stacklevel is right for exactly one of
+    # those chains and blames library internals for all the others.
+    level = 1
+    frame = sys._getframe()
+    while frame is not None:
+        # A non-string __name__ (possible under exec with custom globals)
+        # marks user code just as surely as a foreign module name does.
+        mod = frame.f_globals.get("__name__")
+        if not (isinstance(mod, str) and mod.partition(".")[0] == "bytemaker"):
+            break
+        frame = frame.f_back
+        level += 1
     warnings.warn(
         f"narrowing store to {target}: {original!r} became {stored!r}",
         NarrowingWarning,
-        stacklevel=3,
+        stacklevel=level,
     )
 
 
