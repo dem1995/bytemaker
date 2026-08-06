@@ -1746,10 +1746,13 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
         return bytes(byte_arr)
 
 
-BitsConstructible = Union[BitVector, bytes, str, Iterable[LaxLiteral01], BitsCastable]
+BitsConstructible = Union[
+    BitVector, bytes, bytearray, memoryview, str, Iterable[LaxLiteral01], BitsCastable
+]
 """
 The types that can be used to construct a BitVector.
-These include the BitVector class itself, bytes, str, iterables of 0s and 1s,
+These include the BitVector class itself, byte-like objects (bytes,
+bytearray, memoryview), str, iterables of 0s and 1s,
 and objects that can be cast to a BitVector.
 
 Please note that you can also use an int to construct a BitVector of that many

@@ -88,8 +88,8 @@ class BitsCastable(Protocol):
 
 
 __annotations__ = {
-    "BitsConstructible": 'Union["BitVector", bytes, str, Iterable[LaxLiteral01]]'
-    ", BitsCastable, bitarray.bitarray]"
+    "BitsConstructible": 'Union["BitVector", bytes, bytearray, memoryview, str,'
+    " Iterable[LaxLiteral01], BitsCastable, bitarray.bitarray]"
 }  # Warning! Long-term support for bitarray is not guaranteed
 """The Union of types that can be used to construct a BitVector."""
 
@@ -1771,11 +1771,19 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
 
 
 BitsConstructible = Union[
-    BitVector, bytes, str, Iterable[LaxLiteral01], BitsCastable, bitarray
+    BitVector,
+    bytes,
+    bytearray,
+    memoryview,
+    str,
+    Iterable[LaxLiteral01],
+    BitsCastable,
+    bitarray,
 ]
 """
 The types that can be used to construct a BitVector.
-These include the BitVector class itself, bytes, str, iterables of 0s and 1s,
+These include the BitVector class itself, byte-like objects (bytes,
+bytearray, memoryview), str, iterables of 0s and 1s,
 objects that can be cast to a BitVector, and bitarrays.
 
 Please note that you can also use an int to construct a BitVector of that many
