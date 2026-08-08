@@ -377,16 +377,6 @@ class BitType(ABC, Generic[T], metaclass=BitTypeMeta):
         else:
             return temp_bytes[::-1]
 
-    # def __hash__(self):
-    #     """
-    #     Returns the hash of the BitType.
-
-    #     Because the only thing that matters is that the value for __eq__,
-    #     the hash is based on just the BitType value.
-    #     """
-    #     # return hash(frozenset([self.__class__, self.value]))
-    #     return hash(frozenset([self.value]))
-
     # Temporary methods
     # TODO remove
     def to_bits(self) -> BitVector:

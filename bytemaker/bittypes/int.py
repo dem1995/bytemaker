@@ -646,11 +646,6 @@ class SInt(Int):
         ] = int_format
         super().__init__(source=source, value=value, bits=bits, endianness=endianness)
 
-    # @classproperty
-    # @classmethod
-    # def int_format(cls) -> str:
-    #     return Config.signed_int_format
-
     @property
     def value(self):
         return Int.to_pyint(self.bits.to01(), signed=True, bin_format=self.int_format)
