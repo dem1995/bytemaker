@@ -911,7 +911,9 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
            slice steps and index sequences, the lengths must agree).
         """
         if isinstance(key, int):
-            if not isinstance(value, int):
+            if isinstance(value, int):
+                value = _coerce_bit(value)
+            else:
                 value = BitVector(value)[0]
         elif not isinstance(value, (int, bitarray)):
             value = self.cast_if_not_bitvector(value)
