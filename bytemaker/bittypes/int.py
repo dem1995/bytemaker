@@ -576,7 +576,7 @@ class SInt(Int):
     Use the `specialize` method to create a subclass with the desired number of bits
         or use one of the pre-defined subclasses.
 
-    To change the signed integer format, use the `Config` class
+    To change the signed integer format, use the `SignedConfig` class
         (or set the `int_format` parameter in the constructor).
         The default signed integer format is two's complement.
 
@@ -592,8 +592,9 @@ class SInt(Int):
         int_format : Optional[str]
             The format for this signed integer.
             Can be "twos_complement", "signed_magnitude", or "ones_complement".
-            If this is left as `None`, the format will be taken from the `Config` class.
-            Default is "twos_complement.
+            If this is left as `None`, the format will be taken from
+                the `SignedConfig` class.
+            Default is "twos_complement".
         value : int
             The `int` value of the `SInt`.
         bits : BitVector
