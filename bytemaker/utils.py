@@ -359,13 +359,21 @@ def twos_complement(number, n_bits=32):
     Convert an integer to its two's complement representation.
 
     Args:
-        number (int): The integer to convert.
-        n_bits (int): The bit width for the two's complement representation.
-            Defaults to 32.
+        number (int): The integer to convert. Must fit in ``n_bits`` bits:
+            ``-(2**(n_bits-1)) <= number < 2**(n_bits-1)``.
+        n_bits (int, optional): The bit width for the two's complement
+            representation. Defaults to 32.
 
     Returns:
-        str: A string of the number's two's-complement bits.
+        str: A string of exactly ``n_bits`` binary digits.
+
+    Raises:
+        ValueError: If ``number`` does not fit in ``n_bits`` bits.
     """
+    if not -(1 << (n_bits - 1)) <= number < (1 << (n_bits - 1)):
+        raise ValueError(
+            f"{number} does not fit in {n_bits} bits in two's complement"
+        )
     if number < 0:
         number = (1 << n_bits) + number
     format_string = "{:0" + str(n_bits) + "b}"
