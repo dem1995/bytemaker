@@ -59,7 +59,7 @@ promotion-to-plain-int arithmetic are evidence the design already half-treats sc
 | aggregate-utils-1 | `is_instance_of_union` policies | **Confirm both** (empty→True; iterators unchecked) | ▶ |
 | aggregate-utils-4 | Oracle `is_array` sync | **Full sync** (fixes dataclass + scalar) | ▶ |
 | plans-1 | Wrong-length `unpack_tuple` | **Uniform `ValueError`** both tiers (plans-2 is the independent dual, same choice) | ▶ |
-| pytypes-1 | Dead `ConversionInfo` byte helpers | **Optional** — patch repairs (fine); delete only to shrink surface | ▶ |
+| pytypes-1 | Dead `ConversionInfo` byte helpers | ✅ **Delete** (per README answer) — drops lows-code-10 | ✅ |
 | pytypes-3 | char codec charset + bits-path sync | ⚠ **latin-1** — **patch proposes UTF-8** — + UTF-8 via `String`; **option (c)** width-check | ✅ |
 | endianness-1 | endianness vocabulary | **Strict-exact `{'big','little'}`** | ▶ |
 | buffer-2 | `Buffer.value` plane | **Independent resizable `BitVector` snapshot** | ✅ |
@@ -219,14 +219,14 @@ plans-1 then plans-2 (file order), both choosing `ValueError` (they don't depend
 **shiftmask** half — the struct tier's silent truncation is owned by bugs.md #26; coordinate so #26's
 policy supersedes this incidental raise.
 
-### pytypes-1 — Dead `ConversionInfo` byte helpers · ▶ OPTIONAL (defer to the patch)
-**No strong preference — a coin flip.** These three helper methods have been broken since inception
-(they crash on every call — a `@classmethod`/instance-data mistake) with zero callers. The patch
-**repairs** them (drops `@classmethod`, dispatches through `self`); deletion is equally safe. Either
-is fine — repair keeps a symmetric codec surface, delete shrinks it. **Default to the patch (repair)
-unless you specifically want a smaller surface**, in which case delete (and drop lows-code-10, which
-layers an `endianness=` parameter onto the repaired methods). Originally I leaned delete; downgraded
-to "no push."
+### pytypes-1 — Dead `ConversionInfo` byte helpers · ✅ DECIDED — DELETE
+**Delete the three broken byte helpers** (per the README answer "Delete"). They have crashed on every
+call since inception (a `@classmethod`/instance-data mistake) with zero callers, so deletion is safe
+and shrinks the surface — consistent with the sole-user / no-compat-pressure "prefer the smaller,
+better surface" policy. **This drops lows-code-10** (which only layers an `endianness=` parameter onto
+the *repaired* methods), so lows-code-10 is mooted.
+*(Correction: an earlier version of this record softened the maintainer's written "Delete" to
+"optional/repair-default"; resolved to delete on 2026-08-06.)*
 
 ### pytypes-3 — char codec charset + bits-path enforcement · ✅ DECIDED · ⚠ changes the patch
 **Part 1 — latin-1, fixed-width.** ⚠ pytypes-3 as written proposes **UTF-8** (encode-side only); this
@@ -360,6 +360,6 @@ intended unification).
 The ✅ items are settled — including the review-round decisions: float-1's overflow-warning refinement
 (store ±inf, C behavior, **but reportable** under warn-mode), narrowing-4 keep-normalize, lows-ux-5
 warn-first, and **ctypes-1 raise** (repo shows zero cross-endian union usage → low-risk). Still open:
-- **pytypes-1** — genuinely optional; defer to the patch (repair) unless you want a smaller surface.
+- **pytypes-1** — resolved: DELETE (per the README answer; drops lows-code-10).
 - Everything else marked ▶ (bitvector-behavior confirms, endianness-1, docs-misc-1, etc.) is a
   recommendation not yet ratified — none carries an embedded condition; they just need your nod.
