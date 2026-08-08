@@ -379,7 +379,9 @@ def to_bytes_aggregate(
     validate_endianness(endianness)
     ret_bytes = bytearray()
 
-    if is_instance_of_union(units, UnitType):
+    if is_instance_of_union(units, UnitType) and not (
+        isinstance(units, str) and len(units) > 1
+    ):
         ret_bytes = to_bytes_individual(units, endianness=endianness)
 
     elif isinstance(units, DataClassType):
@@ -389,6 +391,18 @@ def to_bytes_aggregate(
             field_value = getattr(units, field.name)
             field_value = trycast(field_value, field_type)
             field_value_bytes = to_bytes_aggregate(field_value, endianness=endianness)
+            if field_type is str:
+                # Option (c): a str field is one fixed-width char (8 bits);
+                # a multi-char value overflows the declared width, so refuse
+                # it at serialize time (matches the bits path).
+                declared_bits = count_bits_in_unit_type(str)
+                if len(field_value_bytes) * 8 != declared_bits:
+                    raise ValueError(
+                        f"Cannot serialize {field_value!r} into a str field:"
+                        f" it occupies {len(field_value_bytes) * 8} bits but a"
+                        f" str field is one fixed-width character"
+                        f" ({declared_bits} bits)."
+                    )
             ret_bytes.extend(field_value_bytes)
 
     elif isinstance(units, Iterable):
