@@ -18,7 +18,7 @@ class Buffer(BitType[BitVector]):
     A BitType that represents a buffer of bits.
 
     Use the `of` classmethod to create a subclass sized in bytes
-        (the Struct-field door) or the `specialize` classmethod
+        (the Struct-field entry point) or the `specialize` classmethod
         to create one with an exact number of bits.
 
     Class Attributes:
@@ -90,9 +90,9 @@ class Buffer(BitType[BitVector]):
         cls: Type[BufferSelf], *, nbytes: int, name: Optional[str] = None
     ) -> Type[BufferSelf]:
         """Mint a Buffer type sized in **bytes** — the C ``uint8_t buf[N]``
-        count, and the Struct-field door (Struct byte fields hold plain
-        ``bytes`` and need whole-byte widths anyway). ``specialize`` is the
-        bit-counted box door; sub-byte Buffers stay legal standalone and in
+        count. Struct byte fields hold plain ``bytes`` and need whole-byte
+        widths, so this is the constructor Struct fields use; ``specialize``
+        sizes in bits, and sub-byte Buffers stay legal standalone and in
         legacy aggregates. ``nbytes`` is keyword-only so the declaration
         names its unit — this class's history includes a ``Buffer16`` that
         read as 16 bytes but meant 16 bits."""

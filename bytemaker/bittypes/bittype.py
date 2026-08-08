@@ -326,8 +326,9 @@ class BitType(ABC, Generic[T], metaclass=BitTypeMeta):
         """
         Compares the BitType to another object.
 
-        Two bittypes are equal if their values are equal. Note that this means that
-        they might have internal bit representations (-0 and +0 are still equal, though)
+        Two bittypes are equal if their values are equal. Note that two equal
+        BitTypes may still have differing internal bit representations
+        (-0 and +0 are equal, though).
 
         Args:
             other (Any): The object to compare to.
@@ -343,8 +344,9 @@ class BitType(ABC, Generic[T], metaclass=BitTypeMeta):
         """
         Compares the BitType to another object.
 
-        Two bittypes are equal if their values are equal. Note that this means that
-        they might have internal bit representations (-0 and +0 are still equal, though)
+        Two bittypes are equal if their values are equal. Note that two equal
+        BitTypes may still have differing internal bit representations
+        (-0 and +0 are equal, though).
 
         Args:
             other (Any): The object to compare to.
@@ -456,6 +458,13 @@ class BitType(ABC, Generic[T], metaclass=BitTypeMeta):
         to int first). Width re-attaches only at stores; the narrowing cast
         spelling is the constructor: ``UInt8(a + b)`` == ``(uint8_t)(a+b)``.
         Used by the numeric BitTypes (Int, Float).
+
+        Args:
+            other (Any): The other operand (a BitType is unboxed to its value).
+            operation (Callable): The binary operator to apply.
+
+        Returns:
+            Any: The plain (unboxed) result, or NotImplemented.
         """
         if isinstance(other, BitType):
             other = other.value
@@ -471,6 +480,14 @@ class BitType(ABC, Generic[T], metaclass=BitTypeMeta):
         ``u += 1`` keeps ``u``'s type and wraps at *its* width (and, like
         C's float-to-int conversion, non-integral results truncate toward
         zero via ``py_type``).
+
+        Args:
+            other (Any): The other operand (a BitType is unboxed to its value).
+            operation (Callable): The binary operator to apply.
+
+        Returns:
+            BitSelf: ``self``, after narrowing the result into this box; or
+                NotImplemented.
         """
         if isinstance(other, BitType):
             other = other.value
@@ -570,8 +587,8 @@ class StructPackedBitType(BitType[T]):
             be calculated using other methods on the MRO.
 
     packing_format : str
-        The struct-packing format for the subclass that `struct` uses. It is calculated
-            based on the endianness
+        The struct-packing format (always big-endian ">"); endianness is
+            applied later at the bytes boundary by BitType.__bytes__().
     """
 
     packing_format_letter: Final[str]

@@ -36,7 +36,8 @@ class Int(BitType[int]):
     """
     A `BitType` that represents an integer.
 
-    Is further subclassed into `SInt` and `UInt` for signed and unsigned integers,
+    Is further subclassed into `SInt` and `UInt` for signed and unsigned
+        integers respectively.
 
     Arithmetic follows the C promotion model. Binary operators — including
     the bitwise family and `~` — compute on plain values at full width and
@@ -48,7 +49,7 @@ class Int(BitType[int]):
     `NarrowingConfig.warn = True` to make them emit a `NarrowingWarning`.
 
     Class Attributes:
-    ---------------
+    -----------------
     num_bits : int
        The number of bits in the BitType.
     base_bit_type : Type[BitType]
@@ -226,7 +227,8 @@ class Int(BitType[int]):
         Convert an integer to a bitstring.
 
         Parameters:
-        - integer (int): The integer to convert.
+        - self (Int | int): The integer to convert. Callable on an instance
+            (``x.to_bitstring()``) or directly (``Int.to_bitstring(5, ...)``).
         - signed (bool, optional): Whether the integer should be treated as signed.
             Default is True.
         - bit_length (int, optional): The length of the bitstring.

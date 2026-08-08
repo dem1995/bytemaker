@@ -255,7 +255,7 @@ class Float(BitType[float]):
         Produce a subclass of Float with the specified number of bits
             in the exponent and mantissa.
 
-        If `packing_format_letter` is provided, the subclass will also be a
+        If a packing format letter is provided, the subclass will also be a
             `StructPackedBitType` and use `struct`'s packing/unpacking functions
             with the provided letter.
 

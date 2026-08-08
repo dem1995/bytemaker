@@ -266,7 +266,7 @@ float_conversion_info = ConversionInfo(
 ConversionConfig.set_conversion_info(float_conversion_info)
 
 
-def pytype_to_bits(py_prim: type) -> BitVector:
+def pytype_to_bits(py_prim) -> BitVector:
     """
     Function to convert Python instances into a default number of BitVector.
         Uses the conversions in ConversionConfig.
@@ -288,7 +288,7 @@ def pytype_to_bits(py_prim: type) -> BitVector:
 
 
 def pytype_to_bytes(
-    py_prim: type, endianness: Literal["big", "little"] = "big"
+    py_prim, endianness: Literal["big", "little"] = "big"
 ) -> bytes:
     """
     Function to convert Python instances into a default number of bytes.

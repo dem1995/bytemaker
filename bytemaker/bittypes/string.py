@@ -387,6 +387,20 @@ class String(BitType[str]):
 
     @classmethod
     def specialize(cls, num_bits_: int, name_: Optional[str] = None):
+        """
+        Returns a subclass of String with the specified number of bits.
+
+        Unlike `of`, which sizes in whole ``bytes_per_char`` units for use
+            as a Struct field type, `specialize` takes a raw bit count.
+
+        Args:
+            num_bits_ (int): The number of bits in the subclass.
+            name_ (Optional[str], optional): The name of the subclass.
+                Defaults to None, meaning the name will be _String.
+
+        Returns:
+            Type[String]: The subclass with the specified number of bits.
+        """
         class _String(cls):
             _num_bits = num_bits_
 

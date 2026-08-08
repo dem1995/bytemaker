@@ -14,8 +14,8 @@ oracle the fast paths are validated against.
 
 One deliberate behavior fix vs 0.12: ``from_bytes_aggregate(...,
 is_array=True)`` now returns a ``list`` of decoded entries. (Previously it
-attempted ``aggregate_type(*entries)``, which was unusable, and ignored
-``is_array`` entirely for scalar types.)
+attempted ``aggregate_type(*entries)`` and ignored ``is_array`` entirely
+for scalar types.)
 """
 
 import struct as _struct
@@ -193,7 +193,7 @@ def to_bytes_aggregate(
     Essentially a bitfield serializer.
 
     Args:
-        units [Iterable | DataClassType]): The objects to convert to bytes
+        units (AggregateTypeByteConvertible): The objects to convert to bytes
         endianness: The byte order of the output.
             Defaults to "big".
 

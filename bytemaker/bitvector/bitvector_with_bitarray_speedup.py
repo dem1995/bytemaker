@@ -868,9 +868,9 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
                 item = BitVector(item)  # type: ignore
             else:
                 return False
-        if isinstance(item, bitarray):
-            first_index = self.find(item)
-            return first_index != -1
+        assert isinstance(item, bitarray)
+        first_index = self.find(item)
+        return first_index != -1
 
     @overload
     def __getitem__(self, key: int) -> Literal[0, 1]: ...
@@ -1155,9 +1155,9 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
         stop: Optional[int] = None,
     ) -> bool:
         """
-        Checks if the bitarray starts with the given substring.
+        Checks if the BitVector starts with the given substring.
         If start and stop are provided, the check is performed only
-            on the bits between the start (inclusive) and stop exclusive) indices.
+            on the bits between the start (inclusive) and stop (exclusive) indices.
 
         Args:
             substrings (Union[BitsConstructible, BitVector, Literal[0, 1],\
@@ -1226,9 +1226,9 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
         stop: Optional[int] = None,
     ) -> bool:
         """
-        Checks if the bitarray ends with the given substring.
+        Checks if the BitVector ends with the given substring.
         If start and stop are provided, the check is performed only
-            on the bits between the start (inclusive) and stop exclusive) indices.
+            on the bits between the start (inclusive) and stop (exclusive) indices.
 
         Args:
             substrings (Union[BitsConstructible, BitVector, Literal[0, 1],\
@@ -1292,7 +1292,8 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
         start: int = 0,
         stop: Optional[int] = None,
     ) -> int:
-        """Finds the first occurrence of the given bit in the BitVector.
+        """Finds the first occurrence of the given bit in the BitVector,
+        or of the subsequence of bits if provided.
         If the bit is not found, -1 is returned.
 
         Args:

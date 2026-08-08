@@ -1262,7 +1262,7 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
         """
         Checks if the BitVector starts with the given substring.
         If start and stop are provided, the check is performed only
-            on the bits between the start (inclusive) and stop exclusive) indices.
+            on the bits between the start (inclusive) and stop (exclusive) indices.
 
         Args:
             substrings (Union[BitsConstructible, BitVector, Literal[0, 1],\
@@ -1302,7 +1302,7 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
         """
         Checks if the BitVector ends with the given substring.
         If start and stop are provided, the check is performed only
-            on the bits between the start (inclusive) and stop exclusive) indices.
+            on the bits between the start (inclusive) and stop (exclusive) indices.
 
         Args:
             substrings (Union[BitsConstructible, BitVector, Literal[0, 1],\

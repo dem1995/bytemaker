@@ -214,6 +214,7 @@ class Plan:
 
     @property
     def num_bytes(self) -> int:
+        """Record size in whole bytes (``num_bits // 8``)."""
         return self.num_bits // 8
 
     # ------------------------------------------------------------------ bulk
@@ -514,6 +515,8 @@ class LegacyRecordPlan:
         self.fmt_letters = fmt_letters  # per-field letter or None
 
     def parse(self, data: bytes, endianness: Literal["big", "little"]):
+        """Box ``data`` back into an instance of the dataclass, one field
+        per byte slice, decoding each with ``bytes_to_bittype``."""
         if len(data) * 8 != self.total * 8:
             raise ValueError(
                 f"Cannot convert {data!r} to {self.cls}"
@@ -529,6 +532,8 @@ class LegacyRecordPlan:
         )
 
     def pack(self, obj, endianness: Literal["big", "little"]) -> bytes:
+        """Serialize ``obj``'s fields to bytes in ``endianness`` order,
+        coercing non-BitType values C-style via each field's type."""
         parts = []
         for name, ftype in zip(self.names, self.types):
             v = getattr(obj, name)

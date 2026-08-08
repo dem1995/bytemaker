@@ -20,8 +20,9 @@ class FixedLengthBitVector(BitVector):
     Item writes, length-preserving slice writes, ``reverse()``, and other
     content mutations behave exactly like :class:`BitVector`. ``append``,
     ``extend``, ``insert``, ``pop``, ``remove``, ``clear``, ``del b[i]``,
-    ``+=``, ``*=``, and length-changing slice assignment raise
-    :class:`ValueError`. Make a resizable copy with ``BitVector(b)``.
+    ``+=``, ``*=``, length-changing slice assignment, and the in-place
+    growers ``frombytes``/``fromfile`` raise :class:`ValueError`. Make a
+    resizable copy with ``BitVector(b)``.
 
     Storage is *writable and unaliased* on every backend because the base
     constructor copies all source-form inputs, byte-likes included (the
