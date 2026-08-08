@@ -9,7 +9,6 @@ narrowing cast. See the `Int` docstring for the full contract.
 from __future__ import annotations
 
 import operator
-from math import ceil, log2
 from typing import TYPE_CHECKING, Any, overload
 
 from bytemaker.bittypes.bittype import (
@@ -19,7 +18,7 @@ from bytemaker.bittypes.bittype import (
 )
 from bytemaker.bitvector import BitsConstructible, BitVector
 from bytemaker.typing_redirect import Final, Literal, Optional, TypeVar
-from bytemaker.utils import is_instance_of_union
+from bytemaker.utils import is_instance_of_union, twos_complement_bit_length
 
 if TYPE_CHECKING:
     from bytemaker.bittypes.float import Float
@@ -186,37 +185,28 @@ class Int(BitType[int]):
         """
         n = value
 
+        # Exact integer arithmetic throughout: float log2 under-sizes powers
+        # of two >= 2**49 (2**k + 1 is indistinguishable from 2**k in float).
         if not signed:
             if n == 0:
                 return 1
-            return ceil(log2(n + 1))
+            return n.bit_length()
         else:
             if bin_format is None:
                 bin_format = "twos_complement"
 
             if bin_format == "twos_complement":
-                if n == 0:
-                    return 1  # Technically can represent 0 with 0 bits in
-                    # two's complement, but this is not useful
-
-                is_greq_than_zero = n >= 0
-                abs_val = abs(n)
-                is_power_of_two = (abs_val & (abs_val - 1)) == 0
-
-                if is_greq_than_zero or not is_power_of_two:
-                    return ceil(log2(abs_val + 1)) + 1  # Account for extra
-                    # at negative extreme
-                else:
-                    return int(log2(abs_val)) + 1
+                return twos_complement_bit_length(n)
             elif bin_format == "signed_magnitude" or bin_format == "sign_magnitude":
                 if n == 0:
                     return 1
-                return ceil(log2(abs(n) + 1)) + 1
+                # magnitude bits plus a sign bit
+                return abs(n).bit_length() + 1
             elif bin_format == "ones_complement":
                 if n == 0:
-                    return 1  # Technically can represent 0 with 0 bits in
-                    # one's complement, but this is not useful
-                return ceil(log2(abs(n) + 1)) + 1
+                    return 1
+                # magnitude bits plus a sign bit
+                return abs(n).bit_length() + 1
             else:
                 raise ValueError(
                     f"Unsupported format: {bin_format!r}. Expected one of"

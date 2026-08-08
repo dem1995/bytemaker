@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import dataclasses
-from math import ceil, log2
 
 from bytemaker.typing_redirect import (
     Any,
@@ -346,15 +345,14 @@ def twos_complement_bit_length(n: int):
         return 1  # Technically can represent 0 with 0 bits in
         # two's complement, but this is not useful
 
-    is_greq_than_zero = n >= 0
-    abs_val = abs(n)
-    is_power_of_two = (abs_val & (abs_val - 1)) == 0
-
-    if is_greq_than_zero or not is_power_of_two:
-        return ceil(log2(abs_val + 1)) + 1  # Account for extra
-        # at negative extreme
-    else:
-        return int(log2(abs_val)) + 1
+    # Exact integer arithmetic (float log2 loses precision for n >= 2**49:
+    # 2**k + 1 is indistinguishable from 2**k, so a positive power of two
+    # would be under-sized by one bit and lose its sign bit).
+    if n > 0:
+        # magnitude bits plus a leading 0 sign bit
+        return n.bit_length() + 1
+    # negative: ~n == -n - 1; its magnitude width plus the sign bit
+    return (~n).bit_length() + 1
 
 
 def twos_complement(number, n_bits=32):
