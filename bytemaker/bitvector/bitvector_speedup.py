@@ -1829,12 +1829,14 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
          If size is not provided, the number of bits required to \
          represent the integer is used.
         """
+        needed = twos_complement_bit_length(integer)
         if size is None:
-            size = twos_complement_bit_length(integer)
-        if integer.bit_length() > size:
+            size = needed
+        if needed > size:
             raise ValueError(
-                f"Cannot convert {integer} to Bits with size {size},"
-                f" because it requires {integer.bit_length()} bits to represent."
+                f"Cannot convert {integer} to a BitVector of size {size},"
+                f" because it requires {needed} bits (sign bit included)"
+                f" to represent."
             )
 
         return cls._with_buf(_pack_int(integer, size), size)
