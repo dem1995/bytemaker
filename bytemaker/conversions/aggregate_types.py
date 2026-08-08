@@ -41,7 +41,12 @@ from bytemaker.bittypes.bittype import NarrowingConfig
 from bytemaker.bittypes.int import SignedConfig
 from bytemaker.plans import compile_legacy_record_plan
 from bytemaker.typing_redirect import Dict, Literal, Union, get_type_hints
-from bytemaker.utils import DataClassType, is_instance_of_union, is_subclass_of_union
+from bytemaker.utils import (
+    DataClassType,
+    is_instance_of_union,
+    is_subclass_of_union,
+    validate_endianness,
+)
 
 __all__ = [
     "UnitType",
@@ -195,6 +200,7 @@ def to_bytes_aggregate(
     Returns:
         bytes: The bytes representation of the objects
     """
+    validate_endianness(endianness)
     if isinstance(units, DataClassType) and not is_instance_of_union(units, UnitType):
         plan = _get_record_plan(type(units))
         if plan is not None:
@@ -232,6 +238,7 @@ def from_bytes_aggregate(
         Union[UnitType, AggregateTypeByteConvertible]: The object(s) represented by
             the bytes.
     """
+    validate_endianness(endianness)
     if is_array:
         entry_bits = count_bits_in_aggregate_type(aggregate_type)
         entry_bytes = (entry_bits + 7) // 8

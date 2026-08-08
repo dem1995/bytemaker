@@ -6,7 +6,11 @@ from ctypes import Array, Structure, Union, _SimpleCData
 import bytemaker.typing_redirect as typing_redirect
 from bytemaker.bitvector import BitVector
 from bytemaker.typing_redirect import Literal
-from bytemaker.utils import is_instance_of_union, is_subclass_of_union
+from bytemaker.utils import (
+    is_instance_of_union,
+    is_subclass_of_union,
+    validate_endianness,
+)
 
 CType = typing_redirect.Union[_SimpleCData, Structure, Union, Array]
 
@@ -138,6 +142,7 @@ def ctype_to_bytes(
     Returns:
         bytes: The bytes representation of the ctypes object
     """
+    validate_endianness(endianness)
     if not is_instance_of_union(ctype_obj, CType):  # type: ignore
         raise TypeError(
             f"ctype_to_bytes only accepts _SimpleCData, Structure,"
@@ -190,6 +195,7 @@ def bytes_to_ctype(
             The ctypes object representation of the bytes
     """
 
+    validate_endianness(endianness)
     if not is_subclass_of_union(ctype_type, CType):
         raise TypeError(
             f"bytes_to_ctype only accepts _SimpleCData, Structure,"

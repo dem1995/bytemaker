@@ -75,6 +75,7 @@ from bytemaker.typing_redirect import (
     Tuple,
     runtime_checkable,
 )
+from bytemaker.utils import validate_endianness
 
 try:  # 3.11+
     from typing import dataclass_transform
@@ -799,8 +800,7 @@ class StructMeta(type):
 
         if endian is None:
             endian = "big"
-        if endian not in ("big", "little"):
-            raise PlanCompileError(f"{name}: endian must be 'big' or 'little'")
+        validate_endianness(endian, name=f"{name}: endian", exc=PlanCompileError)
         if bit_order is None:
             bit_order = "lsb"
         if bit_order not in ("lsb", "msb"):
@@ -1367,7 +1367,11 @@ class Array:
         # inherits the record's byte order (like a C array -- see
         # compile_plan). An explicit endian is honored either way.
         self._endian_set = endian is not None
-        resolved = endian if endian is not None else "big"
+        resolved = (
+            validate_endianness(endian, name="Array endian", exc=PlanCompileError)
+            if endian is not None
+            else "big"
+        )
         self._scalar_codec = None
         if isinstance(element, (StructMeta, Array)):
             elem_bits = element.num_bits

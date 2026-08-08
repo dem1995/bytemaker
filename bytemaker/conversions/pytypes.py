@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 from bytemaker.bitvector import BitVector
 from bytemaker.typing_redirect import Any, Callable, Literal
-from bytemaker.utils import is_subclass_of_union
+from bytemaker.utils import is_subclass_of_union, validate_endianness
 
 
 class PyTypeMeta(type):
@@ -294,7 +294,7 @@ def pytype_to_bytes(
         bytes: The bytes representation of the python instance
     """
     retval = pytype_to_bits(py_prim).to_bytes()
-    if endianness == "little":
+    if validate_endianness(endianness) == "little":
         retval = retval[::-1]
     return retval
 
@@ -338,6 +338,6 @@ def bytes_to_pytype(
         pytype: The instance of the provided Python type represented by the
             bytes
     """
-    if endianness == "little":
+    if validate_endianness(endianness) == "little":
         bytes_obj = bytes_obj[::-1]
     return bits_to_pytype(BitVector(bytes_obj), pytype)

@@ -36,7 +36,12 @@ from bytemaker.conversions.pytypes import (
     pytype_to_bytes,
 )
 from bytemaker.typing_redirect import Dict, Iterable, Literal, Union, get_type_hints
-from bytemaker.utils import DataClassType, is_instance_of_union, is_subclass_of_union
+from bytemaker.utils import (
+    DataClassType,
+    is_instance_of_union,
+    is_subclass_of_union,
+    validate_endianness,
+)
 
 UnitType = Union[CType, BitType, PyType]
 
@@ -139,6 +144,7 @@ def to_bytes_individual(
     """
     Function to convert a single Python primitive or ctypes object into bytes.
     """
+    validate_endianness(endianness)
 
     if is_instance_of_union(unit, CType):
         return ctype_to_bytes(unit, endianness=endianness)
@@ -204,6 +210,7 @@ def from_bytes_individual(
         endianness: The byte order of the input bytes.
             Defaults to "big".
     """
+    validate_endianness(endianness)
 
     size_in_bits = count_bits_in_unit_type(unittype)
     if len(unitbytes) * 8 != size_in_bits:
@@ -359,6 +366,7 @@ def to_bytes_aggregate(
     Returns:
         bytes: The bytes representation of the objects
     """
+    validate_endianness(endianness)
     ret_bytes = bytearray()
 
     if is_instance_of_union(units, UnitType):
@@ -413,6 +421,7 @@ def from_bytes_aggregate(
         Union[UnitType, AggregateTypeByteConvertible]: The object(s) represented by
             the bytes.
     """
+    validate_endianness(endianness)
     if is_array:
         size_in_bits = count_bits_in_aggregate_type(aggregate_type)
         size_in_bytes = (size_in_bits + 7) // 8
