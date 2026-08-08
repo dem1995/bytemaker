@@ -1,7 +1,8 @@
 """Checker-friendly Struct field aliases, for any width.
 
-``u8``/``s16``/``f32``-style names are ``Annotated[int, UInt8]`` (etc.) at
-runtime: the annotation tells a type checker the field holds a plain ``int``
+``u8``/``s16``-style names are ``Annotated[int, UInt8]`` (etc.) at runtime,
+and ``f16``/``f32``/``f64`` are ``Annotated[float, Float16]`` (etc.): the
+annotation tells a type checker the field holds a plain ``int`` or ``float``
 — which is what ``Struct`` fields hold — while the metadata carries the
 BitType for the plan compiler.
 
@@ -12,9 +13,10 @@ resolves ``uN``/``sN`` lazily (PEP 562 module ``__getattr__``), so ::
 
 just works — canonical named classes (``UInt4``, ``SInt5``, …) are reused
 when they exist; other widths are minted via ``specialize`` and cached so
-repeated lookups agree. Float aliases are the fixed IEEE set (``f16`` /
-``f32`` / ``f64``): an arbitrary float width does not determine an
-exponent/mantissa split.
+repeated lookups agree. ``dir()``/autocomplete advertise the common 1–64
+widths as a sample; the lazy namespace itself is unbounded. Float aliases
+are the fixed IEEE set (``f16`` / ``f32`` / ``f64``): an arbitrary float
+width does not determine an exponent/mantissa split.
 
 The paired ``fields.pyi`` presents these to type checkers as descriptor
 types — reads are ``int``/``float``, writes (and the synthesized
@@ -119,5 +121,8 @@ def __getattr__(name):
 
 
 def __dir__():
+    # dir() cannot enumerate the unbounded lazy namespace; advertise the
+    # common 1..64 widths as a sample (__getattr__ accepts any positive
+    # width).
     lazy = [f"{prefix}{n}" for prefix in ("u", "s") for n in range(1, 65)]
     return sorted(set(list(globals()) + __all__ + lazy))
