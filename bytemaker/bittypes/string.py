@@ -522,6 +522,12 @@ class String(BitType[str]):
                 )
             base = cls
         elif isinstance(encoding, str):
+            try:
+                codecs.lookup(encoding)
+            except LookupError:
+                raise ValueError(
+                    f"{cls.__name__}.of(): unknown encoding {encoding!r}"
+                ) from None
             base = StandardEncodingString
             ns["encoding_name"] = encoding
         elif isinstance(encoding, Mapping):

@@ -108,7 +108,10 @@ class BitTypeMeta(ABCMeta):
         return Array.of(cls, count)
 
     def __rmul__(cls, count: int):
-        return cls.__mul__(count)
+        # Class-object attribute lookup finds the instance operator
+        # (e.g. Int.__mul__) first, so dispatch through the metaclass
+        # explicitly to get the `N * Cls` array sugar (== `Cls * N`).
+        return type(cls).__mul__(cls, count)
 
 
 class BitType(ABC, Generic[T], metaclass=BitTypeMeta):

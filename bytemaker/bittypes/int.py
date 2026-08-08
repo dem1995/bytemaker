@@ -214,6 +214,12 @@ class Int(BitType[int]):
                     return 1  # Technically can represent 0 with 0 bits in
                     # one's complement, but this is not useful
                 return ceil(log2(abs(n) + 1)) + 1
+            else:
+                raise ValueError(
+                    f"Unsupported format: {bin_format!r}. Expected one of"
+                    f" 'twos_complement', 'signed_magnitude', or"
+                    f" 'ones_complement'."
+                )
 
     def to_bitstring(
         self: Int | int,

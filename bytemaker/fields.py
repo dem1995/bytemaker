@@ -88,6 +88,13 @@ _BASE_OF = {"u": UInt, "s": SInt}
 def __getattr__(name):
     match = _ALIAS_PATTERN.fullmatch(name)
     if match is None:
+        if name[:1] == "f" and name[1:].isdigit():
+            raise AttributeError(
+                f"module {__name__!r} has no attribute {name!r}: float aliases"
+                f" are the fixed IEEE set f16/f32/f64 (an arbitrary bit width"
+                f" does not determine an exponent/mantissa split); for a custom"
+                f" split use Float.specialize"
+            )
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
     if Annotated is None:  # pragma: no cover - version-dependent
         raise AttributeError(

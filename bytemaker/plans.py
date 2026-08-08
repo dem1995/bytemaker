@@ -333,7 +333,9 @@ class Plan:
         for f in self.fields:
             if f.name == name:
                 return f
-        raise KeyError(f"no field named {name!r}")
+        raise ValueError(
+            f"no field named {name!r}; fields are {[f.name for f in self.fields]}"
+        )
 
     def bit_offset(self, name: str) -> int:
         """Stream bit offset of a (possibly dotted) field name."""

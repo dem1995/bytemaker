@@ -221,15 +221,6 @@ _char_conversion_info = ConversionInfo(
 )
 ConversionConfig.set_conversion_info(_char_conversion_info)
 
-for bytesish in [bytes, bytearray, memoryview]:
-    conversion_info = ConversionInfo(
-        pytype=bytesish,
-        to_bits=lambda bys: BitVector(bys),
-        from_bits=lambda bits: bits.to_bytes(),
-        num_bits=lambda bys: len(bys) * 8,
-    )
-    # ConversionConfig.set_conversion_info(conversion_info)
-
 bool_conversion_info = ConversionInfo(
     pytype=bool,
     to_bits=lambda boo: BitVector([int(boo)]),
