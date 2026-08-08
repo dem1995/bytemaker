@@ -144,7 +144,7 @@ class Float(BitType[float]):
             )
         value = float(value)
         self.bits = BitVector(
-            self.__class__.to_binstring(
+            self.__class__.to_bitstring(
                 value, self.num_exponent_bits, self.num_mantissa_bits
             )
         )
@@ -154,7 +154,7 @@ class Float(BitType[float]):
         if NarrowingConfig.warn and math.isfinite(value) and math.isinf(self.value):
             _warn_narrowing(value, self.value, type(self).__name__)
 
-    def to_binstring(
+    def to_bitstring(
         self: Float | float, num_exponent_bits=8, num_mantissa_bits=23
     ) -> str:
         """

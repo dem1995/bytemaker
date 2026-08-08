@@ -118,6 +118,7 @@ __all__ = [
     "NarrowingWarning",
     "BoundField",
     "BoundBits",
+    "NarrowingList",
     "u8",
     "u16",
     "u32",

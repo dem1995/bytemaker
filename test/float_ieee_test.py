@@ -87,14 +87,14 @@ def test_ieee_special_values_pure_path():
 
 def test_subnormals_and_underflow_pure_path():
     assert BFloat16(1e-39).value == 1.0101904577379033e-39
-    assert Float.to_binstring(1e-40, 8, 7) == "0" * 15 + "1"  # smallest subnormal
+    assert Float.to_bitstring(1e-40, 8, 7) == "0" * 15 + "1"  # smallest subnormal
     assert BFloat16(1e-50).value == 0.0  # deep underflow flushes to +0
     assert math.copysign(1.0, BFloat16(-1e-50).value) == -1.0  # keeps sign
 
 
 def test_rounding_and_roundtrip_pure_path():
     assert BFloat16(0.1).bits.to01() == "0011110111001101"  # correctly rounded
-    assert Float.to_binstring(65520.0, 5, 10) == "0" + "1" * 5 + "0" * 10  # ties->inf
+    assert Float.to_bitstring(65520.0, 5, 10) == "0" + "1" * 5 + "0" * 10  # ties->inf
     for v in [0.0, -0.0, 1.5, -2.25, 1e-39, float("inf")]:
         assert TF19(TF19(v).value).bits == TF19(v).bits
 

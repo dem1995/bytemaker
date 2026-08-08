@@ -34,7 +34,7 @@ def _table_bytes_per_char(table) -> "Tuple[Optional[int], Optional[str]]":
         key_lens.add(len(kb))
         if not (isinstance(v, str) and len(v) == 1):
             return None, (
-                f"{kb!r} maps to {v!r} (one wire unit, not one character)"
+                f"{kb!r} maps to {v!r}, which is not a single character"
             )
     if len(key_lens) > 1:
         return None, f"keys have mixed byte lengths {sorted(key_lens)}"
