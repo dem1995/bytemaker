@@ -48,7 +48,18 @@ class Buffer(BitType[BitVector]):
 
     @property
     def value(self):
-        return self.bits
+        """
+        The `BitVector` value of this `Buffer`.
+
+        The getter hands out an independent, resizable snapshot — the safe
+        read every other BitType's `value` provides. Mutating the returned
+        vector does not touch this buffer; use the `bits` property for the
+        live, width-locked handle.
+
+        Returns:
+            BitVector: A copy of this buffer's bits.
+        """
+        return BitVector(self.bits)
 
     @value.setter
     def value(self, value):
