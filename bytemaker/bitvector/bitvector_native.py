@@ -262,7 +262,7 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
         self,
         source: Optional[Union[BitsConstructible, int]] = None,
         encoding: Optional[str] = None,
-        errors: Optional[str] = None,  # TODO
+        errors: Optional[str] = None,
         buffer: Buffer = None,  # type: ignore
     ) -> None:
         """
@@ -286,7 +286,7 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
                     (`from01`, `frombin`, `fromoct`, `fromhex`).\
                 If an int, a BitVector with that many bits (set to 0) is created.\
             encoding (Optional[str]): The encoding to use
-            errors (Optional[str]): The error handling to use. TODO
+            errors (Optional[str]): The error handling to use (not implemented).
             buffer (Buffer): The buffer to use
 
         """
@@ -518,14 +518,13 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
            punctuated by `sep`.
 
         Args:
-            base (int): The base to convert to. Currently must be a power of 2 (< 64).
+            base (int): The base to convert to (a power of 2, at most 64).
             sep (Optional[str]): The separator to use
             bytes_per_sep (int): The number of bytes per separator
 
         Returns:
             str: The BitVector converted to a string in the given base
         """
-        # TODO support non-multiple-of-two bases
         if base not in {2, 4, 8, 16, 32, 64}:
             raise ValueError(f"Invalid base: {base}")
         retstring = self._to_base_str(base)
@@ -644,7 +643,7 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
     def __eq__(self, other: object) -> bool:
         """
         Returns whether this BitVector's bits are equal to another object's bits.
-        This will only really true if both objects are BitVectors.
+        This will only really be true if both objects are BitVectors.
         """
         if isinstance(other, BitVector):
             return self._bits == other._bits

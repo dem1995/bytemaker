@@ -228,10 +228,26 @@ class BitVector(MutableSequence[Literal[0, 1]], BitsCastable):
         end: Optional[int] = None,
     ) -> int: ...
     def endswith(
-        self, substrings: bytes, start: int = 0, stop: Optional[int] = None
+        self,
+        substrings: Union[
+            BitsConstructible,
+            "BitVector",
+            Literal[0, 1],
+            Iterable[Union[BitsConstructible, "BitVector"]],
+        ],
+        start: int = 0,
+        stop: Optional[int] = None,
     ) -> bool: ...
     def startswith(
-        self, substrings: bytes, start: int = 0, stop: Optional[int] = None
+        self,
+        substrings: Union[
+            BitsConstructible,
+            "BitVector",
+            Literal[0, 1],
+            Iterable[Union[BitsConstructible, "BitVector"]],
+        ],
+        start: int = 0,
+        stop: Optional[int] = None,
     ) -> bool: ...
     def find(
         self,

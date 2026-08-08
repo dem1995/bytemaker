@@ -349,7 +349,7 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
         self,
         source: Optional[Union[BitsConstructible, int]] = None,
         encoding: Optional[str] = None,
-        errors: Optional[str] = None,  # TODO
+        errors: Optional[str] = None,
         buffer: Buffer = None,  # type: ignore
     ) -> None:
         """

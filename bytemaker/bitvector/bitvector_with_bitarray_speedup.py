@@ -159,7 +159,7 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
             (set to 0).
 
         Args:
-            source (Optional[Union[BitsConstructible, int]]): The bits of the bitarray
+            source (Optional[Union[BitsConstructible, int]]): The bits of the BitVector
             * If None, a BitVector with no bits is created.
             * If a string, uses the prefix (none, 0b, 0o, or 0x) to call\
                     (`from01`, `frombin`, `fromoct`, `fromhex`).\
@@ -262,7 +262,7 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
         self,
         source: Optional[Union[BitsConstructible, int]] = None,
         encoding: Optional[str] = None,
-        errors: Optional[str] = None,  # TODO
+        errors: Optional[str] = None,
         buffer: Buffer = None,  # type: ignore
     ) -> None:
         """
@@ -280,13 +280,13 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
         * If `source` is an int, the BitVector is created with that many bits set to 0.
 
         Args:
-            source (Optional[Union[BitsConstructible, int]]): The bits of the bitarray
+            source (Optional[Union[BitsConstructible, int]]): The bits of the BitVector
                If None, a BitVector with no bits is created.\
                If a string, uses the prefix (none, 0b, 0o, or 0x) to call\
                     (`from01`, `frombin`, `fromoct`, `fromhex`).\
                 If an int, a BitVector with that many bits (set to 0) is created.\
             encoding (Optional[str]): The encoding to use
-            errors (Optional[str]): The error handling to use. TODO
+            errors (Optional[str]): The error handling to use (not implemented).
             buffer (Buffer): The buffer to use
 
         """
@@ -486,14 +486,13 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
            punctuated by `sep`.
 
         Args:
-            base (int): The base to convert to. Currently must be a power of 2 (< 64).
+            base (int): The base to convert to (a power of 2, at most 64).
             sep (Optional[str]): The separator to use
             bytes_per_sep (int): The number of bytes per separator
 
         Returns:
             str: The BitVector converted to a string in the given base
         """
-        # TODO support non-multiple-of-two bases
         if base not in {2, 4, 8, 16, 32, 64}:
             raise ValueError(f"Invalid base: {base}")
         retstring = ba2base(base, self)
@@ -970,6 +969,15 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
         """
         return self.tobytes()
 
+    def tobytes(self) -> bytes:
+        """
+        Convert the BitVector to a bytes object, with each group of 8 bits
+            (most-significant first) becoming a byte.
+        If the length of the BitVector is not a multiple of 8,
+            the BitVector is padded with 0s until the length is a multiple of 8.
+        """
+        return super().tobytes()
+
     def __Bits__(
         self: Self,
     ) -> Self:
@@ -995,7 +1003,6 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
         Returns a deep copy of the object
             with the same bits.
         """
-        # Todo: Verify memoization procedure
         retval = type(self)()
         memo[id(self)] = retval
         retval.extend(copy.deepcopy(super(), (memo)))

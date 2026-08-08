@@ -150,7 +150,7 @@ class String(BitType[str]):
         to have substitutions applied when converting between the
         underlying BitVector bits and str value representations of this class.
 
-        TODO: Add support for sub-byte codepoint changes
+        Sub-byte codepoint changes are not supported.
 
         Returns:
             Optional[HashableMapping[str, str]]: The codepoint changes mapping
