@@ -162,10 +162,17 @@ class Plan:
             for f in fields
         )
 
+        # Endianness only gates the struct tier where byte order is
+        # observable: multi-byte u/s ints and floats. Byte-payload ('b')
+        # and single-byte fields are byte-order-agnostic, mirroring the
+        # shiftmask tier's swap predicate below.
         aligned = (
             all(f.letter is not None for f in fields)
             and all(f.bit_offset % 8 == 0 for f in fields)
-            and all(f.endian == endian for f in fields)
+            and all(
+                f.endian == endian or f.kind == "b" or f.bit_width <= 8
+                for f in fields
+            )
         )
         if aligned:
             self.tier = "struct"
@@ -293,12 +300,19 @@ class Plan:
         """Iterate flat tuples over consecutive records in ``buf``.
 
         ``count=None`` reads as many whole records as fit from ``offset`` to
-        the end of ``buf``.
+        the end of ``buf``; an explicit ``count`` larger than the number of
+        whole records available raises ``ValueError`` (both tiers alike).
         """
         size = self.num_bytes
         view = memoryview(buf)
+        avail = (len(view) - offset) // size
         if count is None:
-            count = (len(view) - offset) // size
+            count = avail
+        elif count > avail:
+            raise ValueError(
+                f"iter_tuples: requested {count} records but only {avail}"
+                f" whole records are available from offset {offset}"
+            )
         end = offset + count * size
         if self.tier == "struct":
             return self.struct_obj.iter_unpack(view[offset:end])
