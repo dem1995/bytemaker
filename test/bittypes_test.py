@@ -66,7 +66,7 @@ def test_cru_bittype(bittype_class, constructor_arg, update_arg):
 )
 def test_uint_serialization(bittype_class, input_value, expected_bits):
     bittype_instance = bittype_class(input_value)
-    assert bittype_instance.to_bits() == expected_bits
+    assert bittype_instance.bits == expected_bits
 
 
 @pytest.mark.parametrize(
@@ -79,7 +79,7 @@ def test_uint_serialization(bittype_class, input_value, expected_bits):
     ],
 )
 def test_uint_deserialization(bittype_class, input_bits, expected_value):
-    bittype_instance = bittype_class.from_bits(input_bits)
+    bittype_instance = bittype_class(bits=input_bits)
     assert bittype_instance.value == expected_value
 
 
@@ -95,7 +95,7 @@ def test_uint_deserialization(bittype_class, input_bits, expected_value):
 )
 def test_sint_serialization(bittype_class, input_value, expected_bits_length):
     bittype_instance = bittype_class(input_value)
-    assert len(bittype_instance.to_bits()) == expected_bits_length
+    assert len(bittype_instance.bits) == expected_bits_length
 
 
 # Test cases for Floats
@@ -112,7 +112,7 @@ def test_sint_serialization(bittype_class, input_value, expected_bits_length):
 )
 def test_float_serialization_and_deserialization(bittype_class, input_value):
     bittype_instance = bittype_class(input_value)
-    deserialized_value = bittype_class.from_bits(bittype_instance.to_bits()).value
+    deserialized_value = bittype_class(bits=bittype_instance.bits).value
     assert abs(deserialized_value - input_value) < 1e-6
 
 
@@ -128,8 +128,8 @@ def test_str_serialization_and_deserialization(
     bittype_class, input_value, expected_bits_length
 ):
     bittype_instance = bittype_class(input_value)
-    assert len(bittype_instance.to_bits()) == expected_bits_length
-    deserialized_value = bittype_class.from_bits(bittype_instance.to_bits()).value
+    assert len(bittype_instance.bits) == expected_bits_length
+    deserialized_value = bittype_class(bits=bittype_instance.bits).value
     assert deserialized_value == input_value
 
 
@@ -142,7 +142,7 @@ def test_str_serialization_and_deserialization(
 )
 def test_str_endianess(bittype_class, input_value, expected_bits):
     bittype_instance = bittype_class(input_value)
-    assert bittype_instance.to_bits() == expected_bits
+    assert bittype_instance.bits == expected_bits
 
     # little endian
     bittype_instance = bittype_class(input_value, endianness="little")
@@ -384,8 +384,8 @@ def test_bit_serialization_and_deserialization(
     bittype_instance_type = type(bittype_instance)
     print("BitType instance is:", bittype_instance)
     print("BitType instance type is:", bittype_instance_type)
-    assert bittype_instance.to_bits() == expected_bits_length
-    deserialized_value = bittype_class.from_bits(bittype_instance.to_bits()).value
+    assert bittype_instance.bits == expected_bits_length
+    deserialized_value = bittype_class(bits=bittype_instance.bits).value
     assert deserialized_value == input_value
 
 
@@ -422,13 +422,13 @@ def test_uint_non_struct_value_setter_zero_pads():
     assert len(u.bits) == UInt10.num_bits == 10
     assert u.bits.to01() == "0000000001"
     assert u.value == 1
-    assert len(u.to_bits()) == 10
+    assert len(u.bits) == 10
 
     # zero and the maximum stay full-width and round-trip through the bits
     assert len(UInt10(0).bits) == 10
     hi = UInt10(2**10 - 1)
     assert len(hi.bits) == 10 and hi.value == 2**10 - 1
-    assert UInt10.from_bits(hi.to_bits()).value == 2**10 - 1
+    assert UInt10(bits=hi.bits).value == 2**10 - 1
 
     # out-of-range values wrap modulo 2**num_bits, like a C (uint10_t) cast
     u.value = 2**10  # 1024 -> 0

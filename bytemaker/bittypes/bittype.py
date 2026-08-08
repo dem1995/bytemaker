@@ -395,6 +395,11 @@ class BitType(ABC, Generic[T], metaclass=BitTypeMeta):
         Returns:
             BitVector: The sequence of bits of the BitType.
         """
+        warnings.warn(
+            "BitType.to_bits() is deprecated; use the .bits property",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return self.bits
 
     @classmethod
@@ -408,6 +413,12 @@ class BitType(ABC, Generic[T], metaclass=BitTypeMeta):
         Args:
             bits (BitVector): The sequence of bits to create the BitType from.
         """
+        warnings.warn(
+            f"{cls.__name__}.from_bits() is deprecated;"
+            f" use the constructor: {cls.__name__}(bits=...)",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return cls(bits=bits)
 
     def _binary_value_op(

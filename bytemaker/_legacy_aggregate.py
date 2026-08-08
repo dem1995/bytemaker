@@ -128,7 +128,7 @@ def to_bits_individual(unit: UnitType) -> BitVector:
     if is_instance_of_union(unit, CType):
         return ctype_to_bits(unit)
     elif isinstance(unit, BitType):
-        return unit.to_bits()
+        return unit.bits
     elif is_instance_of_union(unit, PyType):
         return pytype_to_bits(unit)
     else:
@@ -184,7 +184,7 @@ def from_bits_individual(unitbits: BitVector, unittype: type) -> PyType:
     if is_subclass_of_union(unittype, CType):
         return bits_to_ctype(unitbits, unittype)
     elif is_subclass_of_union(unittype, BitType):
-        return unittype.from_bits(unitbits)
+        return unittype(bits=unitbits)
     elif is_subclass_of_union(unittype, PyType):
         return bits_to_pytype(unitbits, unittype)
     else:
