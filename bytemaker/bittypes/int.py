@@ -144,15 +144,18 @@ class Int(BitType[int]):
 
         elif bin_format == "signed_magnitude" or bin_format == "sign_magnitude":
             # Handle sign-magnitude for signed integers
+            # (a 1-bit string has an empty magnitude field: +0 / -0)
+            magnitude = int(bitstring[1:], 2) if bit_length > 1 else 0
             if bitstring[0] == "1":  # Negative number
-                int_value = -int(bitstring[1:], 2)
+                int_value = -magnitude
             else:  # Positive number
-                int_value = int(bitstring[1:], 2)
+                int_value = magnitude
 
         elif bin_format == "ones_complement":
             # Handle one's complement for signed integers
             if bitstring[0] == "1":  # Negative number
-                int_value = -((2 ** (bit_length - 1)) - int(bitstring[1:], 2) - 1)
+                magnitude = int(bitstring[1:], 2) if bit_length > 1 else 0
+                int_value = -((2 ** (bit_length - 1)) - magnitude - 1)
             else:  # Positive number
                 int_value = int(bitstring, 2)
         else:
@@ -249,6 +252,8 @@ class Int(BitType[int]):
         def unsigned_int_to_bitstring(n: int, bit_length: int):
             if n < 0 or n >= 2**bit_length:
                 raise ValueError("Value out of range for the specified bit_length")
+            if bit_length == 0:
+                return ""
             return bin(n)[2:].zfill(bit_length)
 
         def int_to_twos_complement(n: int, bit_length: int):
