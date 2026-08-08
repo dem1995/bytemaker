@@ -95,6 +95,37 @@ class Trie:
         return root
 
 
+def validate_endianness(
+    endianness: Any, name: str = "endianness", exc: type = ValueError
+) -> "Literal['big', 'little']":
+    """
+    Validates a byte-order argument at an API intake point.
+
+    Every bytemaker parameter that selects a byte order accepts exactly
+    "big" or "little". Historically any other string fell through into
+    whichever branch a call site's equality test happened to pick (a typo
+    like "bigg" serialized little-endian through BitType.__bytes__ but
+    big-endian through pytype_to_bytes), so the check lives here and runs
+    at intake, not at use.
+
+    Args:
+        endianness: The value to validate.
+        name (str): The parameter name to blame in the error message.
+            Defaults to "endianness".
+        exc (type): The exception class to raise. Defaults to ValueError;
+            schema-compile intake points pass PlanCompileError.
+
+    Returns:
+        Literal["big", "little"]: ``endianness``, unchanged.
+
+    Raises:
+        exc: If ``endianness`` is not exactly "big" or "little".
+    """
+    if endianness not in ("big", "little"):
+        raise exc(f"{name} must be 'big' or 'little'; got {endianness!r}")
+    return endianness
+
+
 def is_instance_of_union(obj, union_type: type):
     """
     Determines if an object is an instance of a union type

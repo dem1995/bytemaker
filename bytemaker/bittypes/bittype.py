@@ -20,7 +20,7 @@ from bytemaker.typing_redirect import (
     Type,
     TypeVar,
 )
-from bytemaker.utils import classproperty
+from bytemaker.utils import classproperty, validate_endianness
 
 T = TypeVar("T")
 S = TypeVar("S")
@@ -178,8 +178,7 @@ class BitType(ABC, Generic[T], metaclass=BitTypeMeta):
 
         if endianness == "source_else_big":
             endianness = "big"
-        endianness: Literal["big", "little"]
-        self._endianness = endianness
+        self._endianness = validate_endianness(endianness)
 
         if value is None and bits is None:
             raise ValueError("Either value or bits must be provided")
@@ -662,7 +661,7 @@ def bytes_to_bittype(
     Returns:
         BitType: The BitType object created from the bytes object.
     """
-    if endianness == "little":
+    if validate_endianness(endianness) == "little":
         unitbytes = unitbytes[::-1]
     # bytes go straight to the bits setter, which snapshots into locked
     # storage; a BitVector(...) wrap here would just be a second copy.
