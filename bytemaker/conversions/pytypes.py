@@ -274,12 +274,12 @@ def bits_to_pytype(bits_obj: BitVector, pytype: type):
     Function to convert bits into instances of Python types.
 
     Args:
-        bytes_obj (bytes): The bits object to convert to a Python primitive
-        py_prim_type (type): The type of the Python primitive to convert to.
-            Must be a member of PyTypeWithDefaultBytes
+        bits_obj (BitVector): The bits object to convert to a Python primitive
+        pytype (type): The type of the Python primitive to convert to.
+            Must have a suitable conversion registered in ConversionConfig
 
     Returns:
-        pytype: The instance of thee provided Python type represented by the
+        pytype: The instance of the provided Python type represented by the
             bits
     """
 
@@ -300,7 +300,7 @@ def bytes_to_pytype(
     Args:
         bytes_obj (bytes): The bytes object to convert to a Python primitive
         pytype (type): The type of the Python primitive to convert to.
-            Must be a member of PyTypeWithDefaultBytes
+            Must have a suitable conversion registered in ConversionConfig
         endianness: The byte order of the input bytes.
             Defaults to "big".
 
