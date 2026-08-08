@@ -90,18 +90,22 @@ class Int(BitType[int]):
         ] = "twos_complement",
     ):
         """
-        Convert a bitstring to an integer.
+        Convert the bits of `self` to an integer.
 
         Parameters:
-        - bitstring (str): The bitstring to convert.
-        - signed (Optional[bool], optional) Whether the bitstring represents
-            a signed integer (vs unsigned). Default is `cls.is_signed` or `True`.
+        - self (BitType | BitsConstructible): The object whose bits to convert.
+            May be a `BitType`, a `BitVector`, or anything a `BitVector` can
+            be constructed from (e.g. a "01" string), so this is also
+            callable unbound, as `Int.to_pyint("1010")`.
+        - signed (Optional[bool], optional): Whether the bits represent
+            a signed integer (vs unsigned). Default is `self.is_signed`
+            where that exists (`Int` subclasses), else `True`.
         - bin_format (Optional[str], optional): The format for signed integers.
             Can be "twos_complement", "signed_magnitude", or "ones_complement".
             Default is "twos_complement".
 
         Returns:
-        - int: The integer representation of the bitstring.
+        - int: The integer representation of the bits.
         """
 
         if signed is None:
