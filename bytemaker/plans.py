@@ -308,6 +308,8 @@ class Plan:
         avail = (len(view) - offset) // size
         if count is None:
             count = avail
+        elif count < 0:
+            raise ValueError(f"iter_tuples: count must be non-negative, got {count}")
         elif count > avail:
             raise ValueError(
                 f"iter_tuples: requested {count} records but only {avail}"
