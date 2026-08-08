@@ -281,11 +281,21 @@ def to_bits_aggregate(convertible_object: AggregateTypeByteConvertible) -> BitVe
             for field_type, field_value in zip(field_types, field_values)
         ]
         field_value_bits = []
-        for field_value in field_values:
+        for field_value, field_type in zip(field_values, field_types):
             bitsified = to_bits_aggregate(field_value)
+            if field_type is str:
+                # Option (c): the registered str codec is one fixed-width
+                # char (num_bits=8). A multi-char value overflows the
+                # declared field width and would fail far from cause on
+                # decode, so refuse it at serialize time.
+                declared_bits = count_bits_in_unit_type(str)
+                if len(bitsified) != declared_bits:
+                    raise ValueError(
+                        f"Cannot serialize {field_value!r} into a str field:"
+                        f" it occupies {len(bitsified)} bits but a str field"
+                        f" is one fixed-width character ({declared_bits} bits)."
+                    )
             field_value_bits.append(bitsified)
-        # field_value_bits = [to_bits_aggregate(field_value)
-        # for field_value in field_values]
         ret_bits = BitVector().join(field_value_bits)
     elif isinstance(convertible_object, Iterable):
         for unit in convertible_object:

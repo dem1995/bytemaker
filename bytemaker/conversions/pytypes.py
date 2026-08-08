@@ -174,10 +174,49 @@ class ConversionConfig:
 # )
 # ConversionConfig.set_conversion_info(_string_conversion_info)
 
+def _char_to_bits(string: str) -> BitVector:
+    """
+    Function to convert a single one-byte character into its 8-bit BitVector.
+
+    The registered str conversion is a fixed-width char (num_bits reports 8),
+    encoded with latin-1 -- the canonical byte<->char bijection, so all 256
+    byte values round-trip. This encoder refuses any string whose latin-1
+    encoding is not exactly one byte rather than silently emitting a width
+    that disagrees with num_bits. Multi-byte / variable-width text belongs in
+    the String bittypes (``String.of(encoding=...)``).
+
+    Args:
+        string (str): The character to convert. Must be a single
+            U+0000-U+00FF character (exactly one latin-1 byte).
+
+    Returns:
+        BitVector: The 8-bit representation of the character
+
+    Raises:
+        ValueError: If the string does not encode to exactly one latin-1 byte.
+    """
+    try:
+        encoded = string.encode("latin-1")
+    except UnicodeEncodeError as exc:
+        raise ValueError(
+            f"The registered str conversion is a fixed-width latin-1 char"
+            f" (8 bits), but {string!r} is not representable in latin-1"
+            f" (use a String bittype for other encodings)."
+        ) from exc
+    if len(encoded) != 1:
+        raise ValueError(
+            f"The registered str conversion is a fixed-width char (8 bits),"
+            f" but {string!r} encodes to {len(encoded)} latin-1 bytes."
+            f" Serialize longer strings character-by-character or use a"
+            f" String bittype for other encodings."
+        )
+    return BitVector(encoded)
+
+
 _char_conversion_info = ConversionInfo(
     pytype=str,
-    to_bits=lambda string: BitVector(string.encode("utf-8")),
-    from_bits=lambda bits: bits.to_bytes().decode("utf-8"),
+    to_bits=_char_to_bits,
+    from_bits=lambda bits: bits.to_bytes().decode("latin-1"),
     num_bits=lambda _: 8,
 )
 ConversionConfig.set_conversion_info(_char_conversion_info)
