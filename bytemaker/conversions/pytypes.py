@@ -50,36 +50,6 @@ class ConversionInfo:
     from_bits: Callable[[BitVector], Any]
     num_bits: Callable[[Any], int]
 
-    @classmethod
-    def num_bytes(cls, typeinstance) -> int:
-        """
-        Function to get the number of bytes in the BitVector representation of\
-            the Python instance.
-        """
-        default = (cls.num_bits(typeinstance) + 7) // 8
-        return default if default > 0 else 1
-
-    @classmethod
-    def to_bytes(cls, pytype) -> bytes:
-        """
-        Function to convert a Python instance to the bytes representation
-            of that instance.
-
-        Args:
-            pytype (type): The Python instance to convert to bytes
-
-        Returns:
-            bytes: The bytes representation of the Python instance
-        """
-        return bytes(cls.to_bits(pytype))
-
-    @classmethod
-    def from_bytes(cls, bytes_obj) -> Any:
-        """
-        Function to convert a bytes object to a Python instance.
-        """
-        return cls.from_bits(BitVector(bytes_obj))
-
 
 class ConversionConfig:
     """
