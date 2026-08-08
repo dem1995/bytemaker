@@ -39,7 +39,7 @@ from bytemaker._legacy_aggregate import (  # noqa: F401
 from bytemaker.bittypes import BitType
 from bytemaker.bittypes.bittype import NarrowingConfig
 from bytemaker.bittypes.int import SignedConfig
-from bytemaker.plans import compile_legacy_record_plan
+from bytemaker.plans import PlanCompileError, compile_legacy_record_plan
 from bytemaker.typing_redirect import Dict, Literal, Union, get_type_hints
 from bytemaker.utils import (
     DataClassType,
@@ -144,7 +144,7 @@ def _get_record_plan(aggregate_type):
         return compile_legacy_record_plan(
             aggregate_type, resolve_field_types(aggregate_type)
         )
-    except Exception:
+    except PlanCompileError:
         return None
 
 

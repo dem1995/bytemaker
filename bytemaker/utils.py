@@ -290,6 +290,9 @@ class _ByteConvertibleMeta(type):
             bytes(__instance)
             return True
         except Exception:
+            # Deliberately broad: this is an isinstance() probe. A foreign
+            # __bytes__ raising anything means "not byte-convertible";
+            # propagating would make isinstance() itself throw.
             return False
 
     def __subclasscheck__(self, __subclass: Any) -> bool:
