@@ -17,8 +17,9 @@ class Buffer(BitType[BitVector]):
     """
     A BitType that represents a buffer of bits.
 
-    Use the `specialize` method to create a subclass with the desired number of bits
-        or use one of the pre-defined subclasses.
+    Use the `of` classmethod to create a subclass sized in bytes
+        (the Struct-field door) or the `specialize` classmethod
+        to create one with an exact number of bits.
 
     Class Attributes:
     -----------------
@@ -32,16 +33,11 @@ class Buffer(BitType[BitVector]):
     Instance Attributes
     -------------------
     bits : BitVector
-       The underlying sequence of bits of this `Buffer` object. Identical to `value`.
+       The underlying sequence of bits of this `Buffer` object.
+           The handout is live and width-locked (see `BitType.bits`).
     value : BitVector
-       The `BitVector` value of this `Buffer` object. Identical to `bits`.
-    """
-
-    """
-    A BitType that represents a buffer of bits.
-
-    Use the `specialize` method to create a subclass with the desired number of bits
-        or use one of the pre-defined subclasses.
+       An independent, resizable snapshot of this `Buffer` object's bits.
+           Equal to `bits` by value; mutating it does not affect the buffer.
     """
 
     py_type = BitVector
