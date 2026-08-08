@@ -283,11 +283,13 @@ def to_bits_aggregate(convertible_object: AggregateTypeByteConvertible) -> BitVe
         field_value_bits = []
         for field_value, field_type in zip(field_values, field_types):
             bitsified = to_bits_aggregate(field_value)
-            if field_type is str:
+            if isinstance(field_type, type) and issubclass(field_type, str):
                 # Option (c): the registered str codec is one fixed-width
                 # char (num_bits=8). A multi-char value overflows the
                 # declared field width and would fail far from cause on
-                # decode, so refuse it at serialize time.
+                # decode, so refuse it at serialize time. Subclass-aware so
+                # it matches the layout side (count_bits_in_unit_type maps a
+                # str subclass to the same 8-bit codec).
                 declared_bits = count_bits_in_unit_type(str)
                 if len(bitsified) != declared_bits:
                     raise ValueError(
@@ -391,10 +393,10 @@ def to_bytes_aggregate(
             field_value = getattr(units, field.name)
             field_value = trycast(field_value, field_type)
             field_value_bytes = to_bytes_aggregate(field_value, endianness=endianness)
-            if field_type is str:
+            if isinstance(field_type, type) and issubclass(field_type, str):
                 # Option (c): a str field is one fixed-width char (8 bits);
                 # a multi-char value overflows the declared width, so refuse
-                # it at serialize time (matches the bits path).
+                # it at serialize time (matches the bits path, subclass-aware).
                 declared_bits = count_bits_in_unit_type(str)
                 if len(field_value_bytes) * 8 != declared_bits:
                     raise ValueError(
