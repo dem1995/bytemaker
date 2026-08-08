@@ -13,6 +13,23 @@ they are annotation-only.
 
 from typing import Any, SupportsFloat, SupportsIndex
 
+# Star-import surface: keep identical to the runtime __all__ in fields.py.
+# The other declared aliases stay importable by name (and any width resolves
+# via __getattr__); they are just not star-exported.
+__all__ = [
+    "u8",
+    "u16",
+    "u32",
+    "u64",
+    "s8",
+    "s16",
+    "s32",
+    "s64",
+    "f16",
+    "f32",
+    "f64",
+]
+
 class _UIntAlias:
     def __get__(self, obj: Any, objtype: Any = ...) -> int: ...
     def __set__(self, obj: Any, value: SupportsIndex) -> None: ...
