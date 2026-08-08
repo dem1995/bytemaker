@@ -283,14 +283,21 @@ class BitType(ABC, Generic[T], metaclass=BitTypeMeta):
 
     def __repr__(self):
         """
-        Returns a string representation of the BitType.
-        That can be used to recreate the object.
+        Returns a string representation of the BitType
+        that recreates the object when evaluated
+        with the class name in scope.
+
+        Uses the exact bits rather than the value, so patterns the value
+            setter would normalize (e.g. float NaN payloads) survive the
+            round trip. Subclasses with extra constructor state append it
+            as further keyword arguments (`SInt` appends `int_format=...`).
 
         Returns:
-            str: ClassName(value)(bits={self.value}, {endianness=self.endianness})
+            str: ClassName(bits='<01 string>', endianness=<'big' or 'little'>)
         """
         return (
-            f"{self.__class__.__name__}(bits={self.bits}, endianness={self.endianness})"
+            f"{self.__class__.__name__}"
+            f"(bits={self.bits.to01()!r}, endianness={self.endianness!r})"
         )
 
     def __format__(self, format_spec):

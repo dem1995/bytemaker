@@ -656,6 +656,25 @@ class SInt(Int):
         )
         self.bits = BitVector(str_bits)
 
+    def __repr__(self):
+        """
+        Returns a string representation of the SInt
+        that recreates the object when evaluated
+        with the class name in scope.
+
+        Appends `int_format` to the base `BitType` format: the same bits
+            decode to different values under different signed formats, so a
+            faithful reconstruction needs the format this instance was
+            built with.
+
+        Returns:
+            str: ClassName(bits='<01 string>', endianness=..., int_format=...)
+        """
+        return (
+            f"{self.__class__.__name__}(bits={self.bits.to01()!r},"
+            f" endianness={self.endianness!r}, int_format={self.int_format!r})"
+        )
+
     @classmethod
     def specialize(
         cls,
