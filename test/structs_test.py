@@ -1252,3 +1252,32 @@ def test_debug_validate():
 def test_parse_wrong_length_raises():
     with pytest.raises(ValueError):
         WarpDestination.parse(b"\x00" * 11)
+
+
+# --------------------------------------------------------- wd-5: sub-byte arrays
+def test_sub_byte_array_field_roundtrips_on_shiftmask():
+    # The plan flattens each element into an ordinary sub-byte leaf, so
+    # an Array of UInt4 needs no special engine support as a FIELD (the
+    # old constructor guard rejected it before the plan ever saw it).
+    from bytemaker.structs import array
+
+    class Tiles(Struct, endian="big"):
+        ids: list = array(UInt4, 6)  # 24 bits of nibbles
+        tag: UInt8
+
+    t = Tiles(ids=[1, 2, 3, 4, 5, 6], tag=0xAB)
+    assert Tiles.plan.tier == "shiftmask"
+    assert Tiles.parse(t.pack()) == t
+    t.ids[2] = 0x1F  # narrowing store still applies element-wise
+    assert t.ids[2] == 0xF
+    assert Tiles.parse(t.pack()).ids == [1, 2, 0xF, 4, 5, 6]
+
+
+def test_sub_byte_array_standalone_parse_pack_guarded():
+    # Standalone parse/pack slice whole element BYTES; sub-byte elements
+    # raise an informative error instead of dividing by zero.
+    arr = Array.of(UInt4, 6)
+    with pytest.raises(ValueError, match="whole-byte elements"):
+        arr.parse(b"\x12\x34\x56")
+    with pytest.raises(ValueError, match="Struct FIELD"):
+        arr.pack([1, 2, 3, 4, 5, 6])

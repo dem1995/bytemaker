@@ -1560,12 +1560,10 @@ class Array(typing.Generic[V]):
         elif isinstance(element, type) and issubclass(element, BitType):
             _reject_foreign_value_override("Array", "element", element)
             elem_bits = element.num_bits
-            if elem_bits % 8:
-                raise PlanCompileError(
-                    f"Array of {element.__name__}: sub-byte scalar arrays are"
-                    f" not supported (element is {elem_bits} bits); wrap the"
-                    f" elements in a Struct instead"
-                )
+            # Sub-byte scalar elements are fine as a Struct FIELD (the plan
+            # flattens each element into an ordinary sub-byte leaf on the
+            # shiftmask tier); only the STANDALONE byte-slicing parse/pack
+            # paths need whole-byte elements — they guard themselves.
             # Classify through the plan compiler so Array cannot drift from
             # the Struct decode rules (also rejects e.g. non-IEEE floats).
             try:
@@ -1575,7 +1573,7 @@ class Array(typing.Generic[V]):
                     f"Array of {element.__name__}: {exc}"
                 ) from None
             struct_obj = None
-            if kind in ("u", "s", "f") and letter is not None:
+            if kind in ("u", "s", "f") and letter is not None and elem_bits % 8 == 0:
                 prefix = "<" if resolved == "little" else ">"
                 struct_obj = _pystruct.Struct(f"{prefix}{count}{letter}")
             self._scalar_codec = (kind, struct_obj)
@@ -1714,7 +1712,20 @@ class Array(typing.Generic[V]):
     def num_bytes(self) -> int:
         return self.num_bits // 8
 
+    def _require_whole_byte_elements(self, op: str) -> None:
+        """The standalone parse/pack paths slice per-element BYTES; a
+        sub-byte element only works as a Struct field (compile_plan
+        flattens each element into an ordinary sub-byte leaf)."""
+        elem_bits = self._element.num_bits
+        if elem_bits % 8:
+            raise ValueError(
+                f"{self!r}.{op}: standalone {op} needs whole-byte elements"
+                f" (element is {elem_bits} bits); as a Struct FIELD this"
+                f" array is supported — the plan flattens its elements"
+            )
+
     def parse(self, data: BytesLike) -> List[V]:
+        self._require_whole_byte_elements("parse")
         if len(data) != self.num_bytes:
             raise ValueError(
                 f"{self!r}.parse: expected {self.num_bytes} bytes, got {len(data)}"
@@ -1768,6 +1779,7 @@ class Array(typing.Generic[V]):
         ]
 
     def pack(self, values) -> bytes:
+        self._require_whole_byte_elements("pack")
         if len(values) != self.count:
             raise ValueError(
                 f"{self!r}.pack: expected {self.count} elements, got {len(values)}"
