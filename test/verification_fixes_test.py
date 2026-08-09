@@ -1,5 +1,5 @@
-"""Regression tests for three bugs surfaced by the post-apply adversarial
-verification pass:
+"""Regression tests for bugs surfaced by the post-apply adversarial
+verification pass and the follow-up commit review:
 
 1. twos_complement_bit_length / Int.min_bit_length used float log2, which
    under-sizes positive powers of two >= 2**49 by one bit (2**k + 1 is
@@ -11,8 +11,15 @@ verification pass:
    over-width bytes on both aggregate paths.
 3. plans.iter_tuples let a negative explicit count slip past the count>avail
    guard, diverging between the struct and shiftmask tiers.
+4. pop(index, default=None) raised IndexError instead of returning the
+   default: the out-of-bounds guard used `if default is not None`, so an
+   explicit default=None was indistinguishable from "no default given".
+5. The lazy conversions re-export must resolve all names and must not
+   reintroduce the import cycle (importing _legacy_aggregate first must work).
 """
 
+import subprocess
+import sys
 from dataclasses import dataclass
 
 import pytest
@@ -121,3 +128,64 @@ def test_iter_tuples_rejects_negative_count(plan):
     buf = b"\x01\x02\x03\x04"
     with pytest.raises(ValueError, match="must be non-negative"):
         list(plan.iter_tuples(buf, 0, count=-1))
+
+
+# ------------------------------------------------------------- fix 4
+@pytest.mark.parametrize("BitVector", _BACKENDS)
+def test_pop_honors_explicit_default_none(BitVector):
+    v = BitVector("1010")
+    # an explicit default (including None) is returned on an out-of-range index
+    assert v.pop(99, default=None) is None
+    assert v.pop(99, default="x") == "x"
+    assert v.pop(99, default=7) == 7
+    # omitting the default still raises
+    with pytest.raises(IndexError):
+        v.pop(99)
+    with pytest.raises(IndexError, match="empty"):
+        BitVector().pop()
+    # an explicit default on an empty vector is returned, not raised
+    assert BitVector().pop(0, default=None) is None
+    # a normal pop is unchanged (returns the bit and mutates)
+    assert v.pop() == 0 and v.to01() == "101"
+
+
+def test_bound_bits_pop_omitted_default_still_errors():
+    # BoundBits wraps a fixed-length field: pop is categorically disallowed
+    # (ValueError), and an omitted default must NOT silently become None.
+    class R(Struct, endian="big"):
+        a: UInt8
+
+    bb = R(a=0b10100000).sizedview.a.bits
+    for call in (lambda: bb.pop(99), lambda: bb.pop(99, default=None), lambda: bb.pop()):
+        with pytest.raises(ValueError, match="invariant"):
+            call()
+
+
+# ------------------------------------------------------------- fix 5
+def test_conversions_lazy_reexport_resolves_all_names():
+    import bytemaker.conversions as conv
+
+    for name in conv.__all__:
+        assert getattr(conv, name) is not None
+    with pytest.raises(AttributeError):
+        conv.does_not_exist
+
+
+def test_legacy_aggregate_importable_first_no_cycle(tmp_path):
+    # A fresh interpreter importing the frozen oracle FIRST must not hit the
+    # conversions/__init__ import cycle (regression guard for the lazy fix).
+    import os
+
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    env = dict(os.environ, PYTHONPATH=repo_root)
+    code = (
+        "from bytemaker import _legacy_aggregate\n"
+        "from bytemaker.conversions import to_bytes_aggregate, ConversionInfo\n"
+        "assert to_bytes_aggregate is not None and ConversionInfo is not None\n"
+        "print('ok')\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, env=env
+    )
+    assert result.returncode == 0, result.stderr
+    assert "ok" in result.stdout
