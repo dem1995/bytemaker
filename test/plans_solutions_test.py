@@ -43,6 +43,33 @@ def test_iter_tuples_over_count_raises():
         list(ShiftRec.plan.iter_tuples(b"\x12\x34" * 2, 0, count=4))
 
 
+@pytest.mark.parametrize("plan", [ShiftRec.plan, Aligned.plan])
+def test_iter_tuples_rejects_out_of_buffer_offset(plan):
+    # A negative offset inflated avail ((len - -8) // size) and sliced
+    # Python-style from the END: silently wrong records on the shiftmask
+    # tier, a confusing struct.error on the struct tier. Both now raise.
+    buf = b"\x12\x34" * 4
+    with pytest.raises(ValueError, match="outside the buffer"):
+        list(plan.iter_tuples(buf, -2))
+    with pytest.raises(ValueError, match="outside the buffer"):
+        list(plan.iter_tuples(buf, len(buf) + 1))
+    # the boundary itself is legal: zero whole records remain
+    assert list(plan.iter_tuples(buf, len(buf))) == []
+
+
+def test_num_bytes_symmetry():
+    """One spelling across the schema surface (Plan had it; Array had it;
+    Struct and BitType now do too)."""
+    from bytemaker.bittypes import UInt4, UInt16
+    from bytemaker.structs import Array
+
+    assert ShiftRec.plan.num_bytes == 2
+    assert ShiftRec.num_bytes == 2 == Aligned.num_bytes
+    assert Array.of(UInt16, 3).num_bytes == 6
+    assert UInt16.num_bytes == 2
+    assert UInt4.num_bytes == 1  # sub-byte rounds up, like len(bytes(box))
+
+
 # ------------------------------------------------------------- plans-2
 @pytest.mark.parametrize("plan", [ShiftRec.plan, Aligned.plan])
 def test_pack_tuple_rejects_wrong_arity(plan):

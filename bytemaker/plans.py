@@ -305,6 +305,15 @@ class Plan:
         """
         size = self.num_bytes
         view = memoryview(buf)
+        # A negative offset would INFLATE avail ((len - -8) // size) and
+        # then slice Python-style from the end: silently wrong records on
+        # the shiftmask tier, a confusing struct.error on the struct tier.
+        # Record offsets are not string indices — reject out-of-buffer.
+        if offset < 0 or offset > len(view):
+            raise ValueError(
+                f"iter_tuples: offset {offset} is outside the buffer"
+                f" (0..{len(view)})"
+            )
         avail = (len(view) - offset) // size
         if count is None:
             count = avail

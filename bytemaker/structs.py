@@ -427,7 +427,7 @@ class _ArrayField:
 # Annotation-only ClassVars (invisible to hasattr on the base) that the
 # metaclass assigns per class; everything else reserved is caught by the
 # hasattr-over-bases check (which auto-covers future API) or the _bm_ prefix.
-_RESERVED_FIELD_NAMES = frozenset({"plan", "num_bits"})
+_RESERVED_FIELD_NAMES = frozenset({"plan", "num_bits", "num_bytes"})
 
 
 # --------------------------------------------------------------------------
@@ -813,9 +813,10 @@ class StructMeta(type):
     """Metaclass of :class:`Struct`: turns annotated class bodies into
     compiled, slots-backed record classes, and provides ``T * N`` sugar."""
 
-    # Compiled-class attribute, declared here so assignments in __new__
+    # Compiled-class attributes, declared here so assignments in __new__
     # typecheck (runtime storage is on each concrete class).
     _bm_adapters: Dict[str, Adapter]
+    num_bytes: int
 
     def __new__(
         mcs,
@@ -946,6 +947,7 @@ class StructMeta(type):
         plan = compile_plan(field_defs, endian, bit_order, owner_name=name)
         cls.plan = plan
         cls.num_bits = plan.num_bits
+        cls.num_bytes = plan.num_bytes
         cls._bm_concrete = True
         cls._bm_fields = tuple(field_names)
         cls._bm_field_types = dict(field_defs)
@@ -1010,6 +1012,7 @@ class Struct(metaclass=StructMeta):
 
     plan: ClassVar[Plan]
     num_bits: ClassVar[int]
+    num_bytes: ClassVar[int]
     _bm_concrete: ClassVar[bool] = False
     _bm_fields: ClassVar[Tuple[str, ...]] = ()
     _bm_field_types: ClassVar[Dict[str, type]] = {}

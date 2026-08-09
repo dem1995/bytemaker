@@ -213,6 +213,19 @@ class BitType(ABC, Generic[T], metaclass=BitTypeMeta):
         """
         return cls._num_bits
 
+    @classproperty
+    @classmethod
+    def num_bytes(cls) -> int:
+        """
+        The whole bytes this type's serialized form occupies (sub-byte
+        widths round up, matching ``len(bytes(instance))``). Symmetric
+        with ``Plan.num_bytes`` / ``Array.num_bytes`` / ``Struct.num_bytes``.
+
+        Returns:
+            int: The number of bytes in the BitType's serialized form.
+        """
+        return (cls._num_bits + 7) // 8
+
     @property
     @abstractmethod
     def value(self) -> T:
