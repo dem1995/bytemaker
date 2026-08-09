@@ -1,7 +1,7 @@
 """
 Differential tests: the plan-compiled fast paths in
 bytemaker.conversions.aggregate_types must be byte- and value-identical to
-the frozen reference implementation in bytemaker._legacy_aggregate, over
+the frozen reference implementation in bytemaker.conversions._legacy_aggregate, over
 randomized record layouts and values.
 """
 
@@ -10,7 +10,7 @@ from dataclasses import make_dataclass
 
 import pytest
 
-from bytemaker import _legacy_aggregate as legacy
+from bytemaker.conversions import _legacy_aggregate as legacy
 from bytemaker.bittypes import (
     BitType,
     Buffer,
@@ -141,17 +141,23 @@ def test_differential_signed_magnitude_config(endianness):
 
 
 def test_ineligible_layouts_fall_back():
-    """ctypes/PyType/nested-dataclass fields must still work (via the
-    reference path) and match the oracle."""
+    """ctypes/PyType/nested-dataclass fields must still work and round-trip.
+
+    (This used to also assert equality with legacy.to_bytes_aggregate —
+    a tautology: for ineligible layouts the public function DELEGATES to
+    the reference implementation, so both sides ran the same code and the
+    comparison could never fail. The real content is that the fallback
+    routing works end to end.)"""
     import ctypes
 
-    Inner, inner_fields = make_dataclass("Inner", [("x", UInt8)]), [("x", UInt8)]
+    Inner = make_dataclass("Inner", [("x", UInt8)])
     Outer = make_dataclass("Outer", [("n", Inner), ("c", ctypes.c_uint16), ("p", int)])
     inst = Outer(Inner(UInt8(7)), ctypes.c_uint16(513), 9)
     for endianness in ("big", "little"):
-        assert to_bytes_aggregate(
-            inst, endianness=endianness
-        ) == legacy.to_bytes_aggregate(inst, endianness=endianness)
+        blob = to_bytes_aggregate(inst, endianness=endianness)
+        assert isinstance(blob, bytes) and len(blob) == (8 + 16 + 32) // 8
+        back = from_bytes_aggregate(blob, Outer, endianness=endianness)
+        assert back.n.x.value == 7 and back.c.value == 513 and back.p == 9
 
 
 def test_from_bytes_is_array_returns_list():

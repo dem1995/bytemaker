@@ -2,13 +2,14 @@
 helpers, re-exported so ``from bytemaker.conversions import to_bytes_aggregate``
 works (mirroring the bittypes/ and bitvector/ subpackages).
 
-The re-export is lazy (PEP 562 module ``__getattr__``): eagerly importing
-``aggregate_types`` here would close an import cycle, because
-``_legacy_aggregate`` imports ``conversions.ctypes_`` (running this package
-init) while ``aggregate_types`` imports back from ``_legacy_aggregate``. So
-``from bytemaker import _legacy_aggregate`` as a first import — and running the
-parity test files in isolation — would fail at collection. Lazy resolution
-keeps the convenient names without loading those modules at package-init time.
+The re-export is lazy (PEP 562 module ``__getattr__``) as a deliberate
+lightweight-init choice: sibling modules (``_legacy_aggregate``,
+``aggregate_types``) import each other through this package, and lazy
+resolution keeps the convenient names without loading the whole conversion
+stack at package-init time or caring about which sibling imports first.
+(Historically this laziness was load-bearing — ``_legacy_aggregate`` lived
+at the package root and eager re-export here closed a real import cycle;
+since its move into conversions/ the laziness is a preference, not a fix.)
 """
 
 import importlib

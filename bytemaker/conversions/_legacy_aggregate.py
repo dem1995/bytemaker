@@ -1,19 +1,19 @@
 """
-The frozen 0.12 aggregate-conversion implementation.
+The pre-plan-compiler (0.12) aggregate-conversion reference implementation.
 
-This module is the pre-plan-compiler reference implementation of the aggregate
-conversion functions, kept verbatim (below this docstring) for two purposes:
+Two roles:
 
 1. **Fallback**: ``bytemaker.conversions.aggregate_types`` routes eligible
    dataclasses through compiled ``bytemaker.plans`` fast paths and delegates
    everything else (ctypes fields, PyType fields, nested dataclasses,
-   sub-byte-field dataclasses, ...) here unchanged.
+   sub-byte-field dataclasses, and all bit-level calls) here unchanged.
 2. **Differential-test oracle**: the fast paths are required to be
    byte-identical to this implementation; ``test/plan_fastpath_test.py``
    enforces that over randomized layouts.
 
-Do not modify the implementation below except to sync a deliberate upstream
-behavior change into both paths at once.
+Coordination procedure (not a change veto): a deliberate behavior change
+lands in this module AND the fast paths in the same change, with the
+parity suite re-run — never in one path alone.
 """
 import ctypes
 import dataclasses
@@ -50,9 +50,14 @@ UnitType = Union[CType, BitType, PyType]
 # PyType is a Union of int, float, str, bytes, bool, and Enum
 
 
+_HINTS_CACHE: Dict[type, Dict[str, type]] = {}
+_UNIT_BITS_CACHE: Dict = {}  # key: UnitType member (wider than plain `type`)
+
+
 def resolve_field_types(dataclass_type: type) -> Dict[str, type]:
     """
-    Resolve a dataclass's field annotations to concrete types.
+    Resolve a dataclass's field annotations to concrete types, cached per
+    class.
 
     Field annotations are strings rather than types whenever the defining
     module uses ``from __future__ import annotations`` (PEP 563) or otherwise
@@ -64,37 +69,64 @@ def resolve_field_types(dataclass_type: type) -> Dict[str, type]:
     For non-stringized annotations the field types are already real objects and
     are returned unchanged, so this is safe to use unconditionally.
 
+    ``get_type_hints`` dominated the per-call cost of the 0.11/0.12 aggregate
+    functions (~50 us of every call), so its result is cached per class HERE
+    — in the reference implementation itself. (It used to be cached by a
+    wrapper in ``aggregate_types`` that monkeypatched this module's globals
+    on import, making this module's behavior depend on import order.)
+    Mutating a class's annotations after first use is not supported.
+
     Returns:
         Dict[str, type]: A mapping from field name to its resolved type.
     """
-    return get_type_hints(dataclass_type)
+    try:
+        return _HINTS_CACHE[dataclass_type]
+    except (KeyError, TypeError):
+        pass
+    hints = get_type_hints(dataclass_type)
+    try:
+        _HINTS_CACHE[dataclass_type] = hints
+    except TypeError:
+        pass
+    return hints
 
 
 def count_bits_in_unit_type(unit_type: UnitType) -> int:
-    """
-    Function to count the number of bits in a UnitType-\
-        a Python, type, ctype, or BitType (bytemaker type).
-    """
+    """Count the number of bits in a UnitType — a Python type, ctype, or
+    BitType (bytemaker type).
 
-    # print("Counting bits in unit type", unit_type)
+    Cached per type, here in the reference implementation (previously a
+    caching wrapper in ``aggregate_types`` monkeypatched this module's
+    global, making behavior depend on import order).
+
+    Returns:
+        int: The number of bits the unit type occupies.
+    """
+    try:
+        return _UNIT_BITS_CACHE[unit_type]
+    except (KeyError, TypeError):
+        pass
     if is_subclass_of_union(unit_type, CType):
-        return ctypes.sizeof(unit_type) * 8
+        bits = ctypes.sizeof(unit_type) * 8
     elif is_subclass_of_union(unit_type, BitType):
-        return unit_type.num_bits
+        bits = unit_type.num_bits
     elif is_subclass_of_union(unit_type, PyType):
-        # print(ConversionConfig.get_conversion_info(unit_type).num_bits)
-        return ConversionConfig.get_conversion_info(unit_type).num_bits("")
+        bits = ConversionConfig.get_conversion_info(unit_type).num_bits("")
     elif is_subclass_of_union(unit_type, DataClassType):
-        size_in_bits = 0
+        bits = 0
         field_types = resolve_field_types(unit_type)
         for field in dataclasses.fields(unit_type):
-            size_in_bits += count_bits_in_unit_type(field_types[field.name])
-        return size_in_bits
+            bits += count_bits_in_unit_type(field_types[field.name])
     else:
         raise TypeError(
             f"Cannot count bits in {unit_type} because the unit type"
             f" is not a CType, YType, PyType, or dataclass"
         )
+    try:
+        _UNIT_BITS_CACHE[unit_type] = bits
+    except TypeError:
+        pass
+    return bits
 
 
 def count_bits_in_aggregate_type(aggregate_type: type) -> int:

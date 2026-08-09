@@ -1,27 +1,5 @@
 # mypy error baseline for bytemaker/ - see typing_regression_test.py
 # mypy-version: 2.3.0
-bytemaker/_legacy_aggregate.py :: arg-type :: Argument 1 to "count_bits_in_unit_type" has incompatible type "type"; expected "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | BitType[Any] | PyType"
-bytemaker/_legacy_aggregate.py :: arg-type :: Argument 1 to "count_bits_in_unit_type" has incompatible type "type[str]"; expected "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | BitType[Any] | PyType"
-bytemaker/_legacy_aggregate.py :: arg-type :: Argument 1 to "ctype_to_bits" has incompatible type "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | BitType[Any] | PyType"; expected "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any]"
-bytemaker/_legacy_aggregate.py :: arg-type :: Argument 1 to "ctype_to_bytes" has incompatible type "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | BitType[Any] | PyType"; expected "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any]"
-bytemaker/_legacy_aggregate.py :: arg-type :: Argument 1 to "fields" has incompatible type "DataClassType"; expected "DataclassInstance | type[DataclassInstance]"
-bytemaker/_legacy_aggregate.py :: arg-type :: Argument 1 to "fields" has incompatible type "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | BitType[Any] | PyType"; expected "DataclassInstance | type[DataclassInstance]"
-bytemaker/_legacy_aggregate.py :: arg-type :: Argument 1 to "get_conversion_info" of "ConversionConfig" has incompatible type "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | BitType[Any] | PyType"; expected "type"
-bytemaker/_legacy_aggregate.py :: arg-type :: Argument 1 to "is_subclass_of_union" has incompatible type "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | BitType[Any] | PyType"; expected "type"
-bytemaker/_legacy_aggregate.py :: arg-type :: Argument 1 to "resolve_field_types" has incompatible type "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | BitType[Any] | PyType"; expected "type"
-bytemaker/_legacy_aggregate.py :: arg-type :: Argument 1 to "sizeof" has incompatible type "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | BitType[Any] | PyType"; expected "_CData | _SimpleCData[Any] | _Pointer[Any] | CFuncPtr | _ctypes.Union | Structure | Array[Any] | type[_CData] | type[_SimpleCData[Any]] | type[_Pointer[Any]] | type[CFuncPtr] | type[_ctypes.Union] | type[Structure] | type[Array[Any]]"
-bytemaker/_legacy_aggregate.py :: arg-type :: Argument 1 to "to_bits_individual" has incompatible type "DataClassType | BitType[Any] | _SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | PyType | Iterable[Any]"; expected "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | BitType[Any] | PyType"
-bytemaker/_legacy_aggregate.py :: arg-type :: Argument 1 to "to_bytes_individual" has incompatible type "DataClassType | BitType[Any] | _SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | PyType | Iterable[Any]"; expected "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | BitType[Any] | PyType"
-bytemaker/_legacy_aggregate.py :: arg-type :: Argument 2 to "is_instance_of_union" has incompatible type "<typing special form>"; expected "type"
-bytemaker/_legacy_aggregate.py :: assignment :: Incompatible types in assignment (expression has type "bytes", variable has type "bytearray")
-bytemaker/_legacy_aggregate.py :: return-value :: Incompatible return value type (got "BitType[Any]", expected "PyType")
-bytemaker/_legacy_aggregate.py :: return-value :: Incompatible return value type (got "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any]", expected "PyType")
-bytemaker/_legacy_aggregate.py :: str-bytes-safe :: If x = b'abc' then f"{x}" or "{}".format(x) produces "b'abc'", not "abc". If this is desired behavior, use f"{x!r}" or "{!r}".format(x). Otherwise, decode the bytes
-bytemaker/_legacy_aggregate.py :: union-attr :: Item "Array[Any]" of "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | BitType[Any] | PyType" has no attribute "num_bits"
-bytemaker/_legacy_aggregate.py :: union-attr :: Item "PyType" of "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | BitType[Any] | PyType" has no attribute "num_bits"
-bytemaker/_legacy_aggregate.py :: union-attr :: Item "Structure" of "Structure | _ctypes.Union | Iterable[Any]" has no attribute "__iter__" (not iterable)
-bytemaker/_legacy_aggregate.py :: union-attr :: Item "_SimpleCData[Any]" of "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | BitType[Any] | PyType" has no attribute "num_bits"
-bytemaker/_legacy_aggregate.py :: union-attr :: Item "_ctypes.Union" of "Structure | _ctypes.Union | Iterable[Any]" has no attribute "__iter__" (not iterable)
 bytemaker/bittypes/bittype.py :: arg-type :: Argument "bits" to "BitType" has incompatible type "bytes"; expected "BitVector | None"
 bytemaker/bittypes/bittype.py :: arg-type :: Argument 1 has incompatible type "BitVector"; expected "BitSelf"
 bytemaker/bittypes/bittype.py :: arg-type :: Argument 2 to "copysign" has incompatible type "T"; expected "SupportsFloat | SupportsIndex"
@@ -122,6 +100,28 @@ bytemaker/bitvector/bitvector_with_bitarray_speedup.py :: union-attr :: Item "st
 bytemaker/bitvector/bitvector_with_bitarray_speedup.py :: valid-type :: Variable "cls" is not valid as a type
 bytemaker/bitvector/fixed.py :: misc :: Signatures of "__iadd__" and "__add__" are incompatible
 bytemaker/bitvector/fixed.py :: misc :: Signatures of "__imul__" and "__mul__" are incompatible
+bytemaker/conversions/_legacy_aggregate.py :: arg-type :: Argument 1 to "count_bits_in_unit_type" has incompatible type "type"; expected "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | BitType[Any] | PyType"
+bytemaker/conversions/_legacy_aggregate.py :: arg-type :: Argument 1 to "count_bits_in_unit_type" has incompatible type "type[str]"; expected "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | BitType[Any] | PyType"
+bytemaker/conversions/_legacy_aggregate.py :: arg-type :: Argument 1 to "ctype_to_bits" has incompatible type "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | BitType[Any] | PyType"; expected "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any]"
+bytemaker/conversions/_legacy_aggregate.py :: arg-type :: Argument 1 to "ctype_to_bytes" has incompatible type "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | BitType[Any] | PyType"; expected "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any]"
+bytemaker/conversions/_legacy_aggregate.py :: arg-type :: Argument 1 to "fields" has incompatible type "DataClassType"; expected "DataclassInstance | type[DataclassInstance]"
+bytemaker/conversions/_legacy_aggregate.py :: arg-type :: Argument 1 to "fields" has incompatible type "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | BitType[Any] | PyType"; expected "DataclassInstance | type[DataclassInstance]"
+bytemaker/conversions/_legacy_aggregate.py :: arg-type :: Argument 1 to "get_conversion_info" of "ConversionConfig" has incompatible type "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | BitType[Any] | PyType"; expected "type"
+bytemaker/conversions/_legacy_aggregate.py :: arg-type :: Argument 1 to "is_subclass_of_union" has incompatible type "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | BitType[Any] | PyType"; expected "type"
+bytemaker/conversions/_legacy_aggregate.py :: arg-type :: Argument 1 to "resolve_field_types" has incompatible type "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | BitType[Any] | PyType"; expected "type"
+bytemaker/conversions/_legacy_aggregate.py :: arg-type :: Argument 1 to "sizeof" has incompatible type "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | BitType[Any] | PyType"; expected "_CData | _SimpleCData[Any] | _Pointer[Any] | CFuncPtr | _ctypes.Union | Structure | Array[Any] | type[_CData] | type[_SimpleCData[Any]] | type[_Pointer[Any]] | type[CFuncPtr] | type[_ctypes.Union] | type[Structure] | type[Array[Any]]"
+bytemaker/conversions/_legacy_aggregate.py :: arg-type :: Argument 1 to "to_bits_individual" has incompatible type "DataClassType | BitType[Any] | _SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | PyType | Iterable[Any]"; expected "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | BitType[Any] | PyType"
+bytemaker/conversions/_legacy_aggregate.py :: arg-type :: Argument 1 to "to_bytes_individual" has incompatible type "DataClassType | BitType[Any] | _SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | PyType | Iterable[Any]"; expected "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | BitType[Any] | PyType"
+bytemaker/conversions/_legacy_aggregate.py :: arg-type :: Argument 2 to "is_instance_of_union" has incompatible type "<typing special form>"; expected "type"
+bytemaker/conversions/_legacy_aggregate.py :: assignment :: Incompatible types in assignment (expression has type "bytes", variable has type "bytearray")
+bytemaker/conversions/_legacy_aggregate.py :: return-value :: Incompatible return value type (got "BitType[Any]", expected "PyType")
+bytemaker/conversions/_legacy_aggregate.py :: return-value :: Incompatible return value type (got "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any]", expected "PyType")
+bytemaker/conversions/_legacy_aggregate.py :: str-bytes-safe :: If x = b'abc' then f"{x}" or "{}".format(x) produces "b'abc'", not "abc". If this is desired behavior, use f"{x!r}" or "{!r}".format(x). Otherwise, decode the bytes
+bytemaker/conversions/_legacy_aggregate.py :: union-attr :: Item "Array[Any]" of "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | BitType[Any] | PyType" has no attribute "num_bits"
+bytemaker/conversions/_legacy_aggregate.py :: union-attr :: Item "PyType" of "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | BitType[Any] | PyType" has no attribute "num_bits"
+bytemaker/conversions/_legacy_aggregate.py :: union-attr :: Item "Structure" of "Structure | _ctypes.Union | Iterable[Any]" has no attribute "__iter__" (not iterable)
+bytemaker/conversions/_legacy_aggregate.py :: union-attr :: Item "_SimpleCData[Any]" of "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | BitType[Any] | PyType" has no attribute "num_bits"
+bytemaker/conversions/_legacy_aggregate.py :: union-attr :: Item "_ctypes.Union" of "Structure | _ctypes.Union | Iterable[Any]" has no attribute "__iter__" (not iterable)
 bytemaker/conversions/aggregate_types.py :: arg-type :: Argument 2 to "is_instance_of_union" has incompatible type "<typing special form>"; expected "type"
 bytemaker/conversions/ctypes_.py :: arg-type :: Argument 1 to "_reversed_ctype_bytes" has incompatible type overloaded function; expected "type"
 bytemaker/conversions/ctypes_.py :: arg-type :: Argument 1 to "sizeof" has incompatible type overloaded function; expected "_CData | _SimpleCData[Any] | _Pointer[Any] | CFuncPtr | _ctypes.Union | Structure | Array[Any] | type[_CData] | type[_SimpleCData[Any]] | type[_Pointer[Any]] | type[CFuncPtr] | type[_ctypes.Union] | type[Structure] | type[Array[Any]]"

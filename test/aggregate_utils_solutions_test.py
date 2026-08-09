@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 import pytest
 
-from bytemaker import _legacy_aggregate as legacy
+from bytemaker.conversions import _legacy_aggregate as legacy
 from bytemaker.bittypes import UInt8, UInt16
 from bytemaker.bitvector import BitVector
 from bytemaker.conversions.aggregate_types import (

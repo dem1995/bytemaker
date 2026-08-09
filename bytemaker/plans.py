@@ -576,7 +576,7 @@ class LegacyRecordPlan:
     """Byte-slicing fast path for a dataclass whose fields are all
     byte-aligned BitType classes.
 
-    Behavior contract: byte-identical to ``bytemaker._legacy_aggregate`` for
+    Behavior contract: byte-identical to ``bytemaker.conversions._legacy_aggregate`` for
     every input either path accepts (enforced by the differential suite).
     Parsing boxes each field with ``bytes_to_bittype`` (bits-authoritative, no
     value computation); packing reuses each instance's canonical bits.

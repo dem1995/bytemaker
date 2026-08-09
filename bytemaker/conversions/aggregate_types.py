@@ -8,9 +8,9 @@ class) through compiled per-class plans (:mod:`bytemaker.plans`): field types
 are resolved and offsets computed once per class instead of per call, and no
 whole-record BitVector is built. Everything else -- ctypes fields, PyType
 fields, nested dataclasses, sub-byte fields, and all bit-level calls --
-delegates to the frozen reference implementation in
-:mod:`bytemaker._legacy_aggregate`, which is also the differential-test
-oracle the fast paths are validated against.
+delegates to the reference implementation in
+:mod:`bytemaker.conversions._legacy_aggregate`, which is also the
+differential-test oracle the fast paths are validated against.
 
 One deliberate behavior fix vs 0.12: ``from_bytes_aggregate(...,
 is_array=True)`` now returns a ``list`` of decoded entries. (Previously it
@@ -20,17 +20,22 @@ for scalar types.)
 
 import struct as _struct
 
-from bytemaker import _legacy_aggregate as _legacy
+from bytemaker.conversions import _legacy_aggregate as _legacy
 
 # Re-exported verbatim (bit-level paths and shared helpers keep the reference
-# implementation; sub-byte-capable callers go through these).
-from bytemaker._legacy_aggregate import (  # noqa: F401
+# implementation; sub-byte-capable callers go through these). The caching of
+# resolve_field_types / count_bits_in_unit_type lives IN the reference module
+# now, so there is a single implementation to import rather than wrappers
+# monkeypatched back into it.
+from bytemaker.conversions._legacy_aggregate import (  # noqa: F401
     AggregateTypeByteConvertible,
     UnitType,
+    count_bits_in_unit_type,
     count_bytes_in_unit_type,
     from_bits_aggregate,
     from_bits_individual,
     from_bytes_individual,
+    resolve_field_types,
     to_bits_aggregate,
     to_bits_individual,
     to_bytes_individual,
@@ -40,7 +45,7 @@ from bytemaker.bittypes import BitType
 from bytemaker.bittypes.bittype import NarrowingConfig
 from bytemaker.bittypes.int import SignedConfig
 from bytemaker.plans import PlanCompileError, compile_legacy_record_plan
-from bytemaker.typing_redirect import Dict, Literal, Union, get_type_hints
+from bytemaker.typing_redirect import Literal, Union
 from bytemaker.utils import (
     DataClassType,
     is_instance_of_union,
@@ -66,64 +71,6 @@ __all__ = [
     "trycast",
 ]
 
-_HINTS_CACHE: Dict[type, Dict[str, type]] = {}
-_UNIT_BITS_CACHE: Dict[type, int] = {}
-
-_orig_count_bits_in_unit_type = _legacy.count_bits_in_unit_type
-
-
-def resolve_field_types(dataclass_type: type) -> Dict[str, type]:
-    """
-    Resolve a dataclass's field annotations to concrete types, cached per
-    class.
-
-    Field annotations are strings rather than types whenever the defining
-    module uses ``from __future__ import annotations`` (PEP 563) or otherwise
-    stringizes its annotations. ``typing.get_type_hints`` evaluates those
-    strings in the namespace of the module that defined the dataclass, so
-    concrete types such as ``SInt16`` resolve correctly. A bare ``eval`` would
-    instead resolve them in bytemaker's own namespace and raise ``NameError``.
-
-    ``get_type_hints`` dominated the per-call cost of the 0.11/0.12 aggregate
-    functions (~50 us of every call), so its result is cached per class here.
-    Mutating a class's annotations after first use is not supported.
-
-    Returns:
-        Dict[str, type]: A mapping from field name to its resolved type.
-    """
-    try:
-        return _HINTS_CACHE[dataclass_type]
-    except (KeyError, TypeError):
-        pass
-    hints = get_type_hints(dataclass_type)
-    try:
-        _HINTS_CACHE[dataclass_type] = hints
-    except TypeError:
-        pass
-    return hints
-
-
-def count_bits_in_unit_type(unit_type) -> int:
-    """Count the number of bits in a UnitType — a Python type, ctype, or
-    BitType (bytemaker type).
-
-    Cached per type.
-
-    Returns:
-        int: The number of bits the unit type occupies.
-    """
-    try:
-        return _UNIT_BITS_CACHE[unit_type]
-    except (KeyError, TypeError):
-        pass
-    bits = _orig_count_bits_in_unit_type(unit_type)
-    try:
-        _UNIT_BITS_CACHE[unit_type] = bits
-    except TypeError:
-        pass
-    return bits
-
-
 def count_bits_in_aggregate_type(aggregate_type: type) -> int:
     """Count the number of bits in an aggregate type — a Python type, ctype,
     BitType (bytemaker type), or a dataclass annotated with those.
@@ -132,13 +79,6 @@ def count_bits_in_aggregate_type(aggregate_type: type) -> int:
         int: The number of bits the aggregate type occupies.
     """
     return _legacy.count_bits_in_aggregate_type(aggregate_type)
-
-
-# Point the reference implementation's module globals at the cached versions,
-# so fallback calls (and its internal recursion) share the per-class caches.
-# Caching is behavior-transparent; the oracle's semantics are unchanged.
-_legacy.resolve_field_types = resolve_field_types
-_legacy.count_bits_in_unit_type = count_bits_in_unit_type
 
 
 def _get_record_plan(aggregate_type):

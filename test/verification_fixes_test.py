@@ -172,14 +172,16 @@ def test_conversions_lazy_reexport_resolves_all_names():
 
 
 def test_legacy_aggregate_importable_first_no_cycle(tmp_path):
-    # A fresh interpreter importing the frozen oracle FIRST must not hit the
-    # conversions/__init__ import cycle (regression guard for the lazy fix).
+    # A fresh interpreter importing the reference implementation FIRST must
+    # work (originally a regression guard for a real conversions/__init__
+    # import cycle when the module lived at the package root; kept as an
+    # import-isolation check now that it lives in conversions/).
     import os
 
     repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     env = dict(os.environ, PYTHONPATH=repo_root)
     code = (
-        "from bytemaker import _legacy_aggregate\n"
+        "from bytemaker.conversions import _legacy_aggregate\n"
         "from bytemaker.conversions import to_bytes_aggregate, ConversionInfo\n"
         "assert to_bytes_aggregate is not None and ConversionInfo is not None\n"
         "print('ok')\n"

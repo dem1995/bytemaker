@@ -9,7 +9,7 @@ from dataclasses import make_dataclass
 
 import pytest
 
-from bytemaker import _legacy_aggregate as legacy
+from bytemaker.conversions import _legacy_aggregate as legacy
 from bytemaker.bittypes import (
     BFloat16,
     Buffer,
