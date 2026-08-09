@@ -1,11 +1,14 @@
 # flake8: noqa
 """
-Differential fuzz tests: the packed pure-Python BitVector implementation
-(`bitvector_speedup`) is driven in lockstep with the byte-per-bit reference
-implementation (`bitvector_native`) through seeded random operation
-sequences. After every step the two must agree on state (to01), on return
-values, and on the exception type raised, and the speedup implementation
-must uphold its packed-representation invariants.
+Differential fuzz tests: each candidate BitVector implementation — the
+packed pure-Python one (`bitvector_speedup`) and the bitarray-backed one
+that actually ships when bitarray is installed
+(`bitvector_with_bitarray_speedup`) — is driven in lockstep with the
+byte-per-bit reference implementation (`bitvector_native`) through seeded
+random operation sequences. After every step the two sides must agree on
+state (to01), on return values, and on the exception type raised, and a
+candidate exposing `_check_invariants` must uphold its representation
+invariants.
 """
 
 import copy
@@ -15,6 +18,24 @@ import pytest
 
 from bytemaker.bitvector.bitvector_native import BitVector as NativeBitVector
 from bytemaker.bitvector.bitvector_speedup import BitVector as SpeedupBitVector
+
+try:
+    from bytemaker.bitvector.bitvector_with_bitarray_speedup import (
+        BitVector as BitarrayBitVector,
+    )
+except ImportError:  # pragma: no cover - bitarray not installed
+    BitarrayBitVector = None
+
+CANDIDATES = [
+    pytest.param(SpeedupBitVector, id="speedup"),
+    pytest.param(
+        BitarrayBitVector,
+        id="bitarray",
+        marks=pytest.mark.skipif(
+            BitarrayBitVector is None, reason="bitarray not installed"
+        ),
+    ),
+]
 
 
 # Marker resolved per-implementation so each side operates on its own class.
@@ -371,14 +392,51 @@ OPS = [
         lambda rng, s: (),
         lambda bv, cls, p: (len(bv), str(bv), repr(bv)),
     ),
+    (
+        "base_strings",  # the bin/hex/oct METHODS (format() is separate)
+        lambda rng, s: (
+            rng.choice(["bin", "hex", "oct"]),
+            rng.choice([None, "_", " "]),
+            rng.choice([1, 2]),
+        ),
+        lambda bv, cls, p: getattr(bv, p[0])(p[1], p[2]),
+    ),
+    (
+        "clear",
+        lambda rng, s: (),
+        lambda bv, cls, p: bv.clear(),
+    ),
+    (
+        "reversed_iter",
+        lambda rng, s: (),
+        lambda bv, cls, p: list(reversed(bv)),
+    ),
+    (
+        "rmul",
+        lambda rng, s: (rng.randint(-1, 3),),
+        lambda bv, cls, p: p[0] * bv,
+    ),
+    (
+        "to_chararray",
+        lambda rng, s: (rng.choice(["latin-1", "utf-8", "ascii"]),),
+        lambda bv, cls, p: bv.to_chararray(p[0]),
+    ),
 ]
 
 CLASSMETHOD_OPS = [
     (
         "from_int",
+        # Includes huge magnitudes and exact powers of two: the float-log2
+        # bit-length bug corrupted from_int silently from 2**49 up.
         lambda rng: (
-            rng.randint(-(2**16), 2**16),
-            rng.choice([None, rng.randint(0, 40)]),
+            rng.choice(
+                [
+                    rng.randint(-(2**16), 2**16),
+                    (2 ** rng.randint(17, 80)) + rng.randint(-2, 2),
+                    -((2 ** rng.randint(17, 80)) + rng.randint(-2, 2)),
+                ]
+            ),
+            rng.choice([None, rng.randint(0, 40), rng.randint(41, 90)]),
         ),
         lambda cls, p: cls.from_int(p[0], p[1]),
     ),
@@ -423,6 +481,43 @@ CLASSMETHOD_OPS = [
         ),
         lambda cls, p: cls(p[0]),
     ),
+    (
+        "fromsize",
+        lambda rng: (rng.randint(-2, 20),),
+        lambda cls, p: cls.fromsize(p[0]),
+    ),
+    (
+        "frombases",
+        lambda rng: (
+            rng.choice(["frombin", "fromhex", "fromoct"]),
+            rng.choice(["", "0b", "0x", "0o"])
+            + "".join(
+                rng.choice("0123456789abcdefg_") for _ in range(rng.randrange(6))
+            ),
+        ),
+        lambda cls, p: getattr(cls, p[0])(p[1]),
+    ),
+    (
+        "from_chararray",
+        lambda rng: (
+            "".join(rng.choice("aA zé€") for _ in range(rng.randrange(5))),
+            rng.choice(["latin-1", "utf-8", "ascii"]),
+        ),
+        lambda cls, p: cls.from_chararray(p[0], p[1]),
+    ),
+    (
+        "cast_if_not_bitvector",
+        lambda rng: (
+            rng.choice(
+                [
+                    "".join(rng.choice("01") for _ in range(rng.randrange(6))),
+                    bytes(rng.randrange(256) for _ in range(rng.randrange(3))),
+                    [rng.choice([0, 1]) for _ in range(rng.randrange(5))],
+                ]
+            ),
+        ),
+        lambda cls, p: cls.cast_if_not_bitvector(p[0]),
+    ),
 ]
 
 
@@ -434,43 +529,52 @@ def _apply(op_apply, bv, cls, params):
         return (None, type(exc).__name__)
 
 
+def _check_candidate_invariants(candidate_bv):
+    """Invariant hook: only the packed speedup implementation defines one."""
+    check = getattr(candidate_bv, "_check_invariants", None)
+    return check() if check is not None else True
+
+
+@pytest.mark.parametrize("candidate_cls", CANDIDATES)
 @pytest.mark.parametrize("seed", [1, 2, 3])
-def test_differential_random_operations(seed):
+def test_differential_random_operations(seed, candidate_cls):
     rng = random.Random(seed)
     state01 = _random01(rng, rng.choice([0, 1, 7, 8, 9, 63, 64, 65, 200]))
     native = NativeBitVector(state01)
-    speedup = SpeedupBitVector(state01)
+    candidate = candidate_cls(state01)
 
     for step in range(600):
         # Occasionally restart from a fresh state (and keep sizes bounded).
         if len(native) > 2000 or rng.random() < 0.01:
             state01 = _random01(rng, rng.choice([0, 1, 7, 8, 9, 63, 64, 65, 200]))
             native = NativeBitVector(state01)
-            speedup = SpeedupBitVector(state01)
+            candidate = candidate_cls(state01)
 
         op_name, op_params, op_apply = rng.choice(OPS)
         # Draw parameters once, from the shared pre-op state.
         params = op_params(rng, native.to01())
 
         native_result, native_exc = _apply(op_apply, native, NativeBitVector, params)
-        speedup_result, speedup_exc = _apply(
-            op_apply, speedup, SpeedupBitVector, params
+        candidate_result, candidate_exc = _apply(
+            op_apply, candidate, candidate_cls, params
         )
 
         context = (
             f"seed={seed} step={step} op={op_name} params={params!r}\n"
             f"native: result={native_result!r} exc={native_exc}\n"
-            f"speedup: result={speedup_result!r} exc={speedup_exc}"
+            f"{candidate_cls.__module__}: result={candidate_result!r}"
+            f" exc={candidate_exc}"
         )
-        assert native_exc == speedup_exc, context
-        assert native_result == speedup_result, context
-        assert native.to01() == speedup.to01(), context
-        assert len(native) == len(speedup), context
-        assert speedup._check_invariants()
+        assert native_exc == candidate_exc, context
+        assert native_result == candidate_result, context
+        assert native.to01() == candidate.to01(), context
+        assert len(native) == len(candidate), context
+        assert _check_candidate_invariants(candidate)
 
 
+@pytest.mark.parametrize("candidate_cls", CANDIDATES)
 @pytest.mark.parametrize("seed", [11, 12])
-def test_differential_classmethods(seed):
+def test_differential_classmethods(seed, candidate_cls):
     rng = random.Random(seed)
     for step in range(400):
         op_name, op_params, op_apply = rng.choice(CLASSMETHOD_OPS)
@@ -483,34 +587,36 @@ def test_differential_classmethods(seed):
                 return (None, type(exc).__name__)
 
         native_result, native_exc = run(NativeBitVector)
-        speedup_result, speedup_exc = run(SpeedupBitVector)
+        candidate_result, candidate_exc = run(candidate_cls)
 
         context = (
             f"seed={seed} step={step} op={op_name} params={params!r}\n"
             f"native: result={native_result!r} exc={native_exc}\n"
-            f"speedup: result={speedup_result!r} exc={speedup_exc}"
+            f"{candidate_cls.__module__}: result={candidate_result!r}"
+            f" exc={candidate_exc}"
         )
-        assert native_exc == speedup_exc, context
-        assert native_result == speedup_result, context
+        assert native_exc == candidate_exc, context
+        assert native_result == candidate_result, context
 
 
+@pytest.mark.parametrize("candidate_cls", CANDIDATES)
 @pytest.mark.parametrize("length", [0, 1, 7, 8, 9, 15, 16, 17, 63, 64, 65, 1000])
-def test_differential_boundary_lengths(length):
+def test_differential_boundary_lengths(length, candidate_cls):
     """Serialization agreement at byte-boundary-straddling lengths."""
     rng = random.Random(length)
     s01 = "".join(rng.choice("01") for _ in range(length))
     native = NativeBitVector(s01)
-    speedup = SpeedupBitVector(s01)
+    candidate = candidate_cls(s01)
 
-    assert bytes(native) == bytes(speedup)
-    assert native.tobytes() == speedup.tobytes()
-    assert native.to_bytes() == speedup.to_bytes()
-    assert native.to_bytes(True) == speedup.to_bytes(True)
+    assert bytes(native) == bytes(candidate)
+    assert native.tobytes() == candidate.tobytes()
+    assert native.to_bytes() == candidate.to_bytes()
+    assert native.to_bytes(True) == candidate.to_bytes(True)
     for signed in (True, False):
         for endianness in ("big", "little"):
-            assert native.to_int(endianness, signed) == speedup.to_int(
+            assert native.to_int(endianness, signed) == candidate.to_int(
                 endianness, signed
             ), (length, endianness, signed)
-    assert native.to01() == speedup.to01()
-    assert list(native) == list(speedup)
-    assert speedup._check_invariants()
+    assert native.to01() == candidate.to01()
+    assert list(native) == list(candidate)
+    assert _check_candidate_invariants(candidate)

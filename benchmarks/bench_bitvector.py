@@ -1,8 +1,10 @@
 # flake8: noqa
 """
-Benchmarks the pure-Python BitVector implementations against each other:
-the byte-per-bit reference (`bitvector_native`) versus the packed
-implementation (`bitvector_speedup`).
+Benchmarks the BitVector implementations against each other: the
+byte-per-bit reference (`bitvector_native`), the packed pure-Python
+implementation (`bitvector_speedup`), and — when bitarray is installed —
+the bitarray-backed implementation that actually ships
+(`bitvector_with_bitarray_speedup`).
 
 Usage: python benchmarks/bench_bitvector.py [--sizes 1024,65536,1048576]
 
@@ -22,6 +24,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from bytemaker.bitvector.bitvector_native import BitVector as NativeBitVector
 from bytemaker.bitvector.bitvector_speedup import BitVector as SpeedupBitVector
+
+try:
+    from bytemaker.bitvector.bitvector_with_bitarray_speedup import (
+        BitVector as BitarrayBitVector,
+    )
+except ImportError:  # bitarray not installed
+    BitarrayBitVector = None
+
+IMPLS = [("native", NativeBitVector), ("speedup", SpeedupBitVector)]
+if BitarrayBitVector is not None:
+    IMPLS.append(("bitarray", BitarrayBitVector))
 
 
 def _time(fn, min_duration=0.05):
@@ -61,7 +74,9 @@ def bench_ops(nbits, quadratic_cap=100_000):
     int_value = rng.getrandbits(nbits - 1) if nbits > 1 else 0
 
     print(f"\n=== {nbits:,} bits ===")
-    print(f"{'operation':34s} {'native':>11s} {'speedup':>11s} {'ratio':>9s}")
+    header = f"{'operation':34s}" + "".join(f" {label:>11s}" for label, _ in IMPLS)
+    header += "".join(f" {'nat/' + label[:3]:>9s}" for label, _ in IMPLS[1:])
+    print(header)
 
     for name, make_op, cap in [
         ("construct from bytes", lambda cls: (lambda: cls(data)), None),
@@ -122,27 +137,32 @@ def bench_ops(nbits, quadratic_cap=100_000):
         if cap is not None and nbits > cap:
             print(f"{name:34s} {'(skipped: quadratic in native)':>33s}")
             continue
-        native_time = _time(make_op(NativeBitVector))
-        speedup_time = _time(make_op(SpeedupBitVector))
-        ratio = native_time / speedup_time if speedup_time else float("inf")
-        print(f"{name:34s} {_fmt(native_time)} {_fmt(speedup_time)} {ratio:8.1f}x")
+        times = [_time(make_op(cls)) for _, cls in IMPLS]
+        row = f"{name:34s}" + "".join(f" {_fmt(t)}" for t in times)
+        for t in times[1:]:
+            ratio = times[0] / t if t else float("inf")
+            row += f" {ratio:8.1f}x"
+        print(row)
 
 
 _E2E_WORKER = """
-import sys, time
+import importlib
+import sys, time, types
 from dataclasses import dataclass
 
 sys.path.insert(0, {repo_path!r})
 
-# Wire the requested implementation in before the rest of the library
-# imports it (bytemaker/__init__.py is empty, so nothing has bound it yet).
-import importlib
-import bytemaker.bitvector as pkg
-
-impl = importlib.import_module({impl_module!r})
-for name in ("BitVector", "BitsCastable", "BitsConstructible"):
-    setattr(pkg, name, getattr(impl, name))
-    setattr(sys.modules["bytemaker.bitvector.bitvector"], name, getattr(impl, name))
+# Wire the requested implementation in BEFORE anything imports bytemaker:
+# bytemaker/__init__.py eagerly imports bittypes, which binds BitVector at
+# module level, so patching after the fact is too late. Pre-seeding the
+# backend-selection module (bytemaker.bitvector.bitvector) with a lazy
+# stub makes every consumer -- including FixedLengthBitVector's base
+# class -- resolve to the requested implementation from the start.
+_stub = types.ModuleType("bytemaker.bitvector.bitvector")
+_stub.__getattr__ = lambda name: getattr(
+    importlib.import_module({impl_module!r}), name
+)
+sys.modules["bytemaker.bitvector.bitvector"] = _stub
 
 from bytemaker.bittypes import Float32, SInt32, UInt8, UInt16
 from bytemaker.conversions.aggregate_types import (
@@ -150,6 +170,7 @@ from bytemaker.conversions.aggregate_types import (
     to_bytes_aggregate,
 )
 
+impl = importlib.import_module({impl_module!r})
 assert sys.modules["bytemaker.bittypes.bittype"].BitVector is impl.BitVector
 
 @dataclass
@@ -184,15 +205,23 @@ def bench_library_e2e():
     import subprocess
 
     repo_path = str(Path(__file__).resolve().parent.parent)
-    results = {}
-    for label, impl_module in [
+    impl_modules = [
         ("native", "bytemaker.bitvector.bitvector_native"),
         ("speedup", "bytemaker.bitvector.bitvector_speedup"),
-    ]:
+    ]
+    if BitarrayBitVector is not None:
+        impl_modules.append(
+            ("bitarray", "bytemaker.bitvector.bitvector_with_bitarray_speedup")
+        )
+    results = {}
+    for label, impl_module in impl_modules:
         code = _E2E_WORKER.format(repo_path=repo_path, impl_module=impl_module)
         output = subprocess.run(
-            [sys.executable, "-c", code], capture_output=True, text=True, check=True
+            [sys.executable, "-c", code], capture_output=True, text=True
         )
+        if output.returncode != 0:
+            print(f"{label:>8s}: worker FAILED\n{output.stderr}")
+            continue
         results[label] = float(output.stdout.strip())
         print(f"{label:>8s}: {_fmt(results[label])} per round trip")
 
@@ -201,10 +230,13 @@ def bench_library_e2e():
         min_duration=0.1,
     )
     print(f"{'struct':>8s}: {_fmt(baseline)} per round trip (reference floor)")
-    print(
-        f"speedup vs native: {results['native'] / results['speedup']:.1f}x;"
-        f" gap to raw struct: {results['speedup'] / baseline:.0f}x"
-    )
+    for label in results:
+        if label == "native":
+            continue
+        print(
+            f"{label} vs native: {results['native'] / results[label]:.1f}x;"
+            f" gap to raw struct: {results[label] / baseline:.0f}x"
+        )
 
 
 if __name__ == "__main__":
