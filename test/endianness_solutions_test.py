@@ -108,5 +108,14 @@ def test_schema_intakes_reject_typos():
         class S(Struct, endian="litle"):
             a: UInt16
 
-    # endian=None still inherits (no validation on the sentinel)
-    assert Array(UInt16, 2).pack([0x0102, 0x0304]) == b"\x01\x02\x03\x04"
+    # endian=None is the "unset" sentinel, not a typo: construction is fine
+    # (as a field it inherits the record's byte order), but standalone use
+    # of multi-byte numeric elements now demands an explicit byte order
+    # instead of silently meaning big.
+    arr = Array(UInt16, 2)
+    assert arr.declared_endian is None and "endian=unset" in repr(arr)
+    with pytest.raises(ValueError, match="no byte order declared"):
+        arr.pack([0x0102, 0x0304])
+    explicit = Array(UInt16, 2, endian="big")
+    assert explicit.declared_endian == "big"
+    assert explicit.pack([0x0102, 0x0304]) == b"\x01\x02\x03\x04"

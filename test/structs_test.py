@@ -1083,7 +1083,11 @@ def test_codec_class_level_pack_convention():
     assert not isinstance(UInt16, Codec)
     d = WarpDestination(1, 2, 3, -4, 5)
     assert WarpDestination.pack(d) == d.pack()
-    assert (UInt16 * 2).pack([1, 2]) == b"\x00\x01\x00\x02"
+    assert Array.of(UInt16, 2, endian="big").pack([1, 2]) == b"\x00\x01\x00\x02"
+    # T * N leaves the byte order unset: standalone multi-byte numeric use
+    # must say which (as a field it inherits the record's).
+    with pytest.raises(ValueError, match="no byte order declared"):
+        (UInt16 * 2).pack([1, 2])
 
 
 # ------------------------------------------------ field()/array() specifiers

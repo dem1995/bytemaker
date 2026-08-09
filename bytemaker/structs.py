@@ -1600,6 +1600,18 @@ class Array(typing.Generic[V]):
         return self._endian
 
     @property
+    def declared_endian(self) -> Optional[Literal["big", "little"]]:
+        """The byte order this Array was DECLARED with, or None when unset.
+
+        One Array object means two things: standalone, an unset array
+        resolves to big (the historical default, now guarded — see
+        parse/pack); as a Struct field it inherits the record's byte
+        order like a C array. ``endian`` always answers with the resolved
+        standalone value, so this is the only way to tell "explicitly
+        big" from "unset"."""
+        return self._endian if self._endian_set else None
+
+    @property
     def num_bits(self) -> int:
         return self._num_bits
 
@@ -1723,6 +1735,24 @@ class Array(typing.Generic[V]):
                 f" (element is {elem_bits} bits); as a Struct FIELD this"
                 f" array is supported — the plan flattens its elements"
             )
+        # Multi-byte NUMERIC elements have a byte order, and an unset one
+        # silently meant big here while meaning inherit-from-record as a
+        # field — the exact coin flip that byte-reversed a GBA pointer
+        # table. Standalone use now requires saying which. (Text/bytes
+        # and single-byte elements are byte-order-agnostic; Struct and
+        # Array elements carry their own.)
+        if (
+            not self._endian_set
+            and self._scalar_codec is not None
+            and self._scalar_codec[0] in ("u", "s", "f")
+            and elem_bits > 8
+        ):
+            raise ValueError(
+                f"{self!r}.{op}: no byte order declared — standalone"
+                f" {op} of multi-byte numeric elements needs an explicit"
+                f" endian= (as a Struct field, an unset array inherits"
+                f" the record's byte order)"
+            )
 
     def parse(self, data: BytesLike) -> List[V]:
         self._require_whole_byte_elements("parse")
@@ -1821,7 +1851,9 @@ class Array(typing.Generic[V]):
     def __repr__(self):
         name = getattr(self.element, "__name__", None) or repr(self.element)
         adapted = f", adapt={self._adapter.name}" if self._adapter else ""
-        return f"Array({name} * {self.count}, endian={self.endian!r}{adapted})"
+        # An unset byte order must not read as an explicit one.
+        endian = f"endian={self._endian!r}" if self._endian_set else "endian=unset"
+        return f"Array({name} * {self.count}, {endian}{adapted})"
 
 
 # --------------------------------------------------------------------------
