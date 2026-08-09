@@ -53,6 +53,7 @@ from bytemaker.typing_redirect import (
     Iterator,
     List,
     Literal,
+    Mapping,
     Optional,
     Sequence,
     Tuple,
@@ -427,15 +428,20 @@ def compile_plan(
     endian: Literal["big", "little"],
     bit_order: Literal["lsb", "msb"],
     owner_name: str = "<record>",
+    endian_overrides: Optional[Mapping[str, Literal["big", "little"]]] = None,
 ) -> Plan:
     """Compile ``(name, type)`` field definitions into a :class:`Plan`.
 
     Types may be scalar BitType classes or Struct classes (flattened, their
-    leaves keeping the child's endianness). Raises :class:`PlanCompileError`
-    (at import time, when called from Struct creation) for malformed layouts.
+    leaves keeping the child's endianness). ``endian_overrides`` maps
+    top-level scalar field names to a per-field byte order (the
+    ``field(T, endian=...)`` spelling; validated by the caller). Raises
+    :class:`PlanCompileError` (at import time, when called from Struct
+    creation) for malformed layouts.
     """
     if not field_defs:
         raise PlanCompileError(f"{owner_name} declares no fields")
+    endian_overrides = endian_overrides or {}
 
     flat: List[FieldSpec] = []
     offset = 0
@@ -501,7 +507,7 @@ def compile_plan(
         offset += width
 
     for name, ftype in field_defs:
-        add("", name, ftype, endian)
+        add("", name, ftype, endian_overrides.get(name, endian))
 
     if offset % 8:
         raise PlanCompileError(

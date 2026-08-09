@@ -442,9 +442,27 @@ def _resolve_hints(cls) -> Dict[str, Any]:
         return typing.get_type_hints(cls)
 
 
+def _reject_endian_tag_metadata(owner: str, field_name: str, hint) -> None:
+    """A byte-order string in Annotated metadata — the spelling a user is
+    most likely to guess for per-field endianness — was silently ignored
+    and produced record-order bytes. Refuse it with the real spelling."""
+    if Annotated is None or get_origin(hint) is not Annotated:
+        return
+    for meta in get_args(hint)[1:]:
+        if isinstance(meta, str) and meta.lower() in ("big", "little", "be", "le"):
+            raise PlanCompileError(
+                f"{owner}.{field_name}: Annotated metadata {meta!r} looks"
+                f" like a byte order and would be silently ignored;"
+                f" per-field endianness is spelled"
+                f" field(T, endian='big'/'little') (or array(T, n,"
+                f" endian=...) for arrays)"
+            )
+
+
 def _unwrap_annotation(owner: str, field: str, hint) -> type:
     """``Annotated[int, UInt8]`` -> ``UInt8``; BitType/Struct classes pass
     through; anything else is a compile error."""
+    _reject_endian_tag_metadata(owner, field, hint)
     if Annotated is not None and get_origin(hint) is Annotated:
         for meta in get_args(hint)[1:]:
             if isinstance(meta, (StructMeta, Array)) or (
@@ -537,6 +555,7 @@ def _check_spec_annotation(owner, field_name, bittype, annotation, adapter=None)
     opt-out."""
     if annotation is None:
         return
+    _reject_endian_tag_metadata(owner, field_name, annotation)
     ann = annotation
     if Annotated is not None and get_origin(ann) is Annotated:
         ann = get_args(ann)[0]
@@ -750,15 +769,22 @@ class _FieldSpec:
     is spelled ``name: <plain type> = field(...)``, so the annotation
     stays the plain checker type."""
 
-    __slots__ = ("bittype", "default", "adapter")
+    __slots__ = ("bittype", "default", "adapter", "endian")
 
-    def __init__(self, bittype, default=_MISSING, adapter=None):
+    def __init__(self, bittype, default=_MISSING, adapter=None, endian=None):
         self.bittype = bittype
         self.default = default
         self.adapter = adapter
+        self.endian = endian
 
 
-def field(bittype: Any, *, default: Any = _MISSING, adapt: Any = None) -> Any:
+def field(
+    bittype: Any,
+    *,
+    default: Any = _MISSING,
+    adapt: Any = None,
+    endian: Any = None,
+) -> Any:
     """Declare a Struct field whose *checker* type is the annotation and
     whose *wire* type is ``bittype`` — a scalar BitType class, a
     ``String``/``Buffer`` type (e.g. from ``String.of(...)``), a nested
@@ -784,6 +810,15 @@ def field(bittype: Any, *, default: Any = _MISSING, adapt: Any = None) -> Any:
     Scalar wire types only (an adapted :class:`Array` is a standalone
     codec; nested Structs adapt their own fields).
 
+    ``endian`` overrides the record's byte order for THIS multi-byte
+    numeric field (the C-struct rarity a mixed-endian ROM table needs)::
+
+        char_number: int = field(UInt16, endian="big")   # in an LE record
+
+    Text/bytes fields have no byte order, nested Structs declare their
+    own at their class definition, and arrays spell it ``array(T, n,
+    endian=...)`` — each of those is refused here with directions.
+
     A Struct-valued ``default`` (scalar or array element) is detach-copied
     per instance at ``__init__`` time, so default-constructed records never
     share one mutable instance; immutable defaults are bound as-is.
@@ -793,7 +828,9 @@ def field(bittype: Any, *, default: Any = _MISSING, adapt: Any = None) -> Any:
         raise TypeError(
             f"adapt= must be a bytemaker.adapters.Adapter, got {adapt!r}"
         )
-    return _FieldSpec(bittype, default, adapt)
+    if endian is not None:
+        validate_endianness(endian, name="field endian", exc=PlanCompileError)
+    return _FieldSpec(bittype, default, adapt, endian)
 
 
 def array(
@@ -929,6 +966,29 @@ class StructMeta(type):
                     f" standalone codec and is not supported as a Struct"
                     f" field yet; parse/pack it explicitly"
                 )
+        # Per-field byte-order overrides (field(T, endian=...)): only
+        # multi-byte numeric scalars have one to override.
+        endian_overrides: Dict[str, str] = {}
+        for n, spec in specs.items():
+            if spec.endian is None:
+                continue
+            ftype = ftype_by_name[n]
+            if isinstance(ftype, StructMeta):
+                raise PlanCompileError(
+                    f"{name}.{n}: a nested Struct declares its own byte"
+                    f" order at ITS class definition (endian= there)"
+                )
+            if isinstance(ftype, Array):
+                raise PlanCompileError(
+                    f"{name}.{n}: array fields spell their byte order as"
+                    f" array(element, count, endian=...)"
+                )
+            if issubclass(ftype, (String, Buffer)):
+                raise PlanCompileError(
+                    f"{name}.{n}: text/bytes fields are byte-order-agnostic"
+                    f" (stream order, like C char[]); drop endian="
+                )
+            endian_overrides[n] = spec.endian
         # field()/array() fields carry the wire type on the RHS and the plain
         # checker type in the annotation; verify they agree, so the static
         # type a checker trusts matches what the field actually holds.
@@ -945,7 +1005,13 @@ class StructMeta(type):
         if bit_order not in ("lsb", "msb"):
             raise PlanCompileError(f"{name}: bit_order must be 'lsb' or 'msb'")
 
-        plan = compile_plan(field_defs, endian, bit_order, owner_name=name)
+        plan = compile_plan(
+            field_defs,
+            endian,
+            bit_order,
+            owner_name=name,
+            endian_overrides=endian_overrides,
+        )
         cls.plan = plan
         cls.num_bits = plan.num_bits
         cls.num_bytes = plan.num_bytes

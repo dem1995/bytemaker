@@ -119,3 +119,77 @@ def test_schema_intakes_reject_typos():
     explicit = Array(UInt16, 2, endian="big")
     assert explicit.declared_endian == "big"
     assert explicit.pack([0x0102, 0x0304]) == b"\x01\x02\x03\x04"
+
+
+# ---------------------------------------------- wd-4: per-field endianness
+def test_field_endian_override_mixed_record():
+    from bytemaker.structs import field
+
+    class Mixed(Struct, endian="little"):
+        char_number: int = field(UInt16, endian="big")
+        width: UInt16  # record order (little)
+
+    m = Mixed(char_number=0x1234, width=0x5678)
+    assert m.pack() == b"\x12\x34\x78\x56"  # BE field beside an LE field
+    assert Mixed.parse(m.pack()) == m
+    assert Mixed.plan.tier == "shiftmask"  # mixed order leaves the struct tier
+
+
+def test_field_endian_override_font_shape():
+    # The real case: a big-endian index inside a little-endian ROM record,
+    # previously only expressible by flipping the whole record's endian
+    # (which worked only because the other field was order-agnostic bytes).
+    from bytemaker.bittypes import Buffer
+    from bytemaker.structs import field
+
+    Pix = Buffer.of(nbytes=2, name="Pix2")
+
+    class FontEntry(Struct, endian="little"):
+        char_number: int = field(UInt16, endian="big")
+        pixels: Pix
+
+    f = FontEntry.parse(b"\x00\x05" + b"\xab\xcd")
+    assert f.char_number == 5
+    assert f.pixels == b"\xab\xcd"
+    assert f.pack() == b"\x00\x05\xab\xcd"
+
+
+def test_field_endian_rejects_orderless_and_composite_types():
+    from bytemaker.structs import field
+    from bytemaker.bittypes import UTF8String
+
+    Name2 = UTF8String.of(nbytes=2, name="Name2E")
+    with pytest.raises(PlanCompileError, match="byte-order-agnostic"):
+
+        class S1(Struct, endian="little"):
+            name: str = field(Name2, endian="big")
+
+    class Inner(Struct, endian="big"):
+        x: UInt16
+
+    with pytest.raises(PlanCompileError, match="ITS class definition"):
+
+        class S2(Struct, endian="little"):
+            inner: Inner = field(Inner, endian="big")
+
+    with pytest.raises(PlanCompileError, match=r"array\(element"):
+
+        class S3(Struct, endian="little"):
+            xs: list = field(Array.of(UInt16, 2), endian="big")
+
+    with pytest.raises(PlanCompileError, match="field endian"):
+        field(UInt16, endian="litle")  # typo caught at the declaration
+
+
+def test_annotated_endian_tag_is_rejected_not_dropped():
+    # Annotated[int, UInt16, "big"] compiled silently and produced
+    # record-order bytes; now it names the real spelling.
+    try:
+        from typing import Annotated
+    except ImportError:
+        from typing_extensions import Annotated
+
+    with pytest.raises(PlanCompileError, match=r"field\(T, endian="):
+
+        class S(Struct, endian="little"):
+            n: Annotated[int, UInt16, "big"]
