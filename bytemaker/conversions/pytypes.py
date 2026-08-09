@@ -163,7 +163,18 @@ class ConversionConfig:
                 cls._known_furthest_descendant_mappings[pytype]
             ]
         else:
-            raise TypeError(f"No conversion found for {pytype}")
+            raise _no_conversion_error(pytype)
+
+
+def _no_conversion_error(pytype) -> TypeError:
+    """A TypeError naming the culprit and the registered pytypes."""
+    registered = ", ".join(
+        sorted(t.__name__ for t in ConversionConfig._implemented_conversions)
+    )
+    return TypeError(
+        f"No conversion registered for {pytype}."
+        f" Registered pytypes: {registered}"
+    )
 
 
 # _string_conversion_info = ConversionInfo(
@@ -272,8 +283,8 @@ def pytype_to_bits(py_prim) -> BitVector:
 
     conversion = ConversionConfig.get_conversion_info(py_prim_type)
 
-    if conversion is None:
-        raise TypeError(f"No conversion found for {py_prim_type}")
+    if conversion is None:  # unreachable: get_conversion_info raises first
+        raise _no_conversion_error(py_prim_type)
 
     return conversion.to_bits(py_prim)
 
@@ -315,8 +326,8 @@ def bits_to_pytype(bits_obj: BitVector, pytype: type):
 
     conversion = ConversionConfig.get_conversion_info(pytype)
 
-    if conversion is None:
-        raise TypeError(f"No conversion found for {pytype}")
+    if conversion is None:  # unreachable: get_conversion_info raises first
+        raise _no_conversion_error(pytype)
 
     return conversion.from_bits(bits_obj)
 

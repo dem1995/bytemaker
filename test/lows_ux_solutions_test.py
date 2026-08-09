@@ -61,3 +61,13 @@ def test_fields_float_alias_teaching():
     with pytest.raises(AttributeError, match="f16/f32/f64"):
         fields.f8
     assert fields.u31 is not None  # arbitrary uN/sN still resolve
+
+
+def test_no_conversion_error_lists_registered_types():
+    from bytemaker.conversions.pytypes import pytype_to_bits
+
+    class _Weird:
+        pass
+
+    with pytest.raises(TypeError, match=r"No conversion registered.*Registered pytypes:.*int"):
+        pytype_to_bits(_Weird())
