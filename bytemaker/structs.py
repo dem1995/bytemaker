@@ -968,7 +968,7 @@ class StructMeta(type):
                 )
         # Per-field byte-order overrides (field(T, endian=...)): only
         # multi-byte numeric scalars have one to override.
-        endian_overrides: Dict[str, str] = {}
+        endian_overrides: Dict[str, Literal["big", "little"]] = {}
         for n, spec in specs.items():
             if spec.endian is None:
                 continue
