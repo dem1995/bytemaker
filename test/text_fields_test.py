@@ -218,6 +218,69 @@ def test_utf16_nchars_sizing_and_unit_strip():
     assert s.value == "ab"
 
 
+# ------------------------------------------------------- terminator on encode
+Term8 = UTF8String.of(nbytes=8, pad=0xFF, terminator=0x00, name="Term8")
+
+
+class TermRec(Struct, endian="little"):
+    name: Term8
+
+
+def test_terminator_written_on_encode():
+    # pad != terminator: the wire must carry the terminator, or parse->pack
+    # rewrites it as pad and corrupts read-modify-write workflows.
+    s = Term8("AB")
+    assert bytes(s.bits) == b"AB\x00\xff\xff\xff\xff\xff"
+    assert s.value == "AB"
+
+
+def test_terminator_parse_pack_identity():
+    wire = b"AB\x00\xff\xff\xff\xff\xff"
+    assert TermRec.parse(wire).pack() == wire
+
+
+def test_terminator_tail_is_canonicalized_not_preserved():
+    # Garbage past the terminator is cut before decode; pack re-emits the
+    # canonical tail (terminator + pad), not the original garbage bytes.
+    wire = b"AB\x00XYZ\x00\x00"
+    assert TermRec.parse(wire).pack() == b"AB\x00\xff\xff\xff\xff\xff"
+
+
+def test_terminator_omitted_when_value_fills_field():
+    # C strncpy convention: a max-length value fills the field with no
+    # terminator - and still round-trips (the decode cut finds nothing).
+    s = Term8("ABCDEFGH")
+    assert bytes(s.bits) == b"ABCDEFGH"
+    assert Term8(bits=s.bits).value == "ABCDEFGH"
+
+
+def test_terminator_written_in_whole_character_units():
+    U16T = String.of(
+        nchars=3, encoding="utf-16-le", bytes_per_char=2,
+        pad=0xFF, terminator=0x00, name="U16T",
+    )
+    s = U16T("ab")
+    assert bytes(s.bits) == b"a\x00b\x00\x00\x00"  # one 2-byte terminator unit
+    assert s.value == "ab"
+
+
+def test_terminator_completes_exact_width_when_pad_disabled():
+    TermX = UTF8String.of(nbytes=4, pad=None, terminator=0x00, name="TermX")
+    assert bytes(TermX("abc").bits) == b"abc\x00"  # terminator completes width
+    with pytest.raises(ValueError, match="terminator included"):
+        TermX("ab")  # still one byte short and padding is disabled
+
+
+def test_terminator_with_truncate_clips_then_fills():
+    TermT = UTF8String.of(
+        nbytes=4, pad=0xFF, terminator=0x00, truncate=True, name="TermT"
+    )
+    t = TermT("toolong")  # clips to 4 content bytes: no room, no terminator
+    assert bytes(t.bits) == b"tool"
+    t2 = TermT("ab")
+    assert bytes(t2.bits) == b"ab\x00\xff"
+
+
 def test_buffer_of_is_byte_counted():
     assert Buf2.num_bits == 16
     B4 = Buffer.of(nbytes=4)

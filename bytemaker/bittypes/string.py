@@ -54,7 +54,10 @@ class String(BitType[str]):
     through the field-schema knobs below; sub-byte-width String classes
     keep the historical exact-width behavior. ``pad`` is the fill byte
     written after content on encode (None = exact width required);
-    ``terminator`` cuts the *decode* at its first occurrence; ``strip``
+    ``terminator`` is written after the content on encode whenever it
+    fits (a max-length value fills the field with no terminator, the C
+    ``strncpy`` convention) and cuts the *decode* at its first
+    occurrence, so parse -> pack round-trips the wire bytes; ``strip``
     drops trailing pad bytes on decode; ``truncate`` opts into
     code-unit-safe truncation on overflow instead of raising; ``errors``
     is the decode error policy (any registered codec error handler for
@@ -316,8 +319,9 @@ class String(BitType[str]):
     @classmethod
     def _encode_padded(cls, value) -> bytes:
         """Encode ``value`` to exactly ``num_bits // 8`` wire bytes:
-        substitute, encode, then pad — or, on overflow, truncate whole
-        characters (if ``truncate``) or raise."""
+        substitute, encode, write the terminator (when set and it fits),
+        then pad — or, on overflow, truncate whole characters (if
+        ``truncate``) or raise."""
         nbytes = cls.num_bits // 8
         substituted = cls._substitute_reverse(value)
         raw = bytes(cls.encoding(substituted))
@@ -340,12 +344,25 @@ class String(BitType[str]):
                     raw = bytes(cls.encoding(substituted))
                 except ValueError:
                     pass
+        # Mirror the decode cut: the terminator is part of the wire format,
+        # so write it back whenever a whole character unit of room exists
+        # (a max-length value fills the field with no terminator, the C
+        # strncpy convention). Without this, parse -> pack rewrote the
+        # terminator byte as pad, silently corrupting read-modify-write
+        # workflows whenever pad != terminator.
+        if cls.terminator is not None:
+            unit = cls.bytes_per_char or 1
+            if len(raw) + unit <= nbytes:
+                raw += bytes((cls.terminator,)) * unit
         if len(raw) < nbytes:
             if cls.pad is None:
+                including = (
+                    " (terminator included)" if cls.terminator is not None else ""
+                )
                 raise ValueError(
-                    f"{cls.__name__}: {value!r} encodes to {len(raw)} bytes;"
-                    f" the field holds exactly {nbytes} and padding is"
-                    f" disabled (pad=None)"
+                    f"{cls.__name__}: {value!r} encodes to {len(raw)} wire"
+                    f" bytes{including}; the field holds exactly {nbytes}"
+                    f" and padding is disabled (pad=None)"
                 )
             raw += bytes((cls.pad,)) * (nbytes - len(raw))
         return raw
