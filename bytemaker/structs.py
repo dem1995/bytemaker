@@ -51,6 +51,7 @@ import os
 import struct as _pystruct
 import typing
 
+from bytemaker.adapters import Adapter
 from bytemaker.bittypes import (
     BitType,
     Buffer,
@@ -277,6 +278,28 @@ class _BytesField:
         self._slot.__set__(obj, v)
 
 
+class _AdaptedField:
+    """Wraps a scalar field descriptor with an :class:`Adapter`: reads
+    ``load`` the slot's wire value; writes ``store`` the user value and
+    then run the inner descriptor's usual wire narrowing. The slot (and
+    therefore parse/pack and the generated tuple converters, which bypass
+    descriptors) always holds the WIRE value."""
+
+    __slots__ = ("_inner", "_adapter")
+
+    def __init__(self, inner, adapter):
+        self._inner = inner
+        self._adapter = adapter
+
+    def __get__(self, obj, objtype=None):
+        if obj is None:
+            return self
+        return self._adapter.load(self._inner.__get__(obj, objtype))
+
+    def __set__(self, obj, value):
+        self._inner.__set__(obj, self._adapter.store(value))
+
+
 class _StructField:
     __slots__ = ("_slot", "_child")
 
@@ -476,6 +499,16 @@ def _reject_foreign_value_override(owner: str, field_name: str, ftype) -> None:
             return  # first definer wins; engine-owned -> fine
 
 
+def _array_carries_adapter(arr) -> bool:
+    """True if ``arr`` (or any Array nested in its element chain) has an
+    element adapter attached — such arrays are standalone codecs only."""
+    while isinstance(arr, Array):
+        if arr._adapter is not None:
+            return True
+        arr = arr.element
+    return False
+
+
 def _expected_py_type(bittype):
     """The plain Python value type a field of ``bittype`` reads as: ``int``
     for Int, ``float`` for Float, ``str`` for String, ``bytes`` for Buffer
@@ -494,12 +527,14 @@ def _expected_py_type(bittype):
     return None
 
 
-def _check_spec_annotation(owner, field_name, bittype, annotation):
+def _check_spec_annotation(owner, field_name, bittype, annotation, adapter=None):
     """R10 invariant: a ``field()``/``array()`` field's plain annotation is
     the type a checker trusts, so it must match the value type its wire
-    ``bittype`` actually reads as. Raises :class:`PlanCompileError` on a
-    disagreement (the annotation-carried path enforces the same truth via
-    ``_unwrap_annotation``). ``Any`` is allowed as a deliberate opt-out."""
+    ``bittype`` actually reads as — or, for an adapted field, the
+    adapter's user-plane ``py_type``. Raises :class:`PlanCompileError` on
+    a disagreement (the annotation-carried path enforces the same truth
+    via ``_unwrap_annotation``). ``Any`` is allowed as a deliberate
+    opt-out."""
     if annotation is None:
         return
     ann = annotation
@@ -507,7 +542,10 @@ def _check_spec_annotation(owner, field_name, bittype, annotation):
         ann = get_args(ann)[0]
     if ann is Any:
         return  # explicit "untype this" escape hatch
-    expected = _expected_py_type(bittype)
+    if adapter is not None:
+        expected = adapter.py_type
+    else:
+        expected = _expected_py_type(bittype)
     if expected is None:
         return
     if expected is list:  # Array field: want list[<elem>] or bare list
@@ -707,18 +745,20 @@ _MISSING = object()
 class _FieldSpec:
     """Runtime marker produced by :func:`field`/:func:`array`. Carries the
     field's bytemaker type (a BitType class, a Struct class, or an
-    :class:`Array`) and an optional default. The metaclass reads the type
-    from here when a field is spelled ``name: <plain type> = field(...)``,
-    so the annotation stays the plain checker type."""
+    :class:`Array`), an optional default, and an optional value
+    :class:`Adapter`. The metaclass reads the type from here when a field
+    is spelled ``name: <plain type> = field(...)``, so the annotation
+    stays the plain checker type."""
 
-    __slots__ = ("bittype", "default")
+    __slots__ = ("bittype", "default", "adapter")
 
-    def __init__(self, bittype, default=_MISSING):
+    def __init__(self, bittype, default=_MISSING, adapter=None):
         self.bittype = bittype
         self.default = default
+        self.adapter = adapter
 
 
-def field(bittype: Any, *, default: Any = _MISSING) -> Any:
+def field(bittype: Any, *, default: Any = _MISSING, adapt: Any = None) -> Any:
     """Declare a Struct field whose *checker* type is the annotation and
     whose *wire* type is ``bittype`` — a scalar BitType class, a
     ``String``/``Buffer`` type (e.g. from ``String.of(...)``), a nested
@@ -732,11 +772,28 @@ def field(bittype: Any, *, default: Any = _MISSING) -> Any:
     annotation; the field's real type comes from the annotation (via
     dataclass_transform), the wire type from ``bittype`` at runtime.
 
+    ``adapt`` attaches a :class:`bytemaker.adapters.Adapter` so an encoding
+    convention (THUMB bit, fixed-point scale, +1 bias, enums) lives in the
+    schema: reads ``load`` the wire value, writes ``store`` the user value
+    before the usual wire narrowing, and the annotation is checked against
+    the adapter's ``py_type``::
+
+        anim_fn:    int   = field(UInt32, adapt=THUMB_PTR)
+        multiplier: float = field(UInt16, adapt=fixed(4))
+
+    Scalar wire types only (an adapted :class:`Array` is a standalone
+    codec; nested Structs adapt their own fields).
+
     A Struct-valued ``default`` (scalar or array element) is detach-copied
     per instance at ``__init__`` time, so default-constructed records never
     share one mutable instance; immutable defaults are bound as-is.
+    Defaults are user-plane values (they store through the adapter).
     """
-    return _FieldSpec(bittype, default)
+    if adapt is not None and not isinstance(adapt, Adapter):
+        raise TypeError(
+            f"adapt= must be a bytemaker.adapters.Adapter, got {adapt!r}"
+        )
+    return _FieldSpec(bittype, default, adapt)
 
 
 def array(
@@ -755,6 +812,10 @@ def array(
 class StructMeta(type):
     """Metaclass of :class:`Struct`: turns annotated class bodies into
     compiled, slots-backed record classes, and provides ``T * N`` sugar."""
+
+    # Compiled-class attribute, declared here so assignments in __new__
+    # typecheck (runtime storage is on each concrete class).
+    _bm_adapters: Dict[str, Adapter]
 
     def __new__(
         mcs,
@@ -810,7 +871,7 @@ class StructMeta(type):
             if n in ns:
                 val = ns.pop(n)
                 if isinstance(val, _FieldSpec):
-                    specs[n] = val.bittype  # wire type from the RHS spec
+                    specs[n] = val  # wire type (and adapter) from the RHS
                     if val.default is not _MISSING:
                         defaults[n] = val.default
                         has_default = True
@@ -834,14 +895,45 @@ class StructMeta(type):
 
         hints = _resolve_hints(cls)
         field_defs: List[Tuple[str, type]] = [
-            (n, specs[n] if n in specs else _unwrap_annotation(name, n, hints[n]))
+            (
+                n,
+                specs[n].bittype
+                if n in specs
+                else _unwrap_annotation(name, n, hints[n]),
+            )
             for n in field_names
         ]
+        # Adapter placement is checked FIRST (the conceptual error), then
+        # the annotation/wire-type agreement.
+        adapters: Dict[str, Adapter] = {
+            n: spec.adapter for n, spec in specs.items() if spec.adapter
+        }
+        ftype_by_name = dict(field_defs)
+        for n in adapters:
+            if isinstance(ftype_by_name[n], (StructMeta, Array)):
+                raise PlanCompileError(
+                    f"{name}.{n}: adapt= supports scalar field types only;"
+                    f" an adapted Array is a standalone codec (its live"
+                    f" fixed-length field list does not thread adapters"
+                    f" yet), and a nested Struct adapts its own fields"
+                )
+        # An adapted Array smuggled in as a field type (via the annotation
+        # or field(Array.of(..., adapt=...))) would silently bypass its
+        # adapter in the live-list read path — refuse it.
+        for n, ftype in field_defs:
+            if isinstance(ftype, Array) and _array_carries_adapter(ftype):
+                raise PlanCompileError(
+                    f"{name}.{n}: an Array carrying an adapter is a"
+                    f" standalone codec and is not supported as a Struct"
+                    f" field yet; parse/pack it explicitly"
+                )
         # field()/array() fields carry the wire type on the RHS and the plain
         # checker type in the annotation; verify they agree, so the static
         # type a checker trusts matches what the field actually holds.
         for n in specs:
-            _check_spec_annotation(name, n, specs[n], hints.get(n))
+            _check_spec_annotation(
+                name, n, specs[n].bittype, hints.get(n), specs[n].adapter
+            )
 
         if endian is None:
             endian = "big"
@@ -862,6 +954,7 @@ class StructMeta(type):
         for n, ftype in field_defs:
             slot = cls.__dict__["_bm_" + n]
             _reject_foreign_value_override(name, n, ftype)
+            descriptor: Any
             if isinstance(ftype, StructMeta):
                 descriptor = _StructField(slot, ftype)
             elif isinstance(ftype, Array):  # before issubclass (instance!)
@@ -878,8 +971,14 @@ class StructMeta(type):
                 descriptor = _BytesField(slot, ftype.num_bits // 8)
             else:  # Float; compile_plan already rejected everything else
                 descriptor = _FloatField(slot, ftype)
+            if n in adapters:
+                # The wrap keeps the slot in the WIRE plane: reads load,
+                # writes store-then-narrow. parse/pack and the generated
+                # tuple converters bypass descriptors and stay wire-only.
+                descriptor = _AdaptedField(descriptor, adapters[n])
             setattr(cls, n, descriptor)
 
+        cls._bm_adapters = adapters
         _generate_methods(cls, field_defs, defaults)
         return cls
 
@@ -915,6 +1014,7 @@ class Struct(metaclass=StructMeta):
     _bm_fields: ClassVar[Tuple[str, ...]] = ()
     _bm_field_types: ClassVar[Dict[str, type]] = {}
     _bm_endian: ClassVar[str] = "big"
+    _bm_adapters: ClassVar[Dict[str, Adapter]] = {}
 
     @classmethod
     def parse(cls, data: BytesLike) -> Self:
@@ -1022,7 +1122,21 @@ class BoundField(typing.Generic[V]):
             new = new._snapshot()
         # Any other BitsConstructible goes straight through: the box's
         # bits setter snapshots and length-validates whatever it gets.
-        setattr(self._owner, self._name, self._ftype(bits=new).value)
+        self._wire_store(self._ftype(bits=new).value)
+
+    # -- the wire plane: descriptor-bypassing slot access ---------------------
+    # For a plain field the slot holds exactly what ``.value`` reads, so
+    # these are equivalent to getattr/setattr; for an adapted field they
+    # are the WIRE value (bits/boxed() serialize; ``.value`` is the user
+    # plane through the adapter).
+
+    def _wire_value(self):
+        return type(self._owner).__dict__["_bm_" + self._name].__get__(self._owner)
+
+    def _wire_store(self, wire) -> None:
+        descriptor = type(self._owner).__dict__[self._name]
+        inner = getattr(descriptor, "_inner", descriptor)
+        inner.__set__(self._owner, wire)
 
     @property
     def num_bits(self) -> int:
@@ -1030,8 +1144,12 @@ class BoundField(typing.Generic[V]):
 
     def boxed(self) -> "BitType[V]":
         """A detached BitType snapshot (record's endianness); survives
-        later struct mutation."""
-        return self._ftype(self.value, endianness=type(self._owner)._bm_endian)
+        later struct mutation. Wire-plane: for an adapted field the box
+        holds the slot's WIRE value (the box is a serialization object) —
+        the user-plane number is ``.value``."""
+        return self._ftype(
+            self._wire_value(), endianness=type(self._owner)._bm_endian
+        )
 
     def __setattr__(self, name, value):
         # Only the two channels are assignable; everything else is a likely
@@ -1046,12 +1164,12 @@ class BoundField(typing.Generic[V]):
     # -- bit access: [] has no value-plane rival on a number -----------------
 
     def __getitem__(self, index):
-        return self._ftype(self.value).bits[index]
+        return self._ftype(self._wire_value()).bits[index]
 
     def __setitem__(self, index, bit):
-        b = self._ftype(self.value).bits
+        b = self._ftype(self._wire_value()).bits
         b[index] = bit
-        setattr(self._owner, self._name, self._ftype(bits=b).value)
+        self._wire_store(self._ftype(bits=b).value)
 
     # -- promotion: rvalue use yields plain results ---------------------------
 
@@ -1198,11 +1316,11 @@ class BoundBits:
 
     def _cur(self):
         f = self._field
-        return f._ftype(f.value).bits
+        return f._ftype(f._wire_value()).bits
 
     def _write(self, bits):
         f = self._field
-        setattr(f._owner, f._name, f._ftype(bits=bits).value)
+        f._wire_store(f._ftype(bits=bits).value)
 
     def _snapshot(self):
         return self._cur()
@@ -1403,7 +1521,7 @@ class Array(typing.Generic[V]):
     # a new Array to change any of them.
     __slots__ = (
         "_element", "_count", "_endian", "_endian_set", "_num_bits",
-        "_scalar_codec",
+        "_scalar_codec", "_adapter",
     )
     _cache: ClassVar[Dict[tuple, "Array"]] = {}
 
@@ -1412,9 +1530,16 @@ class Array(typing.Generic[V]):
         element,
         count: int,
         endian: Optional[Literal["big", "little"]] = None,
+        adapt: Optional[Adapter] = None,
     ):
         if not isinstance(count, int) or count <= 0:
             raise PlanCompileError(f"Array count must be a positive int, got {count!r}")
+        if adapt is not None and not isinstance(adapt, Adapter):
+            raise PlanCompileError(
+                f"Array adapt= must be a bytemaker.adapters.Adapter,"
+                f" got {adapt!r}"
+            )
+        self._adapter = adapt
         # ``endian=None`` means "unset": standalone parse/pack resolve it to
         # big (the historical default), but as a Struct FIELD an unset array
         # inherits the record's byte order (like a C array -- see
@@ -1513,16 +1638,17 @@ class Array(typing.Generic[V]):
         element,
         count: int,
         endian: Optional[Literal["big", "little"]] = None,
+        adapt: Optional[Adapter] = None,
     ) -> "Array":
         try:
-            key = (element, count, endian)
+            key = (element, count, endian, adapt)
             return cls._cache[key]
         except KeyError:
-            arr = cls(element, count, endian)
+            arr = cls(element, count, endian, adapt)
             cls._cache[key] = arr
             return arr
         except TypeError:  # unhashable element
-            return cls(element, count, endian)
+            return cls(element, count, endian, adapt)
 
     def __reduce__(self):
         # copy/deepcopy/pickle: rebuild from the declarative fields.
@@ -1530,7 +1656,7 @@ class Array(typing.Generic[V]):
         # regenerates it. Pass endian back as None when unset so the
         # reconstructed array keeps inheriting the record's byte order.
         endian = self._endian if self._endian_set else None
-        return (Array, (self._element, self._count, endian))
+        return (Array, (self._element, self._count, endian, self._adapter))
 
     # -- field support (R8): store-time narrowing helpers --------------------
     #: Duck-type marker so ``compile_plan`` (which cannot import Array without
@@ -1589,6 +1715,13 @@ class Array(typing.Generic[V]):
             raise ValueError(
                 f"{self!r}.parse: expected {self.num_bytes} bytes, got {len(data)}"
             )
+        values = self._parse_wire(data)
+        if self._adapter is not None:
+            load = self._adapter.load
+            return [load(v) for v in values]
+        return values
+
+    def _parse_wire(self, data) -> list:
         element = self.element
         if isinstance(element, StructMeta):
             from_tuple = element._bm_from_tuple
@@ -1635,6 +1768,9 @@ class Array(typing.Generic[V]):
             raise ValueError(
                 f"{self!r}.pack: expected {self.count} elements, got {len(values)}"
             )
+        if self._adapter is not None:
+            store = self._adapter.store
+            values = [store(v) for v in values]
         element = self.element
         if isinstance(element, StructMeta):
             return b"".join(v.pack() for v in values)
@@ -1668,7 +1804,8 @@ class Array(typing.Generic[V]):
 
     def __repr__(self):
         name = getattr(self.element, "__name__", None) or repr(self.element)
-        return f"Array({name} * {self.count}, endian={self.endian!r})"
+        adapted = f", adapt={self._adapter.name}" if self._adapter else ""
+        return f"Array({name} * {self.count}, endian={self.endian!r}{adapted})"
 
 
 # --------------------------------------------------------------------------
