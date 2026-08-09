@@ -442,6 +442,40 @@ def _unwrap_annotation(owner: str, field: str, hint) -> type:
     )
 
 
+def _reject_foreign_value_override(owner: str, field_name: str, ftype) -> None:
+    """Refuse a BitType subclass whose ``value`` property is (re)defined
+    outside bytemaker as a field/element type.
+
+    The plan engine moves plain wire values through slots and generated
+    tuple converters; it never constructs the box on the hot path, so a
+    user subclass like ``class ThumbPointer(UInt32)`` with a custom
+    ``value`` property would be **silently ignored**: parse would store
+    the raw wire value, pack would re-emit it untransformed, while the
+    standalone box (and ``BoundField.boxed()``) applied the override —
+    two answers for one field, and no diagnostic. Failing the class
+    definition converts wrong bytes into an error. The sanctioned seam
+    for value transforms is ``adapt=`` (:mod:`bytemaker.adapters`);
+    String/Buffer codec customization via ``encoding``/``decoding`` or
+    ``of(...)`` is engine-honored and unaffected (those hooks define no
+    ``value``)."""
+    if not (isinstance(ftype, type) and issubclass(ftype, BitType)):
+        return
+    for klass in type.mro(ftype):
+        if "value" in vars(klass):
+            module = getattr(klass, "__module__", "") or ""
+            if not (module == "bytemaker" or module.startswith("bytemaker.")):
+                raise PlanCompileError(
+                    f"{owner}.{field_name}: {ftype.__name__} (re)defines"
+                    f" 'value' in {module}, which the plan engine would"
+                    f" silently ignore (fields hold plain wire values; the"
+                    f" box is never consulted on parse/pack). Use a plain"
+                    f" engine type and attach the transform with adapt="
+                    f" (see bytemaker.adapters), or compute it at the call"
+                    f" site."
+                )
+            return  # first definer wins; engine-owned -> fine
+
+
 def _expected_py_type(bittype):
     """The plain Python value type a field of ``bittype`` reads as: ``int``
     for Int, ``float`` for Float, ``str`` for String, ``bytes`` for Buffer
@@ -827,6 +861,7 @@ class StructMeta(type):
 
         for n, ftype in field_defs:
             slot = cls.__dict__["_bm_" + n]
+            _reject_foreign_value_override(name, n, ftype)
             if isinstance(ftype, StructMeta):
                 descriptor = _StructField(slot, ftype)
             elif isinstance(ftype, Array):  # before issubclass (instance!)
@@ -1394,6 +1429,7 @@ class Array(typing.Generic[V]):
         if isinstance(element, (StructMeta, Array)):
             elem_bits = element.num_bits
         elif isinstance(element, type) and issubclass(element, BitType):
+            _reject_foreign_value_override("Array", "element", element)
             elem_bits = element.num_bits
             if elem_bits % 8:
                 raise PlanCompileError(
