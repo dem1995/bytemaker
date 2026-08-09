@@ -485,13 +485,18 @@ def test_subclassing_concrete_struct_forbidden():
             extra: UInt8
 
 
-def test_float_in_shiftmask_is_import_error():
-    with pytest.raises(PlanCompileError):
+def test_float_in_shiftmask_is_boxed_not_rejected():
+    # Once a PlanCompileError ("the shift/mask tier is integer-only");
+    # floats are now boxed through their own codec at the tuple boundary.
+    # Full coverage in test/boxed_float_test.py.
+    class FloatMix(Struct, endian="little"):
+        n: UInt4
+        m: UInt4
+        f: Float32
 
-        class FloatMix(Struct, endian="little"):
-            n: UInt4
-            m: UInt4
-            f: Float32
+    assert FloatMix.plan.tier == "shiftmask"
+    fm = FloatMix(n=1, m=2, f=-0.5)
+    assert FloatMix.parse(fm.pack()) == fm
 
 
 # -------------------------------------------------------------------- nested
@@ -592,22 +597,26 @@ def test_text_and_bytes_array_elements_stream_order():
     assert bufs.pack([b"\x01\x02", b"\x03\x04"]) == b"\x01\x02\x03\x04"
 
 
-def test_non_ieee_float_rejected_everywhere():
-    """Non-IEEE floats have no struct codec and must be rejected loudly,
-    in BOTH Struct fields and Arrays. BFloat16 is 16 bits but not IEEE
-    binary16 (the width-keyed letter would mis-decode); FP24 has no
-    struct letter at all (24-bit) and used to slip through Array into the
-    integer fallback, decoding float bytes as raw ints and corrupting
-    round-trips."""
+def test_non_ieee_float_carried_not_rejected():
+    """Non-IEEE floats classify LETTER-LESS (never the width-keyed IEEE
+    letter, which would mis-decode BFloat16 as binary16) and are carried
+    by the boxed-codec paths in both Struct fields and Arrays — the old
+    hard reject, and before that Array's silent integer fallback, are
+    both gone. Full coverage in test/boxed_float_test.py."""
     from bytemaker.bittypes import FP24
+    from bytemaker.plans import _classify_scalar
 
-    for bad_float in (BFloat16, FP24):
-        with pytest.raises(PlanCompileError):
-            class Bad(Struct):
-                x: bad_float
+    for nf in (BFloat16, FP24):
+        _width, kind, letter = _classify_scalar(nf)
+        assert kind == "f" and letter is None
 
-        with pytest.raises(PlanCompileError):
-            Array.of(bad_float, 2)
+        class Ok(Struct, endian="little"):
+            x: nf
+
+        o = Ok(x=-2.0)
+        assert Ok.parse(o.pack()).x == -2.0
+        arr = Array.of(nf, 2, endian="little")
+        assert arr.parse(arr.pack([1.0, -1.0])) == [1.0, -1.0]
 
 
 def test_array_is_an_immutable_value_object():

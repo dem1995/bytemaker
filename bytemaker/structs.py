@@ -52,6 +52,7 @@ import struct as _pystruct
 import typing
 
 from bytemaker.adapters import Adapter
+from bytemaker.bitvector import BitVector
 from bytemaker.bittypes import (
     BitType,
     Buffer,
@@ -1907,6 +1908,23 @@ class Array(typing.Generic[V]):
         # agree byte-for-byte -- see R9 / tracker 13 #17.
         if struct_obj is not None:
             return list(struct_obj.unpack(data))  # one C-level call
+        if kind == "f":
+            # Letter-less floats (BFloat16 & co.): decode each chunk through
+            # the element's own codec, byte order applied like the ints'.
+            # (Unsigned width-exact bits: from_int is two's-complement
+            # strict and would reject sign-bit-set patterns.)
+            elem_bits = element.num_bits
+            return [
+                element(
+                    bits=BitVector(
+                        format(
+                            int.from_bytes(bytes(data[i : i + size]), self.endian),
+                            f"0{elem_bits}b",
+                        )
+                    )
+                ).value
+                for i in range(0, self.num_bytes, size)
+            ]
         signed = kind == "s"
         return [
             int.from_bytes(bytes(data[i : i + size]), self.endian, signed=signed)
@@ -1943,7 +1961,14 @@ class Array(typing.Generic[V]):
         coerced = self._coerce_seq(values)
         if struct_obj is not None:
             return struct_obj.pack(*coerced)
-        size = element.num_bits // 8  # letter-less whole-byte int (e.g. UInt24)
+        size = element.num_bits // 8  # letter-less whole-byte (e.g. UInt24)
+        if kind == "f":
+            return b"".join(
+                element(float(v))
+                .bits.to_int(signed=False)
+                .to_bytes(size, self.endian)
+                for v in coerced
+            )
         return b"".join(
             v.to_bytes(size, self.endian, signed=(kind == "s")) for v in coerced
         )

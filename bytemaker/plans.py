@@ -48,6 +48,7 @@ from bytemaker.bittypes import (
     String,
     bytes_to_bittype,
 )
+from bytemaker.bitvector import BitVector
 from bytemaker.typing_redirect import (
     Dict,
     Iterator,
@@ -92,7 +93,9 @@ class FieldSpec:
     their leaves.
     """
 
-    __slots__ = ("name", "bit_offset", "bit_width", "kind", "letter", "endian")
+    __slots__ = (
+        "name", "bit_offset", "bit_width", "kind", "letter", "endian", "codec",
+    )
 
     def __init__(
         self,
@@ -102,6 +105,7 @@ class FieldSpec:
         kind: str,
         letter: Optional[str],
         endian: Literal["big", "little"],
+        codec: Optional[type] = None,
     ):
         self.name = name
         self.bit_offset = bit_offset
@@ -109,12 +113,33 @@ class FieldSpec:
         self.kind = kind
         self.letter = letter
         self.endian = endian
+        # The BitType class for "f" leaves: the shiftmask tier converts
+        # float values <-> bit patterns through the type's own codec, so
+        # non-IEEE floats (BFloat16/TF19/FP24) and IEEE floats knocked off
+        # the struct tier (sub-byte siblings, cross-endian) both work.
+        self.codec = codec
 
     def __repr__(self):
         return (
             f"FieldSpec({self.name!r}, bit_offset={self.bit_offset},"
             f" bit_width={self.bit_width}, kind={self.kind!r})"
         )
+
+
+def _float_pattern_conv(codec: type, width: int) -> tuple:
+    """(value -> bit pattern int, bit pattern int -> value) through the
+    float type's own codec, in natural (unswapped) bit order."""
+
+    def to_pattern(value, _c=codec):
+        return _c(float(value)).bits.to_int(signed=False)
+
+    def from_pattern(pattern, _c=codec, _w=width):
+        # Width-exact unsigned construction (from_int is two's-complement
+        # strict, so a pattern with the float's sign bit set would demand
+        # an extra bit).
+        return _c(bits=BitVector(format(pattern, f"0{_w}b"))).value
+
+    return (to_pattern, from_pattern)
 
 
 class Plan:
@@ -184,18 +209,11 @@ class Plan:
             self.shift_masks = None
             self._int_order = None
         else:
-            for f in fields:
-                if f.kind == "f":
-                    raise PlanCompileError(
-                        f"field {f.name!r}: float fields require byte alignment"
-                        f" and a 16/32/64-bit width (record fell back to the"
-                        f" shift/mask tier, which is integer-only)"
-                    )
             self.tier = "shiftmask"
             self.struct_obj = None
             self._int_order = "little" if bit_order == "lsb" else "big"
             natural = self._int_order
-            shift_masks: List[Tuple[int, int, int, int, int]] = []
+            shift_masks: List[Tuple[int, int, int, int, int, Optional[tuple]]] = []
             for f in fields:
                 if bit_order == "lsb":
                     shift = f.bit_offset
@@ -204,7 +222,7 @@ class Plan:
                 mask = (1 << f.bit_width) - 1
                 sign_bit = (1 << (f.bit_width - 1)) if f.kind == "s" else 0
                 whole_bytes = (
-                    f.kind in ("u", "s")
+                    f.kind in ("u", "s", "f")
                     and f.bit_width % 8 == 0
                     and f.bit_width > 8
                 )
@@ -217,7 +235,18 @@ class Plan:
                 # `bytes`, converted at the int boundary with the tier's own
                 # bit ordering (stream order, matching the int fields).
                 nbytes = f.bit_width // 8 if f.kind == "b" else 0
-                shift_masks.append((shift, mask, sign_bit, swap, nbytes))
+                # Float leaves are boxed at the tuple boundary through the
+                # type's own codec (value <-> natural-order bit pattern);
+                # byte order rides the same swap as multi-byte ints, so
+                # non-IEEE, cross-endian, and misaligned floats all carry.
+                fconv = None
+                if f.kind == "f":
+                    if f.codec is None:  # pragma: no cover - compile_plan sets it
+                        raise PlanCompileError(
+                            f"float field {f.name!r} carries no codec class"
+                        )
+                    fconv = _float_pattern_conv(f.codec, f.bit_width)
+                shift_masks.append((shift, mask, sign_bit, swap, nbytes, fconv))
             self.shift_masks = tuple(shift_masks)
 
     @property
@@ -242,13 +271,18 @@ class Plan:
             return self.struct_obj.unpack(data)
         raw = int.from_bytes(bytes(data), self._int_order)
         out = []
-        for shift, mask, sign_bit, swap, nbytes in self.shift_masks:
+        shift_masks = self.shift_masks
+        assert shift_masks is not None  # shiftmask tier
+        for shift, mask, sign_bit, swap, nbytes, fconv in shift_masks:
             v = (raw >> shift) & mask
             if nbytes:
                 out.append(v.to_bytes(nbytes, self._int_order))
                 continue
             if swap:
                 v = _bswap(v, swap)
+            if fconv is not None:
+                out.append(fconv[1](v))  # pattern -> float via the codec
+                continue
             if sign_bit and v & sign_bit:
                 v -= sign_bit << 1
             out.append(v)
@@ -273,11 +307,15 @@ class Plan:
             except (_struct.error, TypeError):
                 return self.struct_obj.pack(*self._wrap_values(values))
         acc = 0
-        for (shift, mask, sign_bit, swap, nbytes), v in zip(
-            self.shift_masks, values
+        shift_masks = self.shift_masks
+        assert shift_masks is not None  # shiftmask tier
+        for (shift, mask, sign_bit, swap, nbytes, fconv), v in zip(
+            shift_masks, values
         ):
             if nbytes:
                 v = int.from_bytes(v, self._int_order)
+            elif fconv is not None:
+                v = fconv[0](v)  # float -> pattern via the codec
             v &= mask
             if swap:
                 v = _bswap(v, swap)
@@ -392,21 +430,18 @@ def _classify_scalar(bittype: type) -> Tuple[int, str, Optional[str]]:
         return width, ("s" if signed else "u"), letter
     if issubclass(bittype, Float):
         letter = _FLOAT_LETTERS.get(width)
-        # A float is only a valid field/element if it rides an IEEE struct
-        # codec: it must map to a 16/32/64-bit struct letter AND declare
-        # that same letter. Otherwise the width-keyed letter would decode
-        # with the wrong codec (BFloat16 -> IEEE half), or there is no
-        # letter at all (FP24 and other non-standard widths) and every
-        # downstream path -- struct fast path, shiftmask tier, Array's
-        # int fallback -- would mishandle it, silently corrupting the value.
-        if letter is None or (
+        # A float rides the IEEE struct codec only if it maps to a
+        # 16/32/64-bit struct letter AND declares that same letter; the
+        # width-keyed letter alone would decode with the wrong codec
+        # (BFloat16 -> IEEE half). Every other float -- BFloat16, FP24,
+        # even misaligned widths like TF19 -- classifies letter-less and
+        # is carried by the shiftmask tier through the type's OWN codec
+        # (see FieldSpec.codec), so it is boxed at the tuple boundary
+        # instead of rejected at class definition.
+        if letter is not None and (
             getattr(bittype, "packing_format_letter", None) != letter
         ):
-            raise PlanCompileError(
-                f"{bittype.__name__} is not an IEEE-754 float with a struct"
-                f" codec; only Float16/Float32/Float64 (16/32/64-bit IEEE)"
-                f" are supported as fields or Array elements"
-            )
+            letter = None
         return width, "f", letter
     if issubclass(bittype, (String, Buffer)):
         if width % 8:
@@ -484,6 +519,7 @@ def compile_plan(
                         leaf.kind,
                         leaf.letter,
                         leaf.endian,
+                        leaf.codec,
                     )
                 )
                 offset += leaf.bit_width
@@ -503,7 +539,17 @@ def compile_plan(
             # Byte strings have no byte order; never force the shiftmask
             # tier on their account.
             field_endian = endian
-        flat.append(FieldSpec(full, offset, width, kind, letter, field_endian))
+        flat.append(
+            FieldSpec(
+                full,
+                offset,
+                width,
+                kind,
+                letter,
+                field_endian,
+                ftype if kind == "f" else None,
+            )
+        )
         offset += width
 
     for name, ftype in field_defs:
