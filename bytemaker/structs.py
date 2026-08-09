@@ -77,6 +77,16 @@ from bytemaker.typing_redirect import (
 )
 from bytemaker.utils import validate_endianness
 
+if typing.TYPE_CHECKING:
+    from bytemaker.typing_redirect import Self
+
+    _S = typing.TypeVar("_S", bound="Struct")
+
+#: What the parse paths actually require of their input: len() and slicing.
+#: (The abstract Buffer protocol guarantees neither, so the concrete union
+#: is the honest annotation.)
+BytesLike = typing.Union[bytes, bytearray, memoryview]
+
 try:  # 3.11+
     from typing import dataclass_transform
 except ImportError:  # pragma: no cover
@@ -872,7 +882,7 @@ class Struct(metaclass=StructMeta):
     _bm_endian: ClassVar[str] = "big"
 
     @classmethod
-    def parse(cls, data) -> "Struct":
+    def parse(cls, data: BytesLike) -> Self:
         """Decode ``num_bits // 8`` bytes into a new detached instance."""
         n = cls.plan.num_bytes
         if len(data) != n:
@@ -888,12 +898,12 @@ class Struct(metaclass=StructMeta):
             self.plan.validate_tuple(values)
         return self.plan.pack_tuple(values)
 
-    def detach_copy(self) -> "Struct":
+    def detach_copy(self) -> Self:
         """A new instance with the same field values."""
         return self._bm_from_tuple(self._bm_to_tuple())
 
     @property
-    def sizedview(self):
+    def sizedview(self) -> _SizedView:
         """Width-carrying live view of this record's fields.
 
         ``t.sizedview.<field>`` returns a :class:`BoundField` — a live lvalue
@@ -1314,12 +1324,16 @@ class _SizedView:
 # --------------------------------------------------------------------------
 
 
-class Array:
+class Array(typing.Generic[V]):
     """A fixed-count codec of a uniform element codec.
 
     Built via ``element * count`` (Struct classes and scalar BitType classes
     both support ``*``) or :meth:`Array.of`. ``parse`` returns a ``list``;
     ``pack`` accepts any sequence of the right length.
+
+    The type parameter is the decoded ELEMENT VALUE type — ``Array.of``
+    overloads infer it, so ``Array.of(UInt16, 4).parse(b)`` reads as
+    ``list[int]`` and ``Array.of(RGB, 3).parse(b)`` as ``list[RGB]``.
 
     **Decoded scalars are plain Python values** — the one decoded-scalar
     rule, same as Struct fields: ``int``/``float`` for numeric elements,
@@ -1419,12 +1433,43 @@ class Array:
         return self._count
 
     @property
-    def endian(self) -> str:
+    def endian(self) -> Literal["big", "little"]:
         return self._endian
 
     @property
     def num_bits(self) -> int:
         return self._num_bits
+
+    # Overloads map the element CLASS to the decoded VALUE type: a Struct
+    # class parses to instances of itself, a BitType class to its py_type
+    # (UInt* -> int, Float* -> float, String -> str, Buffer -> bytes), and
+    # a nested Array to lists of its own value type.
+    @typing.overload
+    @classmethod
+    def of(
+        cls,
+        element: "type[_S]",
+        count: int,
+        endian: Optional[Literal["big", "little"]] = None,
+    ) -> "Array[_S]": ...
+
+    @typing.overload
+    @classmethod
+    def of(
+        cls,
+        element: "type[BitType[V]]",
+        count: int,
+        endian: Optional[Literal["big", "little"]] = None,
+    ) -> "Array[V]": ...
+
+    @typing.overload
+    @classmethod
+    def of(
+        cls,
+        element: "Array[V]",
+        count: int,
+        endian: Optional[Literal["big", "little"]] = None,
+    ) -> "Array[List[V]]": ...
 
     @classmethod
     def of(
@@ -1503,7 +1548,7 @@ class Array:
     def num_bytes(self) -> int:
         return self.num_bits // 8
 
-    def parse(self, data) -> list:
+    def parse(self, data: BytesLike) -> List[V]:
         if len(data) != self.num_bytes:
             raise ValueError(
                 f"{self!r}.parse: expected {self.num_bytes} bytes, got {len(data)}"

@@ -434,19 +434,19 @@ class Float(BitType[float]):
 Float.base_bit_type = Float
 
 
-class Float16(StructPackedBitType, Float):
+class Float16(StructPackedBitType[float], Float):
     num_exponent_bits = 5
     num_mantissa_bits = 10
     packing_format_letter = "e"
 
 
-class Float32(StructPackedBitType, Float):
+class Float32(StructPackedBitType[float], Float):
     num_exponent_bits = 8
     num_mantissa_bits = 23
     packing_format_letter = "f"
 
 
-class Float64(StructPackedBitType, Float):
+class Float64(StructPackedBitType[float], Float):
     num_exponent_bits = 11
     num_mantissa_bits = 52
     packing_format_letter = "d"

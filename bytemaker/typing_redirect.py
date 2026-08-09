@@ -126,5 +126,9 @@ __all__ = [
 
 if sys.version_info >= (3, 11):
     from typing import Self  # noqa: F401
+elif find_spec("typing_extensions"):
+    from typing_extensions import Self  # noqa: F401
+else:  # pragma: no cover - typing-extensions is a declared dependency
+    Self = TypeVar("Self")  # degraded shim for a no-deps source checkout
 
-    __all__.append("Self")
+__all__.append("Self")

@@ -1,0 +1,173 @@
+# mypy error baseline for bytemaker/ - see typing_regression_test.py
+# mypy-version: 2.3.0
+bytemaker/_legacy_aggregate.py :: arg-type :: Argument 1 to "count_bits_in_unit_type" has incompatible type "type"; expected "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | BitType[Any] | PyType"
+bytemaker/_legacy_aggregate.py :: arg-type :: Argument 1 to "count_bits_in_unit_type" has incompatible type "type[str]"; expected "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | BitType[Any] | PyType"
+bytemaker/_legacy_aggregate.py :: arg-type :: Argument 1 to "ctype_to_bits" has incompatible type "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | BitType[Any] | PyType"; expected "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any]"
+bytemaker/_legacy_aggregate.py :: arg-type :: Argument 1 to "ctype_to_bytes" has incompatible type "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | BitType[Any] | PyType"; expected "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any]"
+bytemaker/_legacy_aggregate.py :: arg-type :: Argument 1 to "fields" has incompatible type "DataClassType"; expected "DataclassInstance | type[DataclassInstance]"
+bytemaker/_legacy_aggregate.py :: arg-type :: Argument 1 to "fields" has incompatible type "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | BitType[Any] | PyType"; expected "DataclassInstance | type[DataclassInstance]"
+bytemaker/_legacy_aggregate.py :: arg-type :: Argument 1 to "get_conversion_info" of "ConversionConfig" has incompatible type "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | BitType[Any] | PyType"; expected "type"
+bytemaker/_legacy_aggregate.py :: arg-type :: Argument 1 to "is_subclass_of_union" has incompatible type "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | BitType[Any] | PyType"; expected "type"
+bytemaker/_legacy_aggregate.py :: arg-type :: Argument 1 to "resolve_field_types" has incompatible type "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | BitType[Any] | PyType"; expected "type"
+bytemaker/_legacy_aggregate.py :: arg-type :: Argument 1 to "sizeof" has incompatible type "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | BitType[Any] | PyType"; expected "_CData | _SimpleCData[Any] | _Pointer[Any] | CFuncPtr | _ctypes.Union | Structure | Array[Any] | type[_CData] | type[_SimpleCData[Any]] | type[_Pointer[Any]] | type[CFuncPtr] | type[_ctypes.Union] | type[Structure] | type[Array[Any]]"
+bytemaker/_legacy_aggregate.py :: arg-type :: Argument 1 to "to_bits_individual" has incompatible type "DataClassType | BitType[Any] | _SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | PyType | Iterable[Any]"; expected "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | BitType[Any] | PyType"
+bytemaker/_legacy_aggregate.py :: arg-type :: Argument 1 to "to_bytes_individual" has incompatible type "DataClassType | BitType[Any] | _SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | PyType | Iterable[Any]"; expected "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | BitType[Any] | PyType"
+bytemaker/_legacy_aggregate.py :: arg-type :: Argument 2 to "is_instance_of_union" has incompatible type "<typing special form>"; expected "type"
+bytemaker/_legacy_aggregate.py :: assignment :: Incompatible types in assignment (expression has type "bytes", variable has type "bytearray")
+bytemaker/_legacy_aggregate.py :: return-value :: Incompatible return value type (got "BitType[Any]", expected "PyType")
+bytemaker/_legacy_aggregate.py :: return-value :: Incompatible return value type (got "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any]", expected "PyType")
+bytemaker/_legacy_aggregate.py :: str-bytes-safe :: If x = b'abc' then f"{x}" or "{}".format(x) produces "b'abc'", not "abc". If this is desired behavior, use f"{x!r}" or "{!r}".format(x). Otherwise, decode the bytes
+bytemaker/_legacy_aggregate.py :: union-attr :: Item "Array[Any]" of "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | BitType[Any] | PyType" has no attribute "num_bits"
+bytemaker/_legacy_aggregate.py :: union-attr :: Item "PyType" of "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | BitType[Any] | PyType" has no attribute "num_bits"
+bytemaker/_legacy_aggregate.py :: union-attr :: Item "Structure" of "Structure | _ctypes.Union | Iterable[Any]" has no attribute "__iter__" (not iterable)
+bytemaker/_legacy_aggregate.py :: union-attr :: Item "_SimpleCData[Any]" of "_SimpleCData[Any] | Structure | _ctypes.Union | Array[Any] | BitType[Any] | PyType" has no attribute "num_bits"
+bytemaker/_legacy_aggregate.py :: union-attr :: Item "_ctypes.Union" of "Structure | _ctypes.Union | Iterable[Any]" has no attribute "__iter__" (not iterable)
+bytemaker/bittypes/bittype.py :: arg-type :: Argument "bits" to "BitType" has incompatible type "bytes"; expected "BitVector | None"
+bytemaker/bittypes/bittype.py :: arg-type :: Argument 1 has incompatible type "BitVector"; expected "BitSelf"
+bytemaker/bittypes/bittype.py :: arg-type :: Argument 2 to "copysign" has incompatible type "T"; expected "SupportsFloat | SupportsIndex"
+bytemaker/bittypes/bittype.py :: assignment :: Incompatible types in assignment (expression has type "int", variable has type "T")
+bytemaker/bittypes/bittype.py :: attr-defined :: overloaded function has no attribute "fset"
+bytemaker/bittypes/bittype.py :: call-arg :: Too many arguments for "object"
+bytemaker/bittypes/bittype.py :: misc :: Final name declared in class body cannot depend on type variables
+bytemaker/bittypes/bittype.py :: misc :: Final name must be initialized with a value
+bytemaker/bittypes/buffer.py :: misc :: Cannot assign to final attribute "base_bit_type"
+bytemaker/bittypes/buffer.py :: misc :: Cannot assign to final name "py_type"
+bytemaker/bittypes/buffer.py :: misc :: Invalid base class "cls"
+bytemaker/bittypes/buffer.py :: valid-type :: Variable "cls" is not valid as a type
+bytemaker/bittypes/float.py :: assignment :: Incompatible types in assignment (expression has type "str | None", base class "StructPackedBitType" defined the type as "str")
+bytemaker/bittypes/float.py :: misc :: Cannot assign to final attribute "base_bit_type"
+bytemaker/bittypes/float.py :: misc :: Cannot assign to final name "num_exponent_bits"
+bytemaker/bittypes/float.py :: misc :: Cannot assign to final name "num_mantissa_bits"
+bytemaker/bittypes/float.py :: misc :: Cannot assign to final name "packing_format_letter"
+bytemaker/bittypes/float.py :: misc :: Cannot assign to final name "py_type"
+bytemaker/bittypes/float.py :: misc :: Final name must be initialized with a value
+bytemaker/bittypes/float.py :: misc :: Invalid base class "cls"
+bytemaker/bittypes/float.py :: no-redef :: Name "_Float" already defined on line 280
+bytemaker/bittypes/float.py :: valid-type :: Variable "cls" is not valid as a type
+bytemaker/bittypes/int.py :: arg-type :: Argument 2 to "is_instance_of_union" has incompatible type "<typing special form>"; expected "type"
+bytemaker/bittypes/int.py :: assignment :: Incompatible types in assignment (expression has type "str | None", base class "StructPackedBitType" defined the type as "str")
+bytemaker/bittypes/int.py :: misc :: Cannot assign to final attribute "base_bit_type"
+bytemaker/bittypes/int.py :: misc :: Cannot assign to final name "_num_bits"
+bytemaker/bittypes/int.py :: misc :: Cannot assign to final name "is_signed"
+bytemaker/bittypes/int.py :: misc :: Cannot assign to final name "packing_format_letter"
+bytemaker/bittypes/int.py :: misc :: Cannot assign to final name "py_type"
+bytemaker/bittypes/int.py :: misc :: Final name must be initialized with a value
+bytemaker/bittypes/int.py :: misc :: Invalid base class "cls"
+bytemaker/bittypes/int.py :: no-redef :: Name "_SInt" already defined on line 705
+bytemaker/bittypes/int.py :: no-redef :: Name "_UInt" already defined on line 888
+bytemaker/bittypes/int.py :: valid-type :: Variable "cls" is not valid as a type
+bytemaker/bittypes/string.py :: arg-type :: Argument 1 to "decoding" of "String" has incompatible type "BitVector | str"; expected "BitVector"
+bytemaker/bittypes/string.py :: assignment :: Incompatible types in assignment (expression has type "classmethod[Any, [Any, Any], Any]", target has type "str | int | None")
+bytemaker/bittypes/string.py :: assignment :: Incompatible types in assignment (expression has type "classmethod[Any, [Any, Any], BitVector]", target has type "str | int | None")
+bytemaker/bittypes/string.py :: assignment :: Incompatible types in assignment (expression has type "dict[Any, Any]", target has type "str | int | None")
+bytemaker/bittypes/string.py :: assignment :: Incompatible types in assignment (expression has type "tuple[int, HashableMapping[BitVector, BitVector] | HashableMapping[str, str]]", variable has type "tuple[int, HashableMapping[str, str]] | None")
+bytemaker/bittypes/string.py :: index :: Value of type "tuple[int, HashableMapping[str, str]] | None" is not indexable
+bytemaker/bittypes/string.py :: misc :: Cannot assign to final attribute "base_bit_type"
+bytemaker/bittypes/string.py :: misc :: Cannot assign to final name "py_type"
+bytemaker/bittypes/string.py :: misc :: Cannot instantiate type "type[type[String]]"
+bytemaker/bittypes/string.py :: misc :: Invalid base class "cls"
+bytemaker/bittypes/string.py :: no-redef :: Name "codepoint_changes" already defined on line 147
+bytemaker/bittypes/string.py :: type-abstract :: Can only assign concrete classes to a variable of type "type[BitType[Any]]"
+bytemaker/bittypes/string.py :: type-abstract :: Can only assign concrete classes to a variable of type "type[String]"
+bytemaker/bittypes/string.py :: valid-type :: Variable "cls" is not valid as a type
+bytemaker/bitvector/bitvector_native.py :: arg-type :: Argument 2 to "is_instance_of_union" has incompatible type "<typing special form>"; expected "type"
+bytemaker/bitvector/bitvector_native.py :: assignment :: Incompatible types in assignment (expression has type "int | None", variable has type "Literal[0, 1] | None")
+bytemaker/bitvector/bitvector_native.py :: import-not-found :: Cannot find implementation or library stub for module named "utils"
+bytemaker/bitvector/bitvector_native.py :: no-redef :: Name "is_instance_of_union" already defined (possibly by an import)
+bytemaker/bitvector/bitvector_native.py :: no-redef :: Name "self" already defined on line 216
+bytemaker/bitvector/bitvector_native.py :: no-redef :: Name "twos_complement_bit_length" already defined (possibly by an import)
+bytemaker/bitvector/bitvector_native.py :: union-attr :: Item "Iterable[Literal[0, 1] | int]" of "str | Iterable[Literal[0, 1] | int] | BitsCastable | int" has no attribute "__Bits__"
+bytemaker/bitvector/bitvector_native.py :: union-attr :: Item "int" of "str | Iterable[Literal[0, 1] | int] | BitsCastable | int" has no attribute "__Bits__"
+bytemaker/bitvector/bitvector_native.py :: union-attr :: Item "str" of "str | Iterable[Literal[0, 1] | int] | BitsCastable | int" has no attribute "__Bits__"
+bytemaker/bitvector/bitvector_native.py :: var-annotated :: Need type annotation for "bitlist" (hint: "bitlist: list[<type>] = ...")
+bytemaker/bitvector/bitvector_speedup.py :: arg-type :: Argument 1 to "_from_str" of "BitVector" has incompatible type "str | Iterable[Literal[0, 1] | int] | BitsCastable | int"; expected "str"
+bytemaker/bitvector/bitvector_speedup.py :: arg-type :: Argument 1 to "fromsize" of "BitVector" has incompatible type "str | Iterable[Literal[0, 1] | int] | BitsCastable | int"; expected "int"
+bytemaker/bitvector/bitvector_speedup.py :: arg-type :: Argument 2 to "is_instance_of_union" has incompatible type "<typing special form>"; expected "type"
+bytemaker/bitvector/bitvector_speedup.py :: assignment :: Incompatible types in assignment (expression has type "int | None", variable has type "Literal[0, 1] | None")
+bytemaker/bitvector/bitvector_speedup.py :: assignment :: Incompatible types in assignment (expression has type "str | Iterable[Literal[0, 1] | int] | BitsCastable | int", variable has type "bytes")
+bytemaker/bitvector/bitvector_speedup.py :: import-not-found :: Cannot find implementation or library stub for module named "utils"
+bytemaker/bitvector/bitvector_speedup.py :: no-redef :: Name "is_instance_of_union" already defined (possibly by an import)
+bytemaker/bitvector/bitvector_speedup.py :: no-redef :: Name "self" already defined on line 281
+bytemaker/bitvector/bitvector_speedup.py :: no-redef :: Name "twos_complement_bit_length" already defined (possibly by an import)
+bytemaker/bitvector/bitvector_speedup.py :: union-attr :: Item "Iterable[Literal[0, 1] | int]" of "str | Iterable[Literal[0, 1] | int] | BitsCastable | int" has no attribute "__Bits__"
+bytemaker/bitvector/bitvector_speedup.py :: union-attr :: Item "int" of "str | Iterable[Literal[0, 1] | int] | BitsCastable | int" has no attribute "__Bits__"
+bytemaker/bitvector/bitvector_speedup.py :: union-attr :: Item "str" of "str | Iterable[Literal[0, 1] | int] | BitsCastable | int" has no attribute "__Bits__"
+bytemaker/bitvector/bitvector_with_bitarray_speedup.py :: arg-type :: Argument 1 to "extend" of "BitVector" has incompatible type "super"; expected "BitVector | bytes | bytearray | memoryview[int] | str | Iterable[Literal[0, 1] | int] | BitsCastable | bitarray"
+bytemaker/bitvector/bitvector_with_bitarray_speedup.py :: arg-type :: Argument 2 to "frombytes" of "bitarray" has incompatible type "str | Iterable[Literal[0, 1] | int] | BitsCastable | int"; expected "bytes | bytearray"
+bytemaker/bitvector/bitvector_with_bitarray_speedup.py :: arg-type :: Argument 2 to "is_instance_of_union" has incompatible type "<typing special form>"; expected "type"
+bytemaker/bitvector/bitvector_with_bitarray_speedup.py :: assignment :: Incompatible types in assignment (expression has type "Literal[0, 1] | bitarray", target has type "int")
+bytemaker/bitvector/bitvector_with_bitarray_speedup.py :: assignment :: Incompatible types in assignment (expression has type "int", variable has type "Literal[0, 1] | BitVector | bytes | bytearray | memoryview[int] | str | Iterable[Literal[0, 1] | int] | BitsCastable | bitarray")
+bytemaker/bitvector/bitvector_with_bitarray_speedup.py :: call-arg :: Too many arguments for "__new__" of "object"
+bytemaker/bitvector/bitvector_with_bitarray_speedup.py :: call-arg :: Unexpected keyword argument "buffer" for "__new__" of "object"
+bytemaker/bitvector/bitvector_with_bitarray_speedup.py :: import-not-found :: Cannot find implementation or library stub for module named "utils"
+bytemaker/bitvector/bitvector_with_bitarray_speedup.py :: no-redef :: Name "Trie" already defined (possibly by an import)
+bytemaker/bitvector/bitvector_with_bitarray_speedup.py :: no-redef :: Name "accumulated_bits" already defined on line 1455
+bytemaker/bitvector/bitvector_with_bitarray_speedup.py :: no-redef :: Name "is_instance_of_union" already defined (possibly by an import)
+bytemaker/bitvector/bitvector_with_bitarray_speedup.py :: no-redef :: Name "other" already defined on line 670
+bytemaker/bitvector/bitvector_with_bitarray_speedup.py :: no-redef :: Name "self" already defined on line 185
+bytemaker/bitvector/bitvector_with_bitarray_speedup.py :: operator :: Unsupported operand types for + ("bitarray" and "BitVector | bytes | bytearray | memoryview[int] | str | Iterable[Literal[0, 1] | int] | BitsCastable | bitarray")
+bytemaker/bitvector/bitvector_with_bitarray_speedup.py :: override :: Argument 1 of "__delitem__" is incompatible with supertype "bitarray.bitarray"; supertype defines the argument type as "int | slice[Any, Any, Any] | bitarray | Sequence[Any]"
+bytemaker/bitvector/bitvector_with_bitarray_speedup.py :: override :: Argument 1 of "to01" is incompatible with supertype "bitarray.bitarray"; supertype defines the argument type as "int"
+bytemaker/bitvector/bitvector_with_bitarray_speedup.py :: override :: Argument 2 of "to01" is incompatible with supertype "bitarray.bitarray"; supertype defines the argument type as "str"
+bytemaker/bitvector/bitvector_with_bitarray_speedup.py :: override :: Signature of "__getitem__" incompatible with supertype "bitarray.bitarray"
+bytemaker/bitvector/bitvector_with_bitarray_speedup.py :: override :: Signature of "count" incompatible with supertype "bitarray.bitarray"
+bytemaker/bitvector/bitvector_with_bitarray_speedup.py :: override :: Signature of "find" incompatible with supertype "bitarray.bitarray"
+bytemaker/bitvector/bitvector_with_bitarray_speedup.py :: override :: Signature of "index" incompatible with supertype "bitarray.bitarray"
+bytemaker/bitvector/bitvector_with_bitarray_speedup.py :: union-attr :: Item "BitsCastable" of "str | Iterable[Literal[0, 1] | int] | BitsCastable" has no attribute "to01"
+bytemaker/bitvector/bitvector_with_bitarray_speedup.py :: union-attr :: Item "Iterable[Literal[0, 1] | int]" of "str | Iterable[Literal[0, 1] | int] | BitsCastable | int" has no attribute "__Bits__"
+bytemaker/bitvector/bitvector_with_bitarray_speedup.py :: union-attr :: Item "Iterable[Literal[0, 1] | int]" of "str | Iterable[Literal[0, 1] | int] | BitsCastable" has no attribute "to01"
+bytemaker/bitvector/bitvector_with_bitarray_speedup.py :: union-attr :: Item "int" of "str | Iterable[Literal[0, 1] | int] | BitsCastable | int" has no attribute "__Bits__"
+bytemaker/bitvector/bitvector_with_bitarray_speedup.py :: union-attr :: Item "str" of "str | Iterable[Literal[0, 1] | int] | BitsCastable | int" has no attribute "__Bits__"
+bytemaker/bitvector/bitvector_with_bitarray_speedup.py :: union-attr :: Item "str" of "str | Iterable[Literal[0, 1] | int] | BitsCastable" has no attribute "to01"
+bytemaker/bitvector/bitvector_with_bitarray_speedup.py :: valid-type :: Variable "cls" is not valid as a type
+bytemaker/bitvector/fixed.py :: misc :: Signatures of "__iadd__" and "__add__" are incompatible
+bytemaker/bitvector/fixed.py :: misc :: Signatures of "__imul__" and "__mul__" are incompatible
+bytemaker/conversions/aggregate_types.py :: arg-type :: Argument 2 to "is_instance_of_union" has incompatible type "<typing special form>"; expected "type"
+bytemaker/conversions/ctypes_.py :: arg-type :: Argument 1 to "_reversed_ctype_bytes" has incompatible type overloaded function; expected "type"
+bytemaker/conversions/ctypes_.py :: arg-type :: Argument 1 to "sizeof" has incompatible type overloaded function; expected "_CData | _SimpleCData[Any] | _Pointer[Any] | CFuncPtr | _ctypes.Union | Structure | Array[Any] | type[_CData] | type[_SimpleCData[Any]] | type[_Pointer[Any]] | type[CFuncPtr] | type[_ctypes.Union] | type[Structure] | type[Array[Any]]"
+bytemaker/conversions/ctypes_.py :: attr-defined :: "type" has no attribute "from_buffer_copy"
+bytemaker/plans.py :: arg-type :: Argument 1 to "append" of "list" has incompatible type "int"; expected "bytes"
+bytemaker/plans.py :: arg-type :: Argument 1 to "zip" has incompatible type "tuple[tuple[int, int, int, int, int], ...] | None"; expected "Iterable[tuple[int, int, int, int, int]]"
+bytemaker/plans.py :: arg-type :: Argument 2 to "from_bytes" of "int" has incompatible type "str | None"; expected "Literal['little', 'big']"
+bytemaker/plans.py :: arg-type :: Argument 2 to "to_bytes" of "int" has incompatible type "str | None"; expected "Literal['little', 'big']"
+bytemaker/plans.py :: assignment :: Incompatible types in assignment (expression has type "None", variable has type "Struct")
+bytemaker/plans.py :: attr-defined :: "type" has no attribute "_endian_set"
+bytemaker/plans.py :: attr-defined :: "type" has no attribute "count"
+bytemaker/plans.py :: attr-defined :: "type" has no attribute "element"
+bytemaker/plans.py :: attr-defined :: "type" has no attribute "endian"
+bytemaker/plans.py :: attr-defined :: "type" has no attribute "num_bits"
+bytemaker/plans.py :: union-attr :: Item "None" of "tuple[tuple[int, int, int, int, int], ...] | None" has no attribute "__iter__" (not iterable)
+bytemaker/structs.py :: assignment :: Incompatible types in assignment (expression has type "None", base class "object" defined the type as "Callable[[], int]")
+bytemaker/structs.py :: assignment :: Incompatible types in assignment (expression has type "None", variable has type "<typing special form>")
+bytemaker/structs.py :: assignment :: Incompatible types in assignment (expression has type "_BytesField", variable has type "_StructField")
+bytemaker/structs.py :: assignment :: Incompatible types in assignment (expression has type "_FloatField", variable has type "_StructField")
+bytemaker/structs.py :: assignment :: Incompatible types in assignment (expression has type "_SIntField", variable has type "_StructField")
+bytemaker/structs.py :: assignment :: Incompatible types in assignment (expression has type "_StrField", variable has type "_StructField")
+bytemaker/structs.py :: assignment :: Incompatible types in assignment (expression has type "_UIntField", variable has type "_StructField")
+bytemaker/structs.py :: attr-defined :: "BoundField[V]" has no attribute "_ftype"
+bytemaker/structs.py :: attr-defined :: "BoundField[V]" has no attribute "_name"
+bytemaker/structs.py :: attr-defined :: "BoundField[V]" has no attribute "_owner"
+bytemaker/structs.py :: attr-defined :: "Self" has no attribute "_bm_from_tuple"
+bytemaker/structs.py :: attr-defined :: "Self" has no attribute "_bm_to_tuple"
+bytemaker/structs.py :: attr-defined :: "Struct" has no attribute "_bm_to_tuple"
+bytemaker/structs.py :: attr-defined :: "StructMeta" has no attribute "_bm_concrete"
+bytemaker/structs.py :: attr-defined :: "StructMeta" has no attribute "_bm_endian"
+bytemaker/structs.py :: attr-defined :: "StructMeta" has no attribute "_bm_field_types"
+bytemaker/structs.py :: attr-defined :: "StructMeta" has no attribute "_bm_fields"
+bytemaker/structs.py :: attr-defined :: "StructMeta" has no attribute "_bm_from_tuple"
+bytemaker/structs.py :: attr-defined :: "StructMeta" has no attribute "num_bits"
+bytemaker/structs.py :: attr-defined :: "StructMeta" has no attribute "plan"
+bytemaker/structs.py :: attr-defined :: "type[Self]" has no attribute "_bm_from_tuple"
+bytemaker/structs.py :: misc :: "None" object is not iterable
+bytemaker/structs.py :: misc :: List comprehension has incompatible type List[int]; expected List[V]
+bytemaker/structs.py :: misc :: List comprehension has incompatible type List[list[Any]]; expected List[V]
+bytemaker/structs.py :: misc :: Signatures of "__iadd__" and "__add__" are incompatible
+bytemaker/structs.py :: misc :: Signatures of "__imul__" and "__mul__" are incompatible
+bytemaker/structs.py :: no-redef :: Name "get_origin" already defined (possibly by an import)
+bytemaker/structs.py :: return-value :: Incompatible return value type (got "StructMeta | Array[Any] | type[BitType[Any]]", expected "type")
+bytemaker/structs.py :: return-value :: Incompatible return value type (got "list[bytes]", expected "list[V]")
+bytemaker/structs.py :: union-attr :: Item "StructMeta" of "StructMeta | Array[Any]" has no attribute "num_bits"
+bytemaker/typing_redirect.py :: assignment :: Incompatible types in assignment (expression has type "TypeVar", variable has type "type[Buffer]")
+bytemaker/typing_redirect.py :: misc :: Cannot assign to a type
+bytemaker/typing_redirect.py :: misc :: Cannot redefine "Buffer" as a type variable
+bytemaker/typing_redirect.py :: no-redef :: Name "TypeIs" already defined (possibly by an import)

@@ -752,7 +752,7 @@ class SInt7(SInt):
     _num_bits = 7
 
 
-class _StructPackedSInt(StructPackedBitType, SInt):
+class _StructPackedSInt(StructPackedBitType[int], SInt):
     """Shared base of the struct-packable signed widths (SInt8/16/32/64).
 
     struct's b/h/i/q letters are two's-complement only, so packing applies
@@ -931,7 +931,7 @@ class UInt7(UInt):
     _num_bits = 7
 
 
-class UInt8(StructPackedBitType, UInt):
+class UInt8(StructPackedBitType[int], UInt):
     _num_bits = 8
     packing_format_letter = "B"
 
@@ -964,17 +964,17 @@ class UInt15(UInt):
     _num_bits = 15
 
 
-class UInt16(StructPackedBitType, UInt):
+class UInt16(StructPackedBitType[int], UInt):
     _num_bits = 16
     packing_format_letter = "H"
 
 
-class UInt32(StructPackedBitType, UInt):
+class UInt32(StructPackedBitType[int], UInt):
     _num_bits = 32
     packing_format_letter = "I"
 
 
-class UInt64(StructPackedBitType, UInt):
+class UInt64(StructPackedBitType[int], UInt):
     _num_bits = 64
     packing_format_letter = "Q"
 

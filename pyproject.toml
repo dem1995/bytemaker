@@ -13,7 +13,11 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent"]
 
-dependencies = []
+# typing-extensions backfills Annotated (3.8), Self (<3.11), and
+# Buffer (<3.12) for bytemaker.typing_redirect; 3.13+ has them all.
+dependencies = [
+    "typing-extensions >= 4.11; python_version < '3.13'"
+]
 
 [project.optional-dependencies]
 speedups = [
@@ -21,12 +25,14 @@ speedups = [
 ]
 testing = [
     "pytest>=6",
-    "flake8>=3.8"
+    "flake8>=3.8",
+    "mypy>=1.8"
 ]
 dev = [
     "bitarray >= 2.9.0",
     "pytest>=6",
     "flake8>=3.8",
+    "mypy>=1.8",
     "pre-commit >= 3.8.0"
 ]
 docs = [
@@ -36,10 +42,6 @@ docs = [
     "sphinx-copybutton",
     "sphinx-design"
 ]
-
-
-# dependencies = [
-#     "typing-extensions >= 4.11; python_version < '3.11'"]
 
 [tool.setuptools]
 packages = ["bytemaker", "bytemaker.bittypes", "bytemaker.bitvector", "bytemaker.conversions"]
@@ -56,3 +58,10 @@ bytemaker = ["py.typed", "*.pyi"]
 
 [tool.isort]
 profile = "black"
+
+[tool.mypy]
+# Non-strict baseline; test/typing_regression_test.py pins the current
+# error set so new type errors fail the suite while old ones burn down.
+packages = ["bytemaker"]
+show_error_codes = true
+warn_unused_ignores = false
