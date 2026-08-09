@@ -255,13 +255,13 @@ class MixedAggregate:
 
 
 @dataclass
-class TestClass:
+class SampleAggregate:
     b: float
 
 
 # def test_basic():
 #     print(BitVector("0xFFFF").to_hex())
-#     print(to_bits_aggregate(TestClass(3.1415927410125732421875)).to_hex())
+#     print(to_bits_aggregate(SampleAggregate(3.1415927410125732421875)).to_hex())
 #     assert False == True
 
 

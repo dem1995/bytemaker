@@ -5,15 +5,15 @@ import pytest
 from bytemaker.conversions.ctypes_ import bytes_to_ctype, ctype_to_bytes
 
 
-class TestStructure(Structure):
+class SampleStructure(Structure):
     _fields_ = [("field1", c_int), ("field2", c_uint)]
 
 
-class TestUnion(Union):
+class SampleUnion(Union):
     _fields_ = [("field1", c_int), ("field2", c_uint)]
 
 
-class TestArray(Array):
+class SampleArray(Array):
     _type_ = c_char
     _length_ = 4
 
@@ -23,7 +23,7 @@ class TestArray(Array):
     "ctype_obj, expected_bytes",
     [
         (c_int(42), b"\x00\x00\x00\x2a"),
-        (TestStructure(1, 2), b"\x00\x00\x00\x01\x00\x00\x00\x02"),
+        (SampleStructure(1, 2), b"\x00\x00\x00\x01\x00\x00\x00\x02"),
     ],
 )
 def test_ctype_to_bytes(ctype_obj, expected_bytes):
@@ -35,7 +35,7 @@ def test_ctype_to_bytes(ctype_obj, expected_bytes):
     "bytes_obj, ctype_type, expected_ctype_obj",
     [
         (b"\x00\x00\x00\x2a", c_int, c_int(42)),
-        (b"\x00\x00\x00\x01\x00\x00\x00\x02", TestStructure, TestStructure(1, 2)),
+        (b"\x00\x00\x00\x01\x00\x00\x00\x02", SampleStructure, SampleStructure(1, 2)),
     ],
 )
 def test_bytes_to_ctype(bytes_obj, ctype_type, expected_ctype_obj):
@@ -52,7 +52,7 @@ def test_bytes_to_ctype(bytes_obj, ctype_type, expected_ctype_obj):
     "ctype_obj, expected_bytes_unreversed",
     [
         (c_int(42), b"\x2a\x00\x00\00"),
-        (TestStructure(1, 2), b"\x01\x00\x00\x00\x02\x00\x00\x00"),
+        (SampleStructure(1, 2), b"\x01\x00\x00\x00\x02\x00\x00\x00"),
     ],
 )
 def test_unreversed_endianness(ctype_obj, expected_bytes_unreversed):

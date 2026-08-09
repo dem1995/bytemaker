@@ -65,3 +65,9 @@ profile = "black"
 packages = ["bytemaker"]
 show_error_codes = true
 warn_unused_ignores = false
+
+[tool.pytest.ini_options]
+# Bare `pytest` from the repo root must run the package suite only —
+# without this it also collects gitignored scratch directories
+# (__out_of_package__/ carries its own self-contained tests).
+testpaths = ["test"]
