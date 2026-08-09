@@ -816,6 +816,7 @@ class StructMeta(type):
     # Compiled-class attributes, declared here so assignments in __new__
     # typecheck (runtime storage is on each concrete class).
     _bm_adapters: Dict[str, Adapter]
+    num_bits: int
     num_bytes: int
 
     def __new__(

@@ -60,6 +60,10 @@ def _run_mypy():
             code = code[:-1]
         else:
             message, code = rest, "misc"
+        # Drop did-you-mean suffixes: adding an attribute elsewhere can
+        # append '; maybe "x"?' to an unrelated pre-existing error, which
+        # must not read as a NEW error.
+        message = message.split("; maybe ")[0]
         keys.add(f"{path} :: {code} :: {message}")
     return keys, proc
 
