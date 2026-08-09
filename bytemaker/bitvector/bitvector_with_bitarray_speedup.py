@@ -6,7 +6,7 @@ import math
 from typing import TYPE_CHECKING, cast, overload
 
 from bitarray import bitarray
-from bitarray.util import ba2base, base2ba
+from bitarray.util import ba2base, ba2int, base2ba, int2ba
 
 from bytemaker.utils import twos_complement_bit_length
 
@@ -1689,11 +1689,10 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
                 f" to represent."
             )
 
-        bitlist = list()
-        for index in range(size):
-            bitlist.insert(0, (integer >> index) & 1)
-
-        return cls(bitlist)
+        # The strictness guard above is exactly int2ba's signed range
+        # (needed counts the sign bit), so this cannot overflow. C-speed
+        # replaces the old per-bit list.insert(0, ...) quadratic loop.
+        return cls(int2ba(integer, length=size, signed=True))
 
     @classmethod
     def from_bytes(cls, byte_arr: bytes, reverse_endianness=False):
@@ -1708,12 +1707,25 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
             by casting the Bits to bytes, and then converting the bytes to an integer
             using the provided endianness and signedness.
         """
-        copy = BitVector(list(self))
-        if signed and len(copy) > 0 and copy[0] == 1:
-            next_multiple_of_8 = math.ceil(len(self) / 8) * 8
-            copy = copy.lpad(width=next_multiple_of_8, fillbit=1)
-
-        return int.from_bytes(copy.to_bytes(), byteorder=endianness, signed=signed)
+        if len(self) == 0:
+            return 0
+        if endianness == "big":
+            # ba2int's two's-complement read is exactly "sign-extend to a
+            # whole number of bytes, then int.from_bytes big/signed".
+            return ba2int(self, signed=signed)
+        # little: right-align to whole bytes (sign-extending when signed
+        # and the top bit is set), then read the BYTES little-endian.
+        # An invalid endianness string falls through to int.from_bytes,
+        # which raises the usual ValueError.
+        pad = (8 - len(self) % 8) % 8
+        if pad:
+            lead = bitarray(pad)
+            lead.setall(1 if signed and self[0] else 0)
+            lead.extend(self)
+            raw = lead.tobytes()
+        else:
+            raw = self.tobytes()
+        return int.from_bytes(raw, byteorder=endianness, signed=signed)
 
     def to_bytes(self, reverse_endianness=False) -> bytes:
         """
@@ -1722,14 +1734,17 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
         bytes. Contrast tobytes()/bytes(), which LEFT-align (zero-pad on
         the right) a trailing partial byte.
         """
-        value = 0
-        for bit in self:
-            value = (value << 1) | bit
-        byte_arr = bytearray(value.to_bytes((len(self) + 7) // 8, "big"))
-
+        pad = (8 - len(self) % 8) % 8
+        if pad:
+            lead = bitarray(pad)
+            lead.setall(0)
+            lead.extend(self)
+            raw = lead.tobytes()
+        else:
+            raw = self.tobytes()
         if reverse_endianness:
-            byte_arr.reverse()
-        return bytes(byte_arr)
+            raw = raw[::-1]
+        return raw
 
 
 BitsConstructible = Union[
