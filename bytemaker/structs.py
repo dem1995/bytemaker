@@ -1244,11 +1244,14 @@ class BoundBits:
         b.insert(index, value)
         self._write(b)
 
-    def pop(self, index=None, default=None):
+    def pop(self, index=None, default=_MISSING):
         # Mirrors the BitVector contract (None = last bit; negative
-        # indices count from the end, as in list.pop).
+        # indices count from the end, as in list.pop). Forward the default
+        # only when the caller gave one, so an omitted default still raises
+        # IndexError (a passed default=None returns None) — and the backend's
+        # own _MISSING sentinel governs the raise.
         b = self._cur()
-        value = b.pop(index, default)
+        value = b.pop(index) if default is _MISSING else b.pop(index, default)
         self._write(b)
         return value
 

@@ -130,6 +130,11 @@ else:
         return bin(value).count("1")
 
 
+# Sentinel distinguishing "no default given" from an explicit default=None
+# in pop() (so pop(bad_index, default=None) can return None instead of raising).
+_MISSING = object()
+
+
 def _coerce_bit(value: LaxLiteral01) -> int:
     """Validates that `value` is a 0 or 1 (or equal to one of them,
     e.g. booleans) and returns it as a plain int."""
@@ -1263,19 +1268,19 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
         self._len = nbits + 1
 
     def pop(  # type: ignore[reportIncompatibleMethodOverride]
-        self, index: Optional[int] = None, default: Optional[T] = None
+        self, index: Optional[int] = None, default=_MISSING
     ) -> Union[int, T]:
         """Removes and returns the bit at the given index (zero-indexed).
         If the provided index is None, the rightmost bit is popped.
         Negative indices count from the end, as with __getitem__.
         If a default is provided and the index is out of bounds,
-        the default is returned.
+        the default is returned (including an explicit ``default=None``).
 
         Args:
             index (Optional[int], optional): The position of the bit to pop.
                 Defaults to None.
-            default (Optional[T], optional): The default value to return if the
-                index is out of bounds. Defaults to None.
+            default (optional): The value to return if the index is out of
+                bounds. If omitted, an out-of-bounds index raises IndexError.
 
         Raises:
             IndexError: If the index is out of bounds and no default is provided.
@@ -1289,7 +1294,7 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
         if index < 0:
             index += len(self)
         if not 0 <= index < len(self):
-            if default is not None:
+            if default is not _MISSING:
                 return default
             if len(self) == 0:
                 raise IndexError("pop from empty BitVector")
