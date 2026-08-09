@@ -104,11 +104,13 @@ def resolve_field_types(dataclass_type: type) -> Dict[str, type]:
 
 
 def count_bits_in_unit_type(unit_type) -> int:
-    """
-    Function to count the number of bits in a UnitType-\
-        a Python, type, ctype, or BitType (bytemaker type).
+    """Count the number of bits in a UnitType — a Python type, ctype, or
+    BitType (bytemaker type).
 
     Cached per type.
+
+    Returns:
+        int: The number of bits the unit type occupies.
     """
     try:
         return _UNIT_BITS_CACHE[unit_type]
@@ -123,10 +125,11 @@ def count_bits_in_unit_type(unit_type) -> int:
 
 
 def count_bits_in_aggregate_type(aggregate_type: type) -> int:
-    """
-    Function to count the number of bits in an aggregate type-\
-        a Python, type, ctype, BitType (bytemaker type), or
-        a dataclass annotated with those.
+    """Count the number of bits in an aggregate type — a Python type, ctype,
+    BitType (bytemaker type), or a dataclass annotated with those.
+
+    Returns:
+        int: The number of bits the aggregate type occupies.
     """
     return _legacy.count_bits_in_aggregate_type(aggregate_type)
 
