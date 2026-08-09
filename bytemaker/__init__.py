@@ -52,6 +52,7 @@ from bytemaker.bitvector import (
     BitVector,
     FixedLengthBitVector,
 )
+from bytemaker.introspect import FieldInfo, bitsizeof, fields_of, sizeof
 from bytemaker.plans import Plan, PlanCompileError
 from bytemaker.structs import (
     Array,
@@ -67,6 +68,10 @@ __all__ = [
     "Array",
     "field",
     "array",
+    "sizeof",
+    "bitsizeof",
+    "fields_of",
+    "FieldInfo",
     "Plan",
     "PlanCompileError",
     "NarrowingConfig",

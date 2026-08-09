@@ -851,10 +851,14 @@ class StructMeta(type):
     compiled, slots-backed record classes, and provides ``T * N`` sugar."""
 
     # Compiled-class attributes, declared here so assignments in __new__
-    # typecheck (runtime storage is on each concrete class).
-    _bm_adapters: Dict[str, Adapter]
+    # (and attribute access on StructMeta-typed class objects) typecheck;
+    # runtime storage is on each concrete class.
+    plan: Plan
     num_bits: int
     num_bytes: int
+    _bm_adapters: Dict[str, Adapter]
+    _bm_fields: Tuple[str, ...]
+    _bm_field_types: Dict[str, type]
 
     def __new__(
         mcs,
