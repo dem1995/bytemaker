@@ -1285,3 +1285,59 @@ def test_sub_byte_array_standalone_parse_pack_guarded():
         arr.parse(b"\x12\x34\x56")
     with pytest.raises(ValueError, match="Struct FIELD"):
         arr.pack([1, 2, 3, 4, 5, 6])
+
+
+# ------------------------------------------------- wd-8: error attribution
+def test_store_errors_name_class_and_field():
+    """Runtime value errors previously surfaced bare ('str' object cannot
+    be interpreted as an integer), naming nothing on a 20-field record."""
+    from bytemaker.adapters import scaled
+    from bytemaker.bittypes import Float32, UTF8String
+    from bytemaker.structs import field
+
+    Name2 = UTF8String.of(nbytes=2, name="Name2W8")
+    Buf2b = Buffer.of(nbytes=2, name="Buf2W8")
+
+    class Inner8(Struct, endian="big"):
+        x: UInt8
+
+    class Big(Struct, endian="big"):
+        a: UInt16
+        b: SInt16
+        f: Float32
+        s: Name2
+        raw: Buf2b
+        inner: Inner8
+        xs: list = array(UInt8, 2)
+        alt: int = field(UInt8, adapt=scaled(4))
+
+    r = Big(
+        a=1, b=-1, f=0.5, s="ab", raw=b"xy", inner=Inner8(x=1),
+        xs=[1, 2], alt=8,
+    )
+    with pytest.raises(TypeError, match=r"Big\.a: "):
+        r.a = "x"
+    with pytest.raises(TypeError, match=r"Big\.b: "):
+        r.b = None
+    with pytest.raises(TypeError, match=r"Big\.f: "):
+        r.f = object()
+    with pytest.raises(ValueError, match=r"Big\.s: "):
+        r.s = "toolong"
+    with pytest.raises(ValueError, match=r"Big\.raw: expected exactly 2"):
+        r.raw = b"x"
+    with pytest.raises(TypeError, match=r"Big\.inner: expected a Inner8"):
+        r.inner = 5
+    with pytest.raises(ValueError, match=r"Big\.xs: "):
+        r.xs = [1, 2, 3]
+    with pytest.raises(ValueError, match=r"Big\.alt: "):
+        r.alt = 7  # scaled(4) exact-multiple store
+    # __init__ stores run through the same descriptors
+    with pytest.raises(TypeError, match=r"Big\.a: "):
+        Big(a="x", b=0, f=0.0, s="", raw=b"xy", inner=Inner8(x=1),
+            xs=[0, 0], alt=0)
+    # the original error survives as cause and suffix
+    try:
+        r.a = "x"
+    except TypeError as exc:
+        assert exc.__cause__ is not None
+        assert "interpreted as an integer" in str(exc)

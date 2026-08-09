@@ -176,6 +176,16 @@ class Codec(Protocol):
 # --------------------------------------------------------------------------
 
 
+def _raise_named(slot, obj, exc):
+    """Re-raise a store-time conversion error naming the record class and
+    field. Compile-time diagnostics always name their field; runtime value
+    errors previously surfaced bare ("'str' object cannot be interpreted
+    as an integer"), which on a 20-field record names nothing. The
+    original message survives as the suffix and ``__cause__``."""
+    field_name = slot.__name__[4:]  # strip the "_bm_" slot prefix
+    raise type(exc)(f"{type(obj).__name__}.{field_name}: {exc}") from exc
+
+
 class _UIntField:
     __slots__ = ("_slot", "_mask")
 
@@ -189,7 +199,10 @@ class _UIntField:
         return self._slot.__get__(obj, objtype)
 
     def __set__(self, obj, value):
-        iv = operator.index(value)
+        try:
+            iv = operator.index(value)
+        except TypeError as exc:
+            _raise_named(self._slot, obj, exc)
         v = iv & self._mask
         if NarrowingConfig.warn and v != iv:
             _warn_narrowing(iv, v, f"field {self._slot.__name__[4:]!r}")
@@ -210,7 +223,10 @@ class _SIntField:
         return self._slot.__get__(obj, objtype)
 
     def __set__(self, obj, value):
-        iv = operator.index(value)
+        try:
+            iv = operator.index(value)
+        except TypeError as exc:
+            _raise_named(self._slot, obj, exc)
         v = iv & self._mask
         if v >= self._sign_bit:
             v -= self._mask + 1
@@ -235,7 +251,11 @@ class _FloatField:
         # Narrow through the codec so the stored value is exactly what pack()
         # serializes (D1) -- a Float32 field must not read back a full-width
         # double. Float64 narrowing is a no-op (native width).
-        self._slot.__set__(obj, self._ftype(float(value)).value)
+        try:
+            v = self._ftype(float(value)).value
+        except (TypeError, ValueError) as exc:
+            _raise_named(self._slot, obj, exc)
+        self._slot.__set__(obj, v)
 
 
 class _StrField:
@@ -254,7 +274,11 @@ class _StrField:
         # Encode-validates through the box (raising on overflow, per the
         # field type's truncate/pad policy) and canonicalizes: the slot
         # holds the post-round-trip str; pack() re-encodes trusting it.
-        self._slot.__set__(obj, self._ftype(value).value)
+        try:
+            v = self._ftype(value).value
+        except (TypeError, ValueError) as exc:
+            _raise_named(self._slot, obj, exc)
+        self._slot.__set__(obj, v)
 
 
 class _BytesField:
@@ -270,10 +294,14 @@ class _BytesField:
         return self._slot.__get__(obj, objtype)
 
     def __set__(self, obj, value):
-        v = bytes(value)
+        try:
+            v = bytes(value)
+        except (TypeError, ValueError) as exc:
+            _raise_named(self._slot, obj, exc)
         if len(v) != self._nbytes:
             raise ValueError(
-                f"expected exactly {self._nbytes} bytes, got {len(v)}"
+                f"{type(obj).__name__}.{self._slot.__name__[4:]}: expected"
+                f" exactly {self._nbytes} bytes, got {len(v)}"
             )
         self._slot.__set__(obj, v)
 
@@ -297,7 +325,11 @@ class _AdaptedField:
         return self._adapter.load(self._inner.__get__(obj, objtype))
 
     def __set__(self, obj, value):
-        self._inner.__set__(obj, self._adapter.store(value))
+        try:
+            wire = self._adapter.store(value)
+        except (TypeError, ValueError) as exc:
+            _raise_named(self._inner._slot, obj, exc)
+        self._inner.__set__(obj, wire)
 
 
 class _StructField:
@@ -315,7 +347,8 @@ class _StructField:
     def __set__(self, obj, value):
         if not isinstance(value, self._child):
             raise TypeError(
-                f"expected a {self._child.__name__} instance, got {value!r}"
+                f"{type(obj).__name__}.{self._slot.__name__[4:]}: expected"
+                f" a {self._child.__name__} instance, got {value!r}"
             )
         self._slot.__set__(obj, value)
 
@@ -419,9 +452,11 @@ class _ArrayField:
         return self._slot.__get__(obj, objtype)
 
     def __set__(self, obj, value):
-        self._slot.__set__(
-            obj, NarrowingList(self._arr, self._arr._coerce_seq(value))
-        )
+        try:
+            coerced = self._arr._coerce_seq(value)
+        except (TypeError, ValueError) as exc:
+            _raise_named(self._slot, obj, exc)
+        self._slot.__set__(obj, NarrowingList(self._arr, coerced))
 
 
 # Annotation-only ClassVars (invisible to hasattr on the base) that the
