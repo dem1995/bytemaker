@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Scratch / integration exercises that must never be part of the package.
+__out_of_package__/
+
 # C extensions
 *.so
 
