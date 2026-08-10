@@ -75,7 +75,10 @@ class FieldInfo(NamedTuple):
     type: Any
     bit_offset: int
     bit_width: int
-    adapter: Optional[Any]  # the field's Adapter, if declared with adapt=
+    #: The field's Adapter, or None. Present for every adapted field however
+    #: it was declared -- ``adapt=``, a fused ``adapter @ BitType``, or an
+    #: adapted Array, whose entry is the ELEMENT adapter.
+    adapter: Optional[Any]
 
 
 def fields_of(struct) -> Tuple[FieldInfo, ...]:

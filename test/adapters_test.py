@@ -509,3 +509,22 @@ def test_adapted_array_field_default_is_user_plane():
 
     assert Defaulted().pack() == ANIM_WIRE[:8]
     assert Defaulted().fns is not Defaulted().fns  # no shared mutable
+
+
+def test_fields_of_reports_an_adapted_arrays_element_adapter():
+    """The engine keeps an array field's adapter on the Array (its codegen
+    converts at the tuple boundary), but introspection must still see that
+    the field IS adapted -- rom.Space.deref and coverage() read the schema
+    through _bm_adapters."""
+    (fns, mults) = fields_of(Anim)
+    assert fns.adapter is ThumbPtr.adapter
+    assert mults.adapter is Mult.adapter
+    assert set(Anim._bm_adapters) == {"fns", "mults"}
+    # a scalar adapted field and an unadapted one still report as before
+    class Mixed(Struct, endian="little"):
+        plain: List[int] = array(UInt8, 2)
+        scalar: Annotated[int, ThumbPtr]
+
+    by_name = {f.name: f.adapter for f in fields_of(Mixed)}
+    assert by_name["plain"] is None
+    assert by_name["scalar"] is THUMB_PTR

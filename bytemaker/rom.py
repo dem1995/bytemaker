@@ -32,25 +32,40 @@ Three ideas carry the module:
 
 Sub-byte codecs are refused: a byte address has no room for a 4-bit stride.
 Wrap those in a Struct (the plan engine packs them properly) and map that.
+
+Two layers build on that base:
+
+* :class:`Patch` / :class:`Edit` — edits as a value. ``space.write(...,
+  patch=p)`` records instead of mutating, so the edits can be verified
+  against the original bytes, inverted, composed, and exported as IPS.
+* :class:`Ptr` and :meth:`Space.coverage` — a typed address (whose decoded
+  value is still just an int) plus a report of what a map accounts for,
+  what it double-claims, and where its pointers land.
 """
 
 from dataclasses import dataclass
 
-from bytemaker.adapters import Adapted
-from bytemaker.introspect import bitsizeof, sizeof
+from bytemaker.adapters import Adapted, Adapter
+from bytemaker.introspect import bitsizeof, fields_of, sizeof
 from bytemaker.structs import Array, Struct, StructMeta
 from bytemaker.typing_redirect import Any, List, Literal, Optional, Union
 from bytemaker.utils import validate_endianness
 
 __all__ = [
     "AddressError",
+    "CoverageReport",
     "Edit",
     "Entry",
     "Extent",
     "IPS_EOF_OFFSET",
+    "Overlap",
     "Patch",
     "PatchConflict",
     "PatchVerifyError",
+    "PointerRef",
+    "Ptr",
+    "PtrAdapter",
+    "Region",
     "Space",
     "count",
     "span",
@@ -387,6 +402,169 @@ class Space:
     def bind(self, entries) -> "List[Entry]":
         """Bind a space-free map (a list of :class:`Entry`) to this space."""
         return [e.bind(self) for e in entries]
+
+    # -- pointers ----------------------------------------------------------
+    def deref(
+        self,
+        record: Any,
+        field_name: str,
+        extent: Union[int, "Extent", None] = 1,
+    ) -> Any:
+        """Follow a :class:`Ptr` field of ``record``.
+
+        The field must have been declared with a ``Ptr`` (so the pointee's
+        codec is in the schema, not at the call site). An adapted array of
+        pointers dereferences element-wise and returns a list.
+        """
+        cls = record if isinstance(record, type) else type(record)
+        adapter = getattr(cls, "_bm_adapters", {}).get(field_name)
+        ptr = _ptr_adapter_of(adapter)
+        if ptr is None:
+            known = sorted(
+                n
+                for n, a in getattr(cls, "_bm_adapters", {}).items()
+                if _ptr_adapter_of(a) is not None
+            )
+            raise TypeError(
+                f"{self._label()}: {getattr(cls, '__name__', cls)}.{field_name}"
+                f" is not a Ptr field, so there is nothing to follow"
+                + (f" (pointer fields here: {', '.join(known)})" if known else "")
+            )
+        value = getattr(record, field_name)
+        if isinstance(value, (list, tuple)):
+            return [self.deref_value(v, ptr, extent) for v in value]
+        return self.deref_value(value, ptr, extent)
+
+    def deref_value(
+        self,
+        addr: int,
+        ptr: Any,
+        extent: Union[int, "Extent", None] = 1,
+    ) -> Any:
+        """Follow one address through ``ptr`` (a :class:`Ptr` codec or its
+        adapter) — the form for elements of a pointer list."""
+        adapter = _ptr_adapter_of(ptr)
+        if adapter is None:
+            raise TypeError(
+                f"{self._label()}: {ptr!r} is not a Ptr (or a Ptr's adapter)"
+            )
+        if adapter.target is None:
+            raise TypeError(
+                f"{self._label()}: {adapter.name} has no target codec —"
+                f" Ptr(None) documents an address whose pointee is not"
+                f" modelled; give Ptr a target to follow it"
+            )
+        return self.read(addr, adapter.target, extent)
+
+    # -- coverage ----------------------------------------------------------
+    def coverage(self, entries, *, audit_pointers: bool = True):
+        """What a map accounts for: per-entry footprints, double-claims, and
+        where every declared pointer lands.
+
+        Returns a :class:`CoverageReport`. ``until`` extents are resolved by
+        scanning (the terminator counts as claimed); ``unknown`` extents and
+        entries that fail to read are reported unresolved with the reason
+        rather than silently skipped.
+
+        The pointer audit covers an entry whose codec is a ``Ptr`` (alone or
+        as an array element) and the top-level ``Ptr`` fields of a Struct
+        codec. Pointers nested inside a nested Struct are not followed —
+        map the inner record as its own entry if you need them.
+        """
+        bound = [e if e.space is not None else e.bind(self) for e in entries]
+        regions = tuple(self._resolve_region(e) for e in bound)
+        overlaps = _overlaps(regions)
+        pointers: list = []
+        if audit_pointers:
+            for region in regions:
+                pointers.extend(self._audit_pointers(region, regions))
+        return CoverageReport(
+            space_name=self._name,
+            space_size=len(self),
+            regions=regions,
+            overlaps=overlaps,
+            pointers=tuple(pointers),
+        )
+
+    def _resolve_region(self, entry: "Entry"):
+        declared = entry.size
+        if declared is not None:
+            end = entry.addr + declared
+            if not (self.contains(entry.addr) and end <= self.end):
+                return Region(
+                    entry,
+                    None,
+                    f"0x{entry.addr:08X}+{declared} runs outside the space",
+                )
+            return Region(entry, declared)
+        if isinstance(entry.extent, unknown):
+            note = entry.extent.note or "extent not declared"
+            return Region(entry, None, f"unknown(): {note}")
+        try:
+            values = entry.read()
+        except (ValueError, TypeError) as exc:
+            return Region(entry, None, f"{type(exc).__name__}: {exc}")
+        # A scanned table's bytes include its terminator.
+        return Region(entry, (len(values) + 1) * entry.stride)
+
+    def _audit_pointers(self, region, regions) -> list:
+        entry = region.entry
+        codec = entry.codec
+        source = region.name
+        direct = _ptr_adapter_of(codec)
+        out: list = []
+        if direct is not None:
+            for index, value in _enumerate_values(self._safe_read(entry)):
+                verdict, owner = self._classify_address(value, regions)
+                out.append(
+                    PointerRef(source, None, index, value, verdict, owner)
+                )
+            return out
+        if not isinstance(codec, StructMeta):
+            return out
+        ptr_fields = [
+            (info.name, _ptr_adapter_of(info.adapter))
+            for info in fields_of(codec)
+            if _ptr_adapter_of(info.adapter) is not None
+        ]
+        if not ptr_fields:
+            return out
+        records = self._safe_read(entry)
+        if records is None:
+            return out
+        if not isinstance(records, list):
+            records = [records]
+        for rec_index, rec in enumerate(records):
+            for field_name, _ptr in ptr_fields:
+                value = getattr(rec, field_name)
+                for sub, one in _enumerate_values(value):
+                    index = rec_index if sub is None else (rec_index, sub)
+                    verdict, owner = self._classify_address(one, regions)
+                    out.append(
+                        PointerRef(
+                            source, field_name, index, one, verdict, owner
+                        )
+                    )
+        return out
+
+    def _safe_read(self, entry: "Entry"):
+        try:
+            return entry.read()
+        except (ValueError, TypeError):
+            return None
+
+    def _classify_address(self, addr, regions):
+        if not isinstance(addr, int):
+            return ("outside", None)
+        if addr == 0:
+            return ("null", None)
+        if not self.contains(addr):
+            return ("outside", None)
+        for region in regions:
+            end = region.end
+            if end is not None and region.start <= addr < end:
+                return ("claimed", region.name)
+        return ("unclaimed", None)
 
     # -- internals ---------------------------------------------------------
     def _stride(self, codec) -> int:
@@ -1012,3 +1190,300 @@ class Patch:
         return self._old == other._old and self._new == other._new
 
     __hash__ = None  # type: ignore[assignment]  # mutable, like a bytearray
+
+
+# --------------------------------------------------------------------------
+# Typed pointers
+# --------------------------------------------------------------------------
+
+
+def _identity(value):
+    return value
+
+
+class PtrAdapter(Adapter):
+    """The :class:`Adapter` half of a :class:`Ptr`: it carries the pointee's
+    codec so a record can be dereferenced without a lookup table.
+
+    Living on the adapter (rather than on the wire type) is what makes this
+    work: :class:`Adapted` codecs are split into base + adapter at class
+    definition time, so the adapter is the half that survives into
+    ``_bm_adapters`` and :func:`~bytemaker.introspect.fields_of`.
+    """
+
+    __slots__ = ("target", "inner")
+
+    target: Any
+    inner: Optional[Adapter]
+
+    def __init__(self, target=None, inner=None, name=None):
+        if inner is not None and not isinstance(inner, Adapter):
+            raise TypeError(f"Ptr adapt= must be an Adapter, got {inner!r}")
+        load = inner.load if inner is not None else _identity
+        store = inner.store if inner is not None else _identity
+        label = name or f"ptr({_codec_name(target)})"
+        super().__init__(load, store, int, label)
+        object.__setattr__(self, "target", target)
+        object.__setattr__(self, "inner", inner)
+
+    def __reduce__(self):
+        return (PtrAdapter, (self.target, self.inner, self.name))
+
+
+class Ptr(Adapted):
+    """A typed address: a wire integer that points at ``target``.
+
+    Grade 1 on purpose — the decoded value is a **plain int**, not a proxy
+    and not a lazy record. Nothing is followed until you ask::
+
+        class WarpPoint(Struct, endian="little"):
+            sector: UInt8
+            room_ptr: Annotated[int, Ptr(RoomHeader)]
+
+        w = rom.read(0x08525FBC, WarpPoint)
+        w.room_ptr                         # 0x08520B08 -- just an int
+        rom.deref(w, "room_ptr")           # the RoomHeader it points at
+
+    A pointer is an :class:`~bytemaker.adapters.Adapted` codec, so it works
+    everywhere a scalar wire type does (annotation, ``field()``, array
+    element, ``space.read``) with no extra plumbing.
+
+    ``adapt=`` composes a value convention on top — ``Ptr(Anim,
+    adapt=THUMB_PTR)`` is a function pointer whose bit 0 selects the THUMB
+    instruction set, so the decoded address is the real (even) one.
+
+    ``Ptr(None)`` means "this is an address, but the pointee is not modelled
+    yet": :meth:`Space.coverage` still audits it, and :meth:`Space.deref`
+    refuses it by name.
+    """
+
+    __slots__ = ()
+
+    def __init__(self, target=None, *, base=None, adapt=None, name=None):
+        if base is None:
+            from bytemaker.bittypes import UInt32
+
+            base = UInt32
+        super().__init__(base, PtrAdapter(target, adapt, name))
+
+    @property
+    def target(self):
+        """The codec this address points at, or None when unmodelled."""
+        return self.adapter.target
+
+    def __repr__(self):
+        return f"Ptr({_codec_name(self.target)}->{self.base.__name__})"
+
+    def __reduce__(self):
+        return (_rebuild_ptr, (self.base, self.adapter))
+
+
+def _rebuild_ptr(base, adapter) -> Ptr:
+    """Unpickle a Ptr without re-running __init__ (which would rebuild the
+    adapter and lose its identity)."""
+    ptr = object.__new__(Ptr)
+    object.__setattr__(ptr, "base", base)
+    object.__setattr__(ptr, "adapter", adapter)
+    return ptr
+
+
+def _codec_name(codec) -> str:
+    if codec is None:
+        return "?"
+    return getattr(codec, "__name__", None) or repr(codec)
+
+
+def _ptr_adapter_of(obj) -> Optional[PtrAdapter]:
+    """The :class:`PtrAdapter` behind a Ptr codec, an adapter, or an Array of
+    pointers — else None."""
+    if isinstance(obj, PtrAdapter):
+        return obj
+    if isinstance(obj, Adapted):
+        return obj.adapter if isinstance(obj.adapter, PtrAdapter) else None
+    if isinstance(obj, Array):
+        return obj._adapter if isinstance(obj._adapter, PtrAdapter) else None
+    return None
+
+
+# --------------------------------------------------------------------------
+# Coverage
+# --------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Region:
+    """One entry's resolved footprint in a coverage report."""
+
+    entry: "Entry"
+    size: Optional[int]
+    error: Optional[str] = None
+
+    @property
+    def name(self) -> str:
+        return self.entry.name or f"0x{self.entry.addr:08X}"
+
+    @property
+    def start(self) -> int:
+        return self.entry.addr
+
+    @property
+    def end(self) -> Optional[int]:
+        """One past the last claimed address, or None when unresolved."""
+        return None if self.size is None else self.entry.addr + self.size
+
+    @property
+    def resolved(self) -> bool:
+        return self.size is not None
+
+
+@dataclass(frozen=True)
+class Overlap:
+    """Two entries claiming the same bytes — usually a wrong count."""
+
+    a: str
+    b: str
+    start: int
+    size: int
+
+
+def _enumerate_values(value):
+    """``(index, one)`` pairs for a scalar, a list, or None: normalizes the
+    three shapes a Ptr-carrying read can produce."""
+    if value is None:
+        return ()
+    if isinstance(value, (list, tuple)):
+        return tuple(enumerate(value))
+    return ((None, value),)
+
+
+def _overlaps(regions) -> tuple:
+    """Pairs of resolved regions that claim the same bytes.
+
+    Sweeps in start order, so an entry overlapping three others reports
+    three pairs rather than one vague complaint.
+    """
+    live = sorted(
+        (r for r in regions if r.resolved and r.size),
+        key=lambda r: (r.start, r.end),
+    )
+    out = []
+    for i, a in enumerate(live):
+        for b in live[i + 1 :]:
+            if b.start >= a.end:
+                break  # sorted by start: nothing later can overlap a either
+            shared = min(a.end, b.end) - b.start
+            if shared > 0:
+                out.append(Overlap(a.name, b.name, b.start, shared))
+    return tuple(out)
+
+
+@dataclass(frozen=True)
+class PointerRef:
+    """One decoded pointer, classified against the map."""
+
+    source: str  #: the entry's name
+    field: Optional[str]  #: record field, or None for a bare pointer table
+    #: Position: None for a lone pointer, an int for a flat table, and
+    #: ``(record, element)`` for a pointer array field inside a record.
+    index: Any
+    value: int
+    verdict: str  #: "claimed" | "unclaimed" | "outside" | "null"
+    claimed_by: Optional[str] = None
+
+    @property
+    def is_dangling(self) -> bool:
+        """Points outside the space entirely — the one that is always a bug
+        (or a pointer into RAM, which a ROM map should say so about)."""
+        return self.verdict == "outside"
+
+    def describe(self) -> str:
+        where = self.source
+        if self.field:
+            where += f".{self.field}"
+        if isinstance(self.index, tuple):
+            where += "".join(f"[{i}]" for i in self.index)
+        elif self.index is not None:
+            where += f"[{self.index}]"
+        tail = f" -> {self.claimed_by}" if self.claimed_by else ""
+        return f"{where} = 0x{self.value:08X}  {self.verdict}{tail}"
+
+
+@dataclass(frozen=True)
+class CoverageReport:
+    """What a map accounts for, what it double-claims, and where its
+    pointers land."""
+
+    space_name: str
+    space_size: int
+    regions: tuple
+    overlaps: tuple
+    pointers: tuple
+
+    @property
+    def claimed_bytes(self) -> int:
+        """Distinct bytes claimed by at least one resolved entry (overlaps
+        counted once)."""
+        spans = sorted(
+            (r.start, r.end) for r in self.regions if r.resolved and r.size
+        )
+        total = 0
+        cur_start = cur_end = None
+        for start, end in spans:
+            if cur_end is None or start > cur_end:
+                if cur_end is not None:
+                    total += cur_end - cur_start
+                cur_start, cur_end = start, end
+            else:
+                cur_end = max(cur_end, end)
+        if cur_end is not None:
+            total += cur_end - cur_start
+        return total
+
+    @property
+    def percent(self) -> float:
+        if not self.space_size:
+            return 0.0
+        return 100.0 * self.claimed_bytes / self.space_size
+
+    @property
+    def unresolved(self) -> tuple:
+        return tuple(r for r in self.regions if not r.resolved)
+
+    @property
+    def dangling(self) -> tuple:
+        return tuple(p for p in self.pointers if p.is_dangling)
+
+    def render(self, max_pointers: int = 20) -> str:
+        """A text report. Truncates the pointer listing, and says by how
+        much — a silent cap would read as "all clear"."""
+        label = self.space_name or "space"
+        lines = [
+            f"coverage of {label}: {self.claimed_bytes}/{self.space_size} bytes"
+            f" ({self.percent:.2f}%) in {len(self.regions)} entries"
+        ]
+        if self.unresolved:
+            lines.append(f"  unresolved ({len(self.unresolved)}):")
+            for r in self.unresolved:
+                lines.append(f"    {r.name}: {r.error}")
+        if self.overlaps:
+            lines.append(f"  overlaps ({len(self.overlaps)}):")
+            for o in self.overlaps:
+                lines.append(
+                    f"    {o.a} and {o.b} share {o.size} bytes at"
+                    f" 0x{o.start:08X}"
+                )
+        if self.pointers:
+            counts: dict = {}
+            for p in self.pointers:
+                counts[p.verdict] = counts.get(p.verdict, 0) + 1
+            tally = ", ".join(f"{v} {k}" for k, v in sorted(counts.items()))
+            lines.append(f"  pointers ({len(self.pointers)}): {tally}")
+            interesting = [p for p in self.pointers if p.verdict != "claimed"]
+            for p in interesting[:max_pointers]:
+                lines.append(f"    {p.describe()}")
+            if len(interesting) > max_pointers:
+                lines.append(
+                    f"    ... and {len(interesting) - max_pointers} more"
+                    f" non-claimed pointers (raise max_pointers to see them)"
+                )
+        return "\n".join(lines)

@@ -1122,7 +1122,21 @@ class StructMeta(type):
                 descriptor = _AdaptedField(descriptor, adapters[n])
             setattr(cls, n, descriptor)
 
-        cls._bm_adapters = adapters
+        # _bm_adapters reports EVERY adapted field, which is not the same set
+        # the descriptor loop above needed: an adapted array field carries its
+        # adapter on the Array (its codegen converts at the tuple boundary and
+        # it must NOT be wrapped in _AdaptedField), so it is added only now.
+        # Introspection cares that the field is adapted, not where the engine
+        # keeps the transform — fields_of() would otherwise report None for an
+        # adapted array and callers reading the schema would miss it.
+        cls._bm_adapters = {
+            **adapters,
+            **{
+                n: ftype._adapter
+                for n, ftype in field_defs
+                if isinstance(ftype, Array) and ftype._adapter is not None
+            },
+        }
         _generate_methods(cls, field_defs, defaults)
         return cls
 
