@@ -38,14 +38,16 @@ Two layers build on that base:
 * :class:`Patch` / :class:`Edit` — edits as a value. ``space.write(...,
   patch=p)`` records instead of mutating, so the edits can be verified
   against the original bytes, inverted, composed, and exported as IPS.
-* :class:`Ptr` and :meth:`Space.coverage` — a typed address (whose decoded
-  value is still just an int) plus a report of what a map accounts for,
-  what it double-claims, and where its pointers land — verified for record
-  type and alignment where a pointer declares its pointee.
+* :class:`Ptr` and :meth:`Space.coverage` — a typed address (decoding to a
+  :class:`PtrValue`, an int that can ``.deref(space)`` itself) plus a report
+  of what a map accounts for, what it double-claims, and where its pointers
+  land — verified for record type and alignment where a pointer declares
+  its pointee.
 """
 
 import sys
 from dataclasses import dataclass
+from functools import partial
 from typing import cast
 
 from bytemaker.adapters import Adapted, Adapter
@@ -68,6 +70,7 @@ __all__ = [
     "PointerRef",
     "Ptr",
     "PtrAdapter",
+    "PtrValue",
     "Region",
     "Space",
     "count",
@@ -1270,10 +1273,14 @@ class PtrAdapter(Adapter):
                 f" zero-argument callable returning one, or None — got"
                 f" {target!r}"
             )
-        load = inner.load if inner is not None else _identity
+        inner_load = inner.load if inner is not None else _identity
         store = inner.store if inner is not None else _identity
         label = name or _default_ptr_name(target)
-        super().__init__(load, store, int, label)
+        # Every read path — record fields, array elements, Space.read of a
+        # bare Ptr — goes through this load, so wrapping HERE is what makes
+        # value.deref(space) available everywhere with one seam.
+        load = partial(_ptr_value_load, adapter=self, inner_load=inner_load)
+        super().__init__(load, store, PtrValue, label)
         object.__setattr__(self, "_target", target)
         object.__setattr__(self, "inner", inner)
         object.__setattr__(self, "module", module)
@@ -1348,11 +1355,71 @@ class PtrAdapter(Adapter):
         return (PtrAdapter, (self._target, self.inner, self.name, self.module))
 
 
+def _ptr_value_load(wire, adapter, inner_load):
+    return PtrValue(inner_load(wire), adapter)
+
+
+class PtrValue(int):
+    """A decoded pointer: an ``int`` that knows what it points at.
+
+    Every read through a :class:`Ptr` mints one, so the address a record
+    field (or a pointer-table element) hands you can follow itself::
+
+        room = warp.room_ptr.deref(rom)
+        while node.next:                     # PtrValue(0) is falsy, like 0
+            node = node.next.deref(rom)
+
+    It behaves exactly like the address it is — equality, hashing,
+    formatting, truthiness all match ``int`` — with two additions: it reprs
+    in hex (this is a ROM library), and it carries the :class:`PtrAdapter`
+    that ``deref``/``space.coverage`` consult. Still no proxy and no
+    laziness: nothing is read until ``deref`` is called, and the Space stays
+    an explicit argument because records are detached from their buffer.
+
+    Arithmetic collapses to a plain ``int`` on purpose: ``ptr + 4`` is an
+    offset address, and no longer carries the original claim about what
+    lives there.
+    """
+
+    _adapter: PtrAdapter
+
+    def __new__(cls, value, adapter):
+        if not isinstance(adapter, PtrAdapter):
+            raise TypeError(
+                f"PtrValue needs the pointer's PtrAdapter, got {adapter!r}"
+            )
+        self = super().__new__(cls, value)
+        self._adapter = adapter
+        return self
+
+    @property
+    def adapter(self) -> PtrAdapter:
+        return self._adapter
+
+    @property
+    def target(self):
+        """The pointee's codec (resolving a deferred name), or None."""
+        return self._adapter.target
+
+    def deref(self, space: "Space", extent: Any = 1) -> Any:
+        """Follow this address in ``space`` — sugar for
+        ``space.deref_value(self, ...)``, with the target from the schema."""
+        return space.deref_value(self, self._adapter, extent)
+
+    def __repr__(self):
+        return hex(self)
+
+    def __reduce__(self):
+        return (PtrValue, (int(self), self._adapter))
+
+
 class Ptr(Adapted):
     """A typed address: a wire integer that points at ``target``.
 
-    Grade 1 on purpose — the decoded value is a **plain int**, not a proxy
-    and not a lazy record. Nothing is followed until you ask::
+    The decoded value is a :class:`PtrValue` — an ``int`` subclass that
+    carries its adapter, so it can follow itself. Still no proxy and not a
+    lazy record: nothing is read until you ask, and the Space stays an
+    explicit argument::
 
         class WarpPoint(Struct, endian="little"):
             sector: UInt8

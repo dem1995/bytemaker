@@ -14,6 +14,7 @@ from bytemaker.rom import (
     Entry,
     Ptr,
     PtrAdapter,
+    PtrValue,
     Space,
     count,
     unknown,
@@ -88,16 +89,23 @@ def test_ptr_is_an_adapted_scalar_codec():
     p = Ptr(RoomHeader)
     assert isinstance(p, Adapted) and isinstance(p.adapter, PtrAdapter)
     assert p.base is UInt32 and p.num_bits == 32 and sizeof(p) == 4
-    assert p.py_type is int and p.target is RoomHeader
+    assert p.py_type is PtrValue and p.target is RoomHeader
     assert repr(p) == "Ptr(RoomHeader->UInt32)"
     assert repr(Ptr(None)) == "Ptr(?->UInt32)"
     assert "ptr(RoomHeader)" in p.adapter.name
 
 
-def test_ptr_decodes_to_a_plain_int():
-    """Grade 1: no proxies, no laziness. Nothing is followed until asked."""
+def test_ptr_decodes_to_an_int_that_knows_its_pointer():
+    """Still no proxies and no laziness — nothing is followed until asked —
+    but the decoded value is a PtrValue: an int subclass carrying the
+    adapter, indistinguishable from the address in every int way."""
     value = space().read(WARPS + 4, Ptr(RoomHeader))
-    assert type(value) is int and value == ROOM_A
+    assert isinstance(value, int) and type(value) is PtrValue
+    assert value == ROOM_A and hash(value) == hash(ROOM_A)
+    assert {value: "x"}[ROOM_A] == "x"  # dict-key interchangeable
+    assert f"{value:#010x}" == "0x08000100"
+    assert repr(value) == hex(ROOM_A)  # pointers repr in hex
+    assert value.target is RoomHeader
 
 
 def test_ptr_composes_a_value_convention():
@@ -641,3 +649,113 @@ def test_defect_verdicts_are_not_dangling():
     s, entries = verified_space_and_map()
     report = s.coverage(entries)
     assert not report.dangling  # in-space defects are not wild addresses
+
+
+# ------------------------------------------- deref from the value (rom-8)
+def test_value_deref_matches_space_deref():
+    s = space()
+    warp = s.read(WARPS, WarpPoint)
+    assert warp.room_ptr.deref(s) == s.deref(warp, "room_ptr")
+    assert warp.room_ptr.deref(s, 2) == s.deref(warp, "room_ptr", 2)
+
+
+def test_value_deref_chains_across_records():
+    s, entries = verified_space_and_map()
+    del entries
+    # Node.next is Ptr("Node"): walk the list from the value itself,
+    # using PtrValue(0)'s int falsiness as the loop condition.
+    node = s.read(BASE + 0x10, Node)
+    chain = [node.value]
+    while node.next:
+        node = node.next.deref(s)
+        chain.append(node.value)
+    assert chain == [7, 9, 11]
+
+
+def test_bare_table_elements_carry_deref():
+    s = space()
+    ptrs = s.read(PTR_TABLE, Ptr(RoomHeader), 2)
+    assert all(type(p) is PtrValue for p in ptrs)
+    assert [p.deref(s).width for p in ptrs] == [16, 8]
+
+
+def test_pointer_array_field_elements_carry_deref():
+    class Table(Struct, endian="little"):
+        rooms: List[int] = array(Ptr(RoomHeader), 2)
+
+    s = space()
+    t = s.read(PTR_TABLE, Table)
+    assert type(t.rooms[0]) is PtrValue
+    assert [p.deref(s).width for p in t.rooms] == [16, 8]
+
+
+def test_untargeted_value_deref_refuses_by_name():
+    s = space()
+    anim = s.read(ANIMS, AnimSet)
+    assert type(anim.fns[0]) is PtrValue  # THUMB'd Ptr(None) element
+    with pytest.raises(TypeError, match="has no target codec"):
+        anim.fns[0].deref(s)
+
+
+def test_arithmetic_collapses_to_plain_int():
+    """ptr + 4 is an offset address: it no longer carries the target claim,
+    so it cannot silently deref as the ORIGINAL record type."""
+    s = space()
+    ptr = s.read(WARPS + 4, Ptr(RoomHeader))
+    assert type(ptr + 4) is int and type(ptr & ~3) is int
+    assert not hasattr(ptr + 4, "deref")
+
+
+def test_ptrvalue_survives_pickle_and_deepcopy():
+    s = space()
+    warp = s.read(WARPS, WarpPoint)
+    ptr = warp.room_ptr
+    for clone in (pickle.loads(pickle.dumps(ptr)), copy.deepcopy(ptr)):
+        assert type(clone) is PtrValue and clone == ptr
+        assert clone.deref(s).width == 16
+    # ... and inside a record with a pointer ARRAY field
+    anim2 = pickle.loads(pickle.dumps(s.read(ANIMS, AnimSet)))
+    assert type(anim2.fns[0]) is PtrValue and anim2.pack() == s.read(
+        ANIMS, AnimSet
+    ).pack()
+
+
+def test_record_repr_shows_pointers_in_hex():
+    s = space()
+    warp = s.read(WARPS, WarpPoint)
+    assert "room_ptr=0x8000100" in repr(warp)
+
+
+def test_stores_accept_plain_ints_and_ptrvalues_alike():
+    s = space()
+    warp = s.read(WARPS, WarpPoint)
+    warp.room_ptr = ROOM_B  # plain int
+    assert warp.room_ptr == ROOM_B and type(warp.room_ptr) is PtrValue
+    warp.room_ptr = s.read(WARPS + 4, Ptr(RoomHeader))  # a PtrValue
+    assert warp.room_ptr == ROOM_A
+
+
+def test_wire_plane_stays_plain():
+    """to_tuple / plan tuples are the WIRE plane: no PtrValue leaks in."""
+    s = space()
+    warp = s.read(WARPS, WarpPoint)
+    assert type(warp.to_tuple()[3]) is int
+
+
+def test_annotation_may_be_looser_than_the_runtime_type():
+    """int (a superclass of PtrValue) stays a valid annotation — the
+    relaxation that keeps every existing Annotated[int, Ptr(...)] alias
+    compiling — while a WRONG tighter one is still refused."""
+    from bytemaker.plans import PlanCompileError
+
+    class LooseOk(Struct, endian="little"):
+        p: int = field(Ptr(RoomHeader))
+
+    class PreciseOk(Struct, endian="little"):
+        p: PtrValue = field(Ptr(RoomHeader))
+
+    assert LooseOk.num_bytes == PreciseOk.num_bytes == 4
+    with pytest.raises(PlanCompileError, match="disagrees"):
+
+        class Wrong(Struct, endian="little"):
+            p: float = field(Ptr(RoomHeader))

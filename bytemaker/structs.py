@@ -638,16 +638,31 @@ def _check_spec_annotation(owner, field_name, bittype, annotation, adapter=None)
             if (
                 elem_expected is not None
                 and elem_ann is not Any
-                and elem_ann is not elem_expected
+                and not _annotation_accepts(elem_ann, elem_expected)
             ):
                 want = getattr(elem_expected, "__name__", elem_expected)
                 _spec_type_error(
                     owner, field_name, annotation, bittype, f"list[{want}]"
                 )
         return
-    if ann is not expected:
+    if not _annotation_accepts(ann, expected):
         want = getattr(expected, "__name__", str(expected))
         _spec_type_error(owner, field_name, annotation, bittype, want)
+
+
+def _annotation_accepts(ann, expected) -> bool:
+    """True when ``ann`` truthfully describes a field whose values are of
+    type ``expected``: the exact type, or a SUPERclass of it. A field may be
+    annotated looser than what it returns — ``int`` for a field that reads
+    as a PtrValue — never tighter (``bool`` for an int field stays refused,
+    because the values would not satisfy the annotation)."""
+    if ann is expected:
+        return True
+    return (
+        isinstance(ann, type)
+        and isinstance(expected, type)
+        and issubclass(expected, ann)
+    )
 
 
 def _spec_type_error(owner, field_name, annotation, bittype, want):

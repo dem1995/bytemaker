@@ -168,3 +168,28 @@ reveal_type(aa.fns)     # noqa: F821  -> list[int]
 reveal_type(aa.scales)  # noqa: F821  -> list[float]
 aa.scales[0] = 2.5      # a live user-plane lvalue
 aa.scales[0] = "x"      # type: ignore  # elements are float
+
+
+# --- pointers: PtrValue is the runtime type; the annotation picks the view -
+from bytemaker.rom import Ptr, PtrValue, Space
+
+space = Space(b"\x00" * 8, base=0, endian="little")
+
+
+class Pointee(Struct, endian="little"):
+    v: u16
+
+
+class HasPtrs(Struct, endian="little"):
+    # Loose: reads as int; .deref is runtime-only on this view.
+    loose: Annotated[int, Ptr(Pointee)]
+    # Precise: reads as PtrValue, so .deref type-checks -- the trade-off is
+    # that the generated __init__ then wants a PtrValue for this parameter.
+    precise: Annotated[PtrValue, Ptr(Pointee)]
+
+
+hp = HasPtrs.parse(b"\x00" * 8)
+reveal_type(hp.loose)    # noqa: F821  -> int
+reveal_type(hp.precise)  # noqa: F821  -> PtrValue
+hp.precise.deref(space)  # checker-visible on the precise view
+hp.loose.deref(space)    # type: ignore  # int has no .deref to a checker
