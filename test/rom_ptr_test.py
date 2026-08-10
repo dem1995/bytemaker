@@ -476,9 +476,11 @@ def test_resolved_target_pickles_by_reference():
     assert clone.target is Node and not clone.deferred
 
 
-def test_deferred_pointers_are_audited_without_being_resolved():
-    """coverage() classifies addresses; it must not need the pointee's codec
-    (and must not blow up on a target that cannot resolve)."""
+def test_deferred_pointers_are_audited_and_verified_when_resolvable():
+    """coverage() classifies addresses with no pointee codec needed — and
+    when a deferred target DOES resolve (these do: "Node", "ExitList"), the
+    claimed hits are additionally type/alignment-verified, which is why they
+    still read "claimed" and not a defect verdict."""
     s = linked_space()
     entries = [
         Entry(BASE + 0x10, Node, count(3), name="nodes"),
@@ -555,3 +557,87 @@ def test_registry_is_weak():
     del ephemeral
     gc.collect()
     assert not _structs_named("XEphemeralRec")
+
+
+# --------------------------------- typed-pointer verification (rom-7)
+def verified_space_and_map():
+    """Nodes at 0x10 (3 x 8B), ExitList at 0x40; pointers of every flavor."""
+    buf = bytearray(0x100)
+    Node(value=7, _pad=0, next=BASE + 0x18).pack_into(buf, 0x10)
+    Node(value=9, _pad=0, next=BASE + 0x20).pack_into(buf, 0x18)
+    Node(value=11, _pad=0, next=0).pack_into(buf, 0x20)
+    ExitList(count_=3, first=5).pack_into(buf, 0x40)
+    # a bare typed-pointer table at 0x50: good, mistargeted, misaligned
+    for i, v in enumerate((BASE + 0x10, BASE + 0x40, BASE + 0x14, 0)):
+        buf[0x50 + i * 4 : 0x54 + i * 4] = v.to_bytes(4, "little")
+    s = Space(buf, base=BASE, endian="little", name="V")
+    entries = [
+        Entry(BASE + 0x10, Node, count(3), name="nodes"),
+        Entry(BASE + 0x40, ExitList, count(1), name="exits"),
+        Entry(BASE + 0x50, Ptr(Node), until(0), name="node_ptrs"),
+    ]
+    return s, entries
+
+
+def test_verified_pointers_report_mistargeted_and_misaligned():
+    s, entries = verified_space_and_map()
+    report = s.coverage(entries)
+    table = [p for p in report.pointers if p.source == "node_ptrs"]
+    assert [p.verdict for p in table] == ["claimed", "mistargeted", "misaligned"]
+    # the claiming region is still named on the defect verdicts
+    assert [p.claimed_by for p in table] == ["nodes", "exits", "nodes"]
+
+
+def test_self_referential_next_pointers_verify_clean():
+    s, entries = verified_space_and_map()
+    report = s.coverage(entries)
+    nexts = [p for p in report.pointers if p.field == "next"]
+    # two point at aligned Node starts; the last is the null terminator
+    assert [p.verdict for p in nexts] == ["claimed", "claimed", "null"]
+
+
+def test_untyped_and_unresolvable_pointers_stay_unverified():
+    s, entries = verified_space_and_map()
+    plain = entries + [
+        # Ptr(None): declares no pointee -> claimed, never a defect verdict
+        Entry(BASE + 0x50, Ptr(None), count(2), name="untyped"),
+        # unresolvable deferred name: unverifiable, must not crash the audit
+        Entry(
+            BASE + 0x50,
+            Ptr("XNoSuchRecordAnywhere"),
+            count(2),
+            name="unresolvable",
+        ),
+    ]
+    report = s.coverage(plain)
+    for source in ("untyped", "unresolvable"):
+        verdicts = [p.verdict for p in report.pointers if p.source == source]
+        assert verdicts == ["claimed", "claimed"], source
+
+
+def test_typed_pointer_into_a_raw_byte_region_is_not_a_defect():
+    """A u8-blob region can legitimately contain records the map has not
+    modelled at that granularity; only a REGION MAPPED AS RECORDS can
+    disagree with a pointer's declared type."""
+    buf = bytearray(0x100)
+    buf[0x50:0x54] = (BASE + 0x10).to_bytes(4, "little")
+    s = Space(buf, base=BASE, endian="little", name="V")
+    entries = [
+        Entry(BASE + 0x10, UInt8, count(16), name="blob"),
+        Entry(BASE + 0x50, Ptr(Node), count(1), name="ptr"),
+    ]
+    (ref,) = [p for p in s.coverage(entries).pointers if p.source == "ptr"]
+    assert ref.verdict == "claimed" and ref.claimed_by == "blob"
+
+
+def test_defect_verdicts_show_up_in_render():
+    s, entries = verified_space_and_map()
+    text = s.coverage(entries).render()
+    assert "mistargeted" in text and "misaligned" in text
+    assert "node_ptrs[1]" in text and "node_ptrs[2]" in text
+
+
+def test_defect_verdicts_are_not_dangling():
+    s, entries = verified_space_and_map()
+    report = s.coverage(entries)
+    assert not report.dangling  # in-space defects are not wild addresses

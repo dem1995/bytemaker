@@ -40,7 +40,8 @@ Two layers build on that base:
   against the original bytes, inverted, composed, and exported as IPS.
 * :class:`Ptr` and :meth:`Space.coverage` — a typed address (whose decoded
   value is still just an int) plus a report of what a map accounts for,
-  what it double-claims, and where its pointers land.
+  what it double-claims, and where its pointers land — verified for record
+  type and alignment where a pointer declares its pointee.
 """
 
 import sys
@@ -477,6 +478,12 @@ class Space:
         as an array element) and the top-level ``Ptr`` fields of a Struct
         codec. Pointers nested inside a nested Struct are not followed —
         map the inner record as its own entry if you need them.
+
+        Where a pointer declares a record target AND lands in a region
+        mapped as records, the audit also verifies it: a hit in a region of
+        a different record type reports ``mistargeted``, and a hit off the
+        record stride reports ``misaligned``. Unresolvable deferred targets
+        verify nothing and never fail the audit.
         """
         bound = [e if e.space is not None else e.bind(self) for e in entries]
         regions = tuple(self._resolve_region(e) for e in bound)
@@ -522,7 +529,7 @@ class Space:
         out: list = []
         if direct is not None:
             for index, value in _enumerate_values(self._safe_read(entry)):
-                verdict, owner = self._classify_address(value, regions)
+                verdict, owner = self._classify_address(value, regions, direct)
                 out.append(
                     PointerRef(source, None, index, value, verdict, owner)
                 )
@@ -542,11 +549,13 @@ class Space:
         if not isinstance(records, list):
             records = [records]
         for rec_index, rec in enumerate(records):
-            for field_name, _ptr in ptr_fields:
+            for field_name, ptr_adapter in ptr_fields:
                 value = getattr(rec, field_name)
                 for sub, one in _enumerate_values(value):
                     index = rec_index if sub is None else (rec_index, sub)
-                    verdict, owner = self._classify_address(one, regions)
+                    verdict, owner = self._classify_address(
+                        one, regions, ptr_adapter
+                    )
                     out.append(
                         PointerRef(
                             source, field_name, index, one, verdict, owner
@@ -560,7 +569,7 @@ class Space:
         except (ValueError, TypeError):
             return None
 
-    def _classify_address(self, addr, regions):
+    def _classify_address(self, addr, regions, adapter=None):
         if not isinstance(addr, int):
             return ("outside", None)
         if addr == 0:
@@ -570,8 +579,32 @@ class Space:
         for region in regions:
             end = region.end
             if end is not None and region.start <= addr < end:
-                return ("claimed", region.name)
+                return self._verify_target(addr, region, adapter)
         return ("unclaimed", None)
+
+    def _verify_target(self, addr, region, adapter):
+        """``claimed`` — unless the pointer DECLARES a record type and the
+        claiming region disagrees.
+
+        Checkable only when the region's entry codec is a Struct class and
+        the pointer's target is (or resolves to) one: a raw-byte or scalar
+        region can legitimately contain records the map has not modelled at
+        that granularity, and ``Ptr(None)`` / an unresolvable name declares
+        nothing to check. Two defect verdicts come out of this:
+        ``mistargeted`` (lands in a region mapped as a DIFFERENT record
+        type) and ``misaligned`` (right record type, but not on a record
+        boundary — usually an off-by-one in the region's address or an
+        interior pointer worth knowing about).
+        """
+        target = _checkable_target(adapter)
+        codec = region.entry.codec
+        if target is None or not isinstance(codec, StructMeta):
+            return ("claimed", region.name)
+        if codec is not target:
+            return ("mistargeted", region.name)
+        if (addr - region.start) % region.entry.stride:
+            return ("misaligned", region.name)
+        return ("claimed", region.name)
 
     # -- internals ---------------------------------------------------------
     def _stride(self, codec) -> int:
@@ -1454,6 +1487,20 @@ def _codec_name(codec) -> str:
     return getattr(codec, "__name__", None) or repr(codec)
 
 
+def _checkable_target(adapter) -> Optional[StructMeta]:
+    """The adapter's declared record type, when there is one to check: a
+    PtrAdapter whose target is (or resolves to) a concrete Struct class.
+    Resolution failure is NOT an audit failure — an unresolvable name just
+    means unverifiable, and the address classification stands on its own."""
+    if not isinstance(adapter, PtrAdapter):
+        return None
+    try:
+        target = adapter.target
+    except TypeError:
+        return None
+    return target if isinstance(target, StructMeta) else None
+
+
 def _ptr_adapter_of(obj) -> Optional[PtrAdapter]:
     """The :class:`PtrAdapter` behind a Ptr codec, an adapter, or an Array of
     pointers — else None."""
@@ -1548,7 +1595,11 @@ class PointerRef:
     #: ``(record, element)`` for a pointer array field inside a record.
     index: Any
     value: int
-    verdict: str  #: "claimed" | "unclaimed" | "outside" | "null"
+    #: "claimed" | "unclaimed" | "outside" | "null" — plus, when the pointer
+    #: declares a record target, the two verified-defect verdicts
+    #: "mistargeted" (lands in a region mapped as a different record type)
+    #: and "misaligned" (right type, off a record boundary).
+    verdict: str
     claimed_by: Optional[str] = None
 
     @property
