@@ -151,7 +151,6 @@ bytemaker/structs.py :: misc :: "None" object is not iterable
 bytemaker/structs.py :: misc :: Signatures of "__iadd__" and "__add__" are incompatible
 bytemaker/structs.py :: misc :: Signatures of "__imul__" and "__mul__" are incompatible
 bytemaker/structs.py :: no-redef :: Name "get_origin" already defined (possibly by an import)
-bytemaker/structs.py :: return-value :: Incompatible return value type (got "StructMeta | Array[Any] | type[BitType[Any]]", expected "type")
 bytemaker/typing_redirect.py :: assignment :: Incompatible types in assignment (expression has type "TypeVar", variable has type "type[Buffer]")
 bytemaker/typing_redirect.py :: misc :: Cannot assign to a type
 bytemaker/typing_redirect.py :: misc :: Cannot redefine "Buffer" as a type variable

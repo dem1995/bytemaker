@@ -51,7 +51,7 @@ import os
 import struct as _pystruct
 import typing
 
-from bytemaker.adapters import Adapter
+from bytemaker.adapters import Adapted, Adapter
 from bytemaker.bitvector import BitVector
 from bytemaker.bittypes import (
     BitType,
@@ -497,23 +497,27 @@ def _reject_endian_tag_metadata(owner: str, field_name: str, hint) -> None:
             )
 
 
-def _unwrap_annotation(owner: str, field: str, hint) -> type:
-    """``Annotated[int, UInt8]`` -> ``UInt8``; BitType/Struct classes pass
-    through; anything else is a compile error."""
+def _is_wire_type(obj) -> bool:
+    """True for anything the field machinery accepts as a wire type: a
+    BitType class, an :class:`Adapted` codec, a Struct class, an Array."""
+    return isinstance(obj, (StructMeta, Array, Adapted)) or (
+        isinstance(obj, type) and issubclass(obj, BitType)
+    )
+
+
+def _unwrap_annotation(owner: str, field: str, hint) -> Any:
+    """``Annotated[int, UInt8]`` -> ``UInt8``; BitType/Adapted/Struct/Array
+    pass through; anything else is a compile error."""
     _reject_endian_tag_metadata(owner, field, hint)
     if Annotated is not None and get_origin(hint) is Annotated:
         for meta in get_args(hint)[1:]:
-            if isinstance(meta, (StructMeta, Array)) or (
-                isinstance(meta, type) and issubclass(meta, BitType)
-            ):
+            if _is_wire_type(meta):
                 return meta
         raise PlanCompileError(
             f"{owner}.{field}: Annotated[...] carries no BitType, Struct,"
             f" or Array in its metadata"
         )
-    if isinstance(hint, (StructMeta, Array)) or (
-        isinstance(hint, type) and issubclass(hint, BitType)
-    ):
+    if _is_wire_type(hint):
         return hint
     raise PlanCompileError(
         f"{owner}.{field}: annotation {hint!r} is not a BitType class, a"
@@ -576,6 +580,8 @@ def _expected_py_type(bittype):
         return list
     if isinstance(bittype, StructMeta):
         return bittype
+    if isinstance(bittype, Adapted):
+        return bittype.py_type
     if isinstance(bittype, type) and issubclass(bittype, Buffer):
         return bytes
     if isinstance(bittype, type) and issubclass(bittype, BitType):
@@ -975,7 +981,7 @@ class StructMeta(type):
         cls = super().__new__(mcs, name, bases, ns, **kwargs)
 
         hints = _resolve_hints(cls)
-        field_defs: List[Tuple[str, type]] = [
+        field_defs: List[Tuple[str, Any]] = [
             (
                 n,
                 specs[n].bittype
@@ -989,6 +995,22 @@ class StructMeta(type):
         adapters: Dict[str, Adapter] = {
             n: spec.adapter for n, spec in specs.items() if spec.adapter
         }
+        # An Adapted wire type (adapter @ BitType) is pure sugar for adapt=:
+        # split it into its base type + adapter HERE, before anything else
+        # looks at the field types, so the plan layer, the descriptors and
+        # every diagnostic below see exactly what the adapt= spelling
+        # produces. `field(THUMB_PTR @ UInt32)` and
+        # `field(UInt32, adapt=THUMB_PTR)` are the same class from here on.
+        for i, (n, ftype) in enumerate(field_defs):
+            if not isinstance(ftype, Adapted):
+                continue
+            if n in adapters:
+                raise PlanCompileError(
+                    f"{name}.{n}: {ftype!r} already carries an adapter;"
+                    f" drop adapt= (or fuse the composed transform instead)"
+                )
+            adapters[n] = ftype.adapter
+            field_defs[i] = (n, ftype.base)
         ftype_by_name = dict(field_defs)
         for n in adapters:
             if isinstance(ftype_by_name[n], (StructMeta, Array)):
@@ -1035,8 +1057,10 @@ class StructMeta(type):
         # checker type in the annotation; verify they agree, so the static
         # type a checker trusts matches what the field actually holds.
         for n in specs:
+            # adapters.get(n), not specs[n].adapter: a fused Adapted wire
+            # type checks its annotation against the adapter's py_type too.
             _check_spec_annotation(
-                name, n, specs[n].bittype, hints.get(n), specs[n].adapter
+                name, n, specs[n].bittype, hints.get(n), adapters.get(n)
             )
 
         if endian is None:
@@ -1694,6 +1718,19 @@ class Array(typing.Generic[V]):
     ):
         if not isinstance(count, int) or count <= 0:
             raise PlanCompileError(f"Array count must be a positive int, got {count!r}")
+        # A fused element codec (adapter @ BitType) is the same thing as
+        # adapt= on the array: split it here so nothing downstream — the
+        # scalar classification, the plan, the parse/pack paths — ever sees
+        # an Adapted. Array.of's cache still keys on the Adapted object, so
+        # a module-level fused alias shares one Array as usual.
+        if isinstance(element, Adapted):
+            if adapt is not None:
+                raise PlanCompileError(
+                    f"Array element {element!r} already carries an adapter;"
+                    f" drop adapt="
+                )
+            adapt = element.adapter
+            element = element.base
         if adapt is not None and not isinstance(adapt, Adapter):
             raise PlanCompileError(
                 f"Array adapt= must be a bytemaker.adapters.Adapter,"
@@ -1737,6 +1774,16 @@ class Array(typing.Generic[V]):
             raise PlanCompileError(
                 f"Array element must be a Struct class, a BitType class, or"
                 f" an Array, got {element!r}"
+            )
+        # An adapter transforms one scalar VALUE. On a Struct- or
+        # Array-element array parse/pack would hand it a record (or a list),
+        # and the store-time _coerce_one path ignores it entirely: two
+        # answers for one array, no diagnostic. Refuse it at construction.
+        if adapt is not None and self._scalar_codec is None:
+            raise PlanCompileError(
+                f"Array adapt= transforms scalar element values; {element!r}"
+                f" elements carry their own layout (a nested Struct adapts"
+                f" its own fields; a nested Array adapts its elements)"
             )
         self._element = element
         self._count = count
@@ -1801,6 +1848,17 @@ class Array(typing.Generic[V]):
         count: int,
         endian: Optional[Literal["big", "little"]] = None,
     ) -> "Array[List[V]]": ...
+
+    # A fused element codec reports the ADAPTER's user-plane type, not the
+    # base's: Array.of(fixed(4) @ UInt16, 8).parse(b) reads as list[float].
+    @typing.overload
+    @classmethod
+    def of(
+        cls,
+        element: "Adapted[V]",
+        count: int,
+        endian: Optional[Literal["big", "little"]] = None,
+    ) -> "Array[V]": ...
 
     @classmethod
     def of(

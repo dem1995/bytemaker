@@ -26,12 +26,15 @@ from bytemaker import (
     Struct,
     UInt8,
     UInt16,
+    UInt32,
     UTF8String,
     array,
     field,
     u8,
     u16,
 )
+from bytemaker.adapters import THUMB_PTR, fixed
+from bytemaker.structs import Array
 
 
 class RGB(Struct, endian="little"):
@@ -94,3 +97,41 @@ reveal_type(s.child)  # noqa: F821  -> RGB
 s.hp = "x"            # type: ignore  # field is int
 s.name = 5            # type: ignore  # field is str
 s.tags[0] = "x"       # type: ignore  # list[int]
+
+
+# --- fused wire types: adapter @ BitType (adapted-1) ---------------------
+# The type parameter is the ADAPTER's user-plane type, not the base's:
+# fixed(4) maps an int wire to a float user value.
+ThumbPtr = THUMB_PTR @ UInt32
+Mult = fixed(4) @ UInt16
+
+
+class Fused(Struct, endian="little"):
+    # A fused codec is a VALUE (an Adapted instance), so -- exactly like
+    # `Elem * N` for arrays -- the bare `fn: ThumbPtr` spelling works at
+    # runtime but is not a valid *type* to a checker. The two
+    # checker-friendly spellings:
+    fn: Annotated[int, ThumbPtr]              # int (THUMB_PTR.py_type)
+    scale: float = field(Mult)                # float via the adapter
+
+
+f = Fused(fn=0x0803EBA8, scale=1.5)
+reveal_type(f.fn)     # noqa: F821  -> int
+reveal_type(f.scale)  # noqa: F821  -> float
+f.scale = "x"         # type: ignore  # field is float
+
+
+class BareFused(Struct, endian="little"):
+    # Negative: the runtime-only spelling. Load-bearing ignore --
+    # --warn-unused-ignores proves the checker really refuses it, which is
+    # why Adapted's docstring points at the two forms above.
+    fn: ThumbPtr  # type: ignore[valid-type]
+
+
+# A fused element makes a standalone Array report the adapter's type.
+mults = Array.of(Mult, 4, endian="little")
+reveal_type(mults.parse(b"\x00" * 8))  # noqa: F821  -> list[float]
+ptrs = Array.of(ThumbPtr, 2, endian="little")
+reveal_type(ptrs.parse(b"\x00" * 8))  # noqa: F821  -> list[int]
+# (Array.pack takes an untyped sequence by design -- it accepts plain
+# values OR boxes -- so there is no negative case to pin here.)
