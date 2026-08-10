@@ -135,3 +135,16 @@ ptrs = Array.of(ThumbPtr, 2, endian="little")
 reveal_type(ptrs.parse(b"\x00" * 8))  # noqa: F821  -> list[int]
 # (Array.pack takes an untyped sequence by design -- it accepts plain
 # values OR boxes -- so there is no negative case to pin here.)
+
+
+# --- adapted Array FIELDS: the element list is the USER plane (adapted-2) -
+class AdaptedArrays(Struct, endian="little"):
+    fns: List[int] = array(ThumbPtr, 2)      # THUMB_PTR.py_type is int
+    scales: List[float] = array(Mult, 2)     # fixed(4).py_type is float
+
+
+aa = AdaptedArrays(fns=[0x0803EBA8, 0], scales=[1.5, 1.0])
+reveal_type(aa.fns)     # noqa: F821  -> list[int]
+reveal_type(aa.scales)  # noqa: F821  -> list[float]
+aa.scales[0] = 2.5      # a live user-plane lvalue
+aa.scales[0] = "x"      # type: ignore  # elements are float

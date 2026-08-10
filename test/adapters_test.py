@@ -4,7 +4,7 @@
 import copy
 import enum
 import pickle
-from typing import Annotated
+from typing import Annotated, List
 
 import pytest
 
@@ -169,12 +169,25 @@ def test_standalone_adapted_array():
     assert "THUMB_PTR" in repr(arr)
 
 
-def test_adapted_array_rejected_as_field():
+def test_adapted_array_is_a_field_type():
+    # adapted-2: this used to be refused ("standalone codec only").
     arr = Array.of(UInt32, 2, endian="little", adapt=THUMB_PTR)
-    with pytest.raises(PlanCompileError, match="standalone codec"):
+
+    class R(Struct, endian="little"):
+        fns: list = field(arr)
+
+    wire = bytes.fromhex("a9eb0308" "35ec0308")
+    r = R.parse(wire)
+    assert list(r.fns) == [0x0803EBA8, 0x0803EC34]  # user plane
+    assert r.to_tuple() == (0x0803EBA9, 0x0803EC35)  # wire plane
+    assert r.pack() == wire
+
+
+def test_adapt_on_an_array_field_type_points_at_the_element_spelling():
+    with pytest.raises(PlanCompileError, match="adapts its ELEMENTS"):
 
         class R(Struct, endian="little"):
-            fns: list = field(arr)
+            fns: list = field(Array.of(UInt32, 2, "little"), adapt=THUMB_PTR)
 
 
 def test_adapter_on_composite_field_rejected():
@@ -376,14 +389,6 @@ def test_array_adapter_on_composite_elements_is_rejected():
         Array.of(Array.of(UInt8, 2), 2, "little", biased(1))
 
 
-def test_fused_element_as_a_struct_field_is_still_refused():
-    # adapted-2 lifts this; until then the rejection must name the reason.
-    with pytest.raises(PlanCompileError, match="carrying an adapter"):
-
-        class R(Struct, endian="little"):
-            fns: list = array(ThumbPtr, 4)
-
-
 def test_fused_biased_scalar_round_trips():
     class Reward(Struct, endian="little"):
         item: Rewarded
@@ -391,3 +396,116 @@ def test_fused_biased_scalar_round_trips():
     r = Reward(item=90)
     assert r.pack() == b"\x5b"  # 91 on the wire
     assert Reward.parse(b"\x5b").item == 90
+
+
+# ------------------------------------ adapted Array FIELDS (adapted-2)
+#: Two 32-bit THUMB pointers then two Q4 multipliers, little-endian.
+ANIM_WIRE = bytes.fromhex("a9eb0308" "35ec0308" "1800" "1000")
+
+
+class Anim(Struct, endian="little"):
+    fns: List[int] = array(ThumbPtr, 2)
+    mults: List[float] = array(Mult, 2)
+
+
+def test_adapted_array_field_reads_the_user_plane():
+    a = Anim.parse(ANIM_WIRE)
+    assert list(a.fns) == [0x0803EBA8, 0x0803EC34]  # THUMB bit masked off
+    assert list(a.mults) == [1.5, 1.0]  # Q4: 0x18, 0x10
+    assert a.to_tuple() == (0x0803EBA9, 0x0803EC35, 0x18, 0x10)  # wire
+
+
+def test_adapted_array_field_round_trips_canonical_wire_exactly():
+    assert Anim.parse(ANIM_WIRE).pack() == ANIM_WIRE
+
+
+def test_adapted_array_field_element_store_is_live_and_user_plane():
+    a = Anim.parse(ANIM_WIRE)
+    a.fns[0] = 0x0803ED6C
+    assert a.fns[0] == 0x0803ED6C  # reads back the user value
+    assert a.pack()[:4] == b"\x6d\xed\x03\x08"  # THUMB bit set on the wire
+    a.mults[1] = 2.5
+    assert list(a.mults) == [1.5, 2.5]
+    assert a.pack()[-2:] == b"\x28\x00"  # 2.5 * 16
+
+
+def test_adapted_array_field_slice_and_whole_list_assignment():
+    a = Anim.parse(ANIM_WIRE)
+    a.fns[0:2] = [0x08000000, 0x08000004]
+    assert list(a.fns) == [0x08000000, 0x08000004]
+    assert a.pack()[:8] == b"\x01\x00\x00\x08\x05\x00\x00\x08"
+    a.fns = [0x0803EBA8, 0x0803EBA8]  # descriptor path, not the list's
+    assert a.pack()[:4] == b"\xa9\xeb\x03\x08"
+    with pytest.raises(ValueError, match="length is invariant"):
+        a.fns[0:1] = [1, 2]
+
+
+def test_adapted_array_field_constructor_takes_user_values():
+    a = Anim(fns=[0x0803EBA8, 0x0803EC34], mults=[1.5, 1.0])
+    assert a.pack() == ANIM_WIRE
+    assert a == Anim.parse(ANIM_WIRE)  # equality is on the wire tuple
+    assert "fns=[134474664, 134474804]" in repr(a)  # repr is user plane
+
+
+def test_adapted_array_field_canonicalizes_noncanonical_wire():
+    """The accepted consequence of a USER-plane element list: every element
+    round-trips store(load(v)), so wire the adapter cannot represent is
+    normalized on repack. Documented in Array's docstring."""
+    noncanonical = bytes.fromhex("a8eb0308" "34ec0308" "1800" "1000")
+    a = Anim.parse(noncanonical)
+    assert list(a.fns) == [0x0803EBA8, 0x0803EC34]  # same user values
+    assert a.pack() != noncanonical  # ... but NOT byte-identical
+    assert a.pack() == ANIM_WIRE  # canonicalized: THUMB bit set
+    # A scalar adapted field keeps slot=wire and exact identity:
+    class Scalar(Struct, endian="little"):
+        fn: Annotated[int, ThumbPtr]
+
+    assert Scalar.parse(b"\xa8\xeb\x03\x08").pack() == b"\xa8\xeb\x03\x08"
+    # ... and reading the same table unadapted preserves the bytes too
+    plain = Array.of(UInt32, 2, endian="little")
+    assert plain.pack(plain.parse(noncanonical[:8])) == noncanonical[:8]
+
+
+def test_adapted_array_field_narrows_through_the_wire():
+    class Biased(Struct, endian="little"):
+        ids: List[int] = array(biased(1) @ UInt8, 2)
+
+    b = Biased(ids=[0, 254])
+    assert b.to_tuple() == (1, 255)
+    b.ids[0] = 255  # stores 256 -> narrows to 0 -> loads back as -1
+    assert b.ids[0] == -1
+    assert b.pack() == b"\x00\xff"
+
+
+def test_adapted_array_field_tuple_iso_and_iter_records():
+    a = Anim.parse(ANIM_WIRE)
+    assert Anim.from_tuple(a.to_tuple()) == a
+    assert list(Anim.iter_records(ANIM_WIRE * 3)) == [a, a, a]
+
+
+def test_adapted_array_field_element_annotation_is_checked():
+    with pytest.raises(PlanCompileError, match=r"list\[float\]"):
+
+        class Bad(Struct, endian="little"):
+            mults: List[int] = array(Mult, 2)  # Mult reads as float
+
+    class Good(Struct, endian="little"):
+        mults: List[float] = array(Mult, 2)
+
+    assert Good.num_bytes == 4
+
+
+def test_adapted_array_field_copies_and_pickles():
+    a = Anim.parse(ANIM_WIRE)
+    for clone in (copy.deepcopy(a), pickle.loads(pickle.dumps(a))):
+        assert clone == a and clone.pack() == ANIM_WIRE
+        clone.fns[0] = 0x08000000
+        assert a.fns[0] == 0x0803EBA8  # independent
+
+
+def test_adapted_array_field_default_is_user_plane():
+    class Defaulted(Struct, endian="little"):
+        fns: List[int] = array(ThumbPtr, 2, default=[0x0803EBA8, 0x0803EC34])
+
+    assert Defaulted().pack() == ANIM_WIRE[:8]
+    assert Defaulted().fns is not Defaulted().fns  # no shared mutable

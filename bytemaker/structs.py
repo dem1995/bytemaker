@@ -559,16 +559,6 @@ def _reject_foreign_value_override(owner: str, field_name: str, ftype) -> None:
             return  # first definer wins; engine-owned -> fine
 
 
-def _array_carries_adapter(arr) -> bool:
-    """True if ``arr`` (or any Array nested in its element chain) has an
-    element adapter attached — such arrays are standalone codecs only."""
-    while isinstance(arr, Array):
-        if arr._adapter is not None:
-            return True
-        arr = arr.element
-    return False
-
-
 def _expected_py_type(bittype):
     """The plain Python value type a field of ``bittype`` reads as: ``int``
     for Int, ``float`` for Float, ``str`` for String, ``bytes`` for Buffer
@@ -616,7 +606,13 @@ def _check_spec_annotation(owner, field_name, bittype, annotation, adapter=None)
             _spec_type_error(owner, field_name, annotation, bittype, "list[...]")
         args = get_args(ann)
         if args:  # parameterized -> the element type must match too
-            elem_expected = _expected_py_type(bittype.element)
+            # An adapted array reads USER-plane elements, so the element
+            # annotation is checked against the adapter's py_type (None =
+            # deliberately unchecked, as for a scalar adapted field).
+            if bittype._adapter is not None:
+                elem_expected = bittype._adapter.py_type
+            else:
+                elem_expected = _expected_py_type(bittype.element)
             elem_ann = args[0]
             if Annotated is not None and get_origin(elem_ann) is Annotated:
                 elem_ann = get_args(elem_ann)[0]
@@ -663,6 +659,7 @@ def _generate_methods(cls, field_defs, defaults) -> None:
     child_of = {}
     str_of = {}  # String fields: slot holds str; the tuple carries wire bytes
     array_of = {}  # Array fields: (arr_var, elem_struct_var_or_None)
+    adapted_array_of = {}  # Adapted Array fields: (load_var, store_var)
     for i, (n, ftype) in enumerate(field_defs):
         slot_of[n] = f"_s{i}"
         env[f"_s{i}"] = cls.__dict__["_bm_" + n]
@@ -676,6 +673,14 @@ def _generate_methods(cls, field_defs, defaults) -> None:
                 elem_var = f"_ae{i}"
                 env[elem_var] = ftype.element
             array_of[n] = (f"_a{i}", elem_var)
+            if ftype._adapter is not None:
+                # An adapted array field stores USER-plane values, so the
+                # tuple boundary is where the element adapter runs (scalar
+                # elements only -- an adapted Struct-element array is
+                # refused at Array construction).
+                adapted_array_of[n] = (f"_ald{i}", f"_ast{i}")
+                env[f"_ald{i}"] = ftype._adapter.load
+                env[f"_ast{i}"] = ftype._adapter.store
         elif isinstance(ftype, type) and issubclass(ftype, String):
             str_of[n] = (f"_enc{i}", f"_dec{i}")
             env[f"_enc{i}"] = ftype._encode_padded
@@ -753,6 +758,14 @@ def _generate_methods(cls, field_defs, defaults) -> None:
                     f" for k in range({count})]))"
                 )
                 idx += count * span
+            elif n in adapted_array_of:  # load each wire element
+                load_var = adapted_array_of[n][0]
+                lines.append(
+                    f"    {slot_of[n]}.__set__(obj, {arr_var}.field_list("
+                    f"[{load_var}(_bm_v) for _bm_v in"
+                    f" values[{idx}:{idx + count}]]))"
+                )
+                idx += count
             else:  # numeric array: the count flat entries are the values
                 lines.append(
                     f"    {slot_of[n]}.__set__(obj, {arr_var}.field_list("
@@ -781,6 +794,12 @@ def _generate_methods(cls, field_defs, defaults) -> None:
                 parts.append(
                     f"*[x for e in {slot_of[n]}.__get__(obj)"
                     f" for x in {elem_var}._bm_to_tuple(e)]"
+                )
+            elif n in adapted_array_of:  # store each user-plane element
+                store_var = adapted_array_of[n][1]
+                parts.append(
+                    f"*[{store_var}(_bm_x) for _bm_x in"
+                    f" {slot_of[n]}.__get__(obj)]"
                 )
             else:  # splat the numeric list straight in
                 parts.append(f"*{slot_of[n]}.__get__(obj)")
@@ -1016,19 +1035,9 @@ class StructMeta(type):
             if isinstance(ftype_by_name[n], (StructMeta, Array)):
                 raise PlanCompileError(
                     f"{name}.{n}: adapt= supports scalar field types only;"
-                    f" an adapted Array is a standalone codec (its live"
-                    f" fixed-length field list does not thread adapters"
-                    f" yet), and a nested Struct adapts its own fields"
-                )
-        # An adapted Array smuggled in as a field type (via the annotation
-        # or field(Array.of(..., adapt=...))) would silently bypass its
-        # adapter in the live-list read path — refuse it.
-        for n, ftype in field_defs:
-            if isinstance(ftype, Array) and _array_carries_adapter(ftype):
-                raise PlanCompileError(
-                    f"{name}.{n}: an Array carrying an adapter is a"
-                    f" standalone codec and is not supported as a Struct"
-                    f" field yet; parse/pack it explicitly"
+                    f" an Array adapts its ELEMENTS (spell it"
+                    f" array(adapter @ element, n), or Array.of(element, n,"
+                    f" adapt=...)), and a nested Struct adapts its own fields"
                 )
         # Per-field byte-order overrides (field(T, endian=...)): only
         # multi-byte numeric scalars have one to override.
@@ -1696,6 +1705,22 @@ class Array(typing.Generic[V]):
     metadata is the runtime :class:`Array` (unwrapped by the field
     machinery). Bind it to a module-level alias to reuse it. See
     ``test/_typing_repro.py`` for the mypy contract.
+
+    **Adapted elements** (``array(THUMB_PTR @ UInt32, 8)`` or
+    ``Array.of(UInt32, 8, adapt=THUMB_PTR)``) transform each element between
+    the wire and the user plane. Unlike an adapted *scalar* field — whose
+    slot stays in the wire plane — the live element list holds USER-plane
+    values, because that is what a list has to hold for
+    ``s.fns[0] = addr`` and ``s.fns == [...]`` to mean what they read as.
+
+    The accepted consequence: an adapted array field CANONICALIZES the wire
+    on repack. Every element round-trips ``load`` then ``store``, so wire
+    the adapter cannot represent is normalized — a THUMB table entry parsed
+    with bit 0 clear repacks with it set. ``parse -> pack`` is therefore the
+    identity for canonical wire only. (Same posture as a ``String`` field's
+    terminator/pad canonicalization.) Read the table unadapted if exact
+    byte preservation of malformed data matters; scalar adapted fields keep
+    slot=wire and exact identity unconditionally.
     """
 
     # Immutable value object: the byte order is compiled into the scalar
@@ -1909,11 +1934,16 @@ class Array(typing.Generic[V]):
         return [self._coerce_one(v) for v in seq]
 
     def _coerce_one(self, value):
-        """Narrow/validate one element to its plain stored form, *exactly*
-        as the scalar field descriptors do: Int/SInt via ``operator.index``
-        + C mask (rejects float/str, emits the opt-in NarrowingWarning);
-        Float narrowed through the codec (D1); Struct type-checked (stored
-        by reference, like ``_StructField``)."""
+        """Coerce one element to its plain stored form, *exactly* as the
+        scalar field descriptors do: Int/SInt via ``operator.index`` + C
+        mask (rejects float/str, emits the opt-in NarrowingWarning); Float
+        narrowed through the codec (D1); Struct type-checked (stored by
+        reference, like ``_StructField``).
+
+        For an ADAPTED array the stored plane is the USER plane, so the
+        value round-trips through the wire (``store`` -> narrow -> ``load``)
+        and the live list can never show something ``pack()`` would not
+        reproduce."""
         element = self._element
         if isinstance(element, StructMeta):
             if not isinstance(value, element):
@@ -1922,6 +1952,14 @@ class Array(typing.Generic[V]):
                     f" got {value!r}"
                 )
             return value  # by reference, like _StructField (see _ArrayField)
+        if self._adapter is None:
+            return self._narrow_wire(value)
+        return self._adapter.load(self._narrow_wire(self._adapter.store(value)))
+
+    def _narrow_wire(self, value):
+        """Narrow one WIRE-plane numeric element value (no adapter): the
+        store-time narrowing the scalar field descriptors apply."""
+        element = self._element
         if issubclass(element, Int):  # mirrors _UIntField / _SIntField
             iv = operator.index(value)
             mask = (1 << element.num_bits) - 1
@@ -2066,7 +2104,9 @@ class Array(typing.Generic[V]):
         # Numeric elements: two's-complement / IEEE, config-INDEPENDENT and
         # narrowed at the boundary exactly as parse decodes (R9 / 13 #17).
         # struct_obj already carries the byte order, so no manual swap.
-        coerced = self._coerce_seq(values)
+        # _narrow_wire, not _coerce_one: `values` is already the wire plane
+        # (the adapter's store ran above), so re-adapting would double-apply.
+        coerced = [self._narrow_wire(v) for v in values]
         if struct_obj is not None:
             return struct_obj.pack(*coerced)
         size = element.num_bits // 8  # letter-less whole-byte (e.g. UInt24)
