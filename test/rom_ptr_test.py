@@ -19,7 +19,7 @@ from bytemaker.rom import (
     unknown,
     until,
 )
-from bytemaker.structs import Array, Struct, array, field
+from bytemaker.structs import Array, Struct, StructMeta, array, field
 
 BASE = 0x08000000
 
@@ -434,9 +434,13 @@ def test_callable_target_is_the_no_magic_escape_hatch():
 
 def test_unresolvable_deferred_target_says_where_it_looked():
     p = Ptr("NoSuchRecord")
-    with pytest.raises(TypeError, match="no such name in module"):
+    with pytest.raises(TypeError, match="not in module"):
         p.target
     with pytest.raises(TypeError, match="rom_ptr_test"):
+        p.target
+    # ... and says the registry was searched too, so the reader knows both
+    # lookups happened before giving up
+    with pytest.raises(TypeError, match="no concrete Struct class"):
         p.target
 
 
@@ -487,3 +491,67 @@ def test_deferred_pointers_are_audited_without_being_resolved():
     assert by_field[("room", "exits")].claimed_by == "exits"
     nodes = [p for p in report.pointers if p.source == "nodes"]
     assert [p.verdict for p in nodes] == ["claimed", "claimed", "null"]
+
+
+# ---------------------------------------------- registry fallback (rom-6)
+class XModuleRoom(Struct, endian="little"):
+    """Deliberately unique name: registry tests must not collide with any
+    other Struct in the suite (the registry is process-global)."""
+
+    w: int = field(UInt8)
+    h: int = field(UInt8)
+    _pad: int = field(UInt16)
+
+
+def test_registry_resolves_a_name_the_ptr_module_lacks():
+    """The cross-module case: the Ptr is declared in a module that never
+    imported the record. Module lookup misses; the registry, holding every
+    concrete Struct by name, resolves it — because exactly one exists."""
+    p = Ptr("XModuleRoom", module="bytemaker.rom")  # name not in rom's globals
+    assert p.deferred
+    assert p.target is XModuleRoom
+
+
+def test_module_binding_wins_over_the_registry():
+    """A name bound in the Ptr's module resolves there, registry unconsulted:
+    the alias author keeps deterministic control."""
+    p = Ptr("RoomHeader")  # this module defines RoomHeader
+    assert p.target is RoomHeader
+
+
+def test_ambiguous_registry_names_refuse_with_the_module_list():
+    # Two live same-named classes, neither bound at module level (so the
+    # current-binding filter cannot break the tie).
+    dup_a = StructMeta("XDupRec", (Struct,), {"__annotations__": {"a": UInt8}})
+    dup_b = StructMeta("XDupRec", (Struct,), {"__annotations__": {"a": UInt16}})
+    p = Ptr("XDupRec", module="bytemaker.rom")
+    with pytest.raises(TypeError, match="ambiguous"):
+        p.target
+    with pytest.raises(TypeError, match="module="):
+        p.target
+    del dup_a, dup_b
+
+
+def test_current_binding_filter_prefers_the_class_the_module_still_binds():
+    """Redefinition (reload/REPL): a stale same-named class may still be
+    alive, but only one is what its module currently means by the name."""
+    stale = StructMeta(
+        "XModuleRoom", (Struct,), {"__annotations__": {"a": UInt8}}
+    )
+    p = Ptr("XModuleRoom", module="bytemaker.rom")
+    assert p.target is XModuleRoom  # the module-bound one, not `stale`
+    del stale
+
+
+def test_registry_is_weak():
+    import gc
+
+    from bytemaker.structs import _structs_named
+
+    ephemeral = StructMeta(
+        "XEphemeralRec", (Struct,), {"__annotations__": {"a": UInt8}}
+    )
+    assert any(c is ephemeral for c in _structs_named("XEphemeralRec"))
+    del ephemeral
+    gc.collect()
+    assert not _structs_named("XEphemeralRec")

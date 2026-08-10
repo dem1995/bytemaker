@@ -50,6 +50,7 @@ import operator
 import os
 import struct as _pystruct
 import typing
+import weakref
 
 from bytemaker.adapters import Adapted, Adapter
 from bytemaker.bitvector import BitVector
@@ -466,6 +467,24 @@ class _ArrayField:
 # metaclass assigns per class; everything else reserved is caught by the
 # hasattr-over-bases check (which auto-covers future API) or the _bm_ prefix.
 _RESERVED_FIELD_NAMES = frozenset({"plan", "num_bits", "num_bytes"})
+
+#: Every concrete Struct class, by class NAME, weakly — so REPL/test classes
+#: vanish with their last reference. This is what :mod:`bytemaker.rom`'s
+#: deferred ``Ptr("Name")`` targets fall back on when the name is not bound
+#: in the Ptr's own module: the cross-module case a map split over several
+#: files hits constantly.
+_STRUCT_REGISTRY: Dict[str, Any] = {}
+
+
+def _structs_named(name: str) -> tuple:
+    """All live concrete Struct classes named ``name``, module-sorted (the
+    stable order matters only for error messages)."""
+    registered = _STRUCT_REGISTRY.get(name)
+    if not registered:
+        return ()
+    return tuple(
+        sorted(registered, key=lambda c: (getattr(c, "__module__", "") or ""))
+    )
 
 
 # --------------------------------------------------------------------------
@@ -1138,6 +1157,7 @@ class StructMeta(type):
             },
         }
         _generate_methods(cls, field_defs, defaults)
+        _STRUCT_REGISTRY.setdefault(name, weakref.WeakSet()).add(cls)
         return cls
 
     def __mul__(cls, count: int) -> "Array":

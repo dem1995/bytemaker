@@ -49,7 +49,7 @@ from typing import cast
 
 from bytemaker.adapters import Adapted, Adapter
 from bytemaker.introspect import bitsizeof, fields_of, sizeof
-from bytemaker.structs import Array, Struct, StructMeta
+from bytemaker.structs import Array, Struct, StructMeta, _structs_named
 from bytemaker.typing_redirect import Any, List, Literal, Optional, Union
 from bytemaker.utils import validate_endianness
 
@@ -1269,23 +1269,40 @@ class PtrAdapter(Adapter):
     def _resolve(self, target):
         if callable(target) and not isinstance(target, str):
             return target()
-        namespace = getattr(sys.modules.get(self.module or ""), "__dict__", None)
-        if namespace is None:
-            raise TypeError(
-                f"{self.name}: cannot resolve the deferred target"
-                f" {target!r} — module {self.module!r} is not importable."
-                f" Pass Ptr(..., module=__name__), or a callable"
-                f" (Ptr(lambda: {target}))"
-            )
-        try:
+        namespace = getattr(sys.modules.get(self.module or ""), "__dict__", {})
+        if target in namespace:
             return namespace[target]
-        except KeyError:
+        # Cross-module fallback: every concrete Struct registers itself by
+        # name, so a map split over several files can say Ptr("RoomHeader")
+        # without importing the class into the declaring module. Only an
+        # UNAMBIGUOUS match resolves — two live same-named records is a
+        # question only the author can answer (module=).
+        candidates = _structs_named(target)
+        # Prefer classes their own module still binds: filters out stale
+        # redefinitions (REPL / reload) without guessing between real
+        # duplicates.
+        current = tuple(
+            c for c in candidates
+            if getattr(sys.modules.get(c.__module__ or ""), target, None) is c
+        )
+        pool = current or candidates
+        if len(pool) == 1:
+            return pool[0]
+        if len(pool) > 1:
+            mods = ", ".join(sorted(c.__module__ or "?" for c in pool))
             raise TypeError(
-                f"{self.name}: cannot resolve the deferred target"
-                f" {target!r} — no such name in module {self.module!r}."
-                f" Deferred targets resolve against the module the Ptr was"
-                f" built in, at first deref"
-            ) from None
+                f"{self.name}: deferred target {target!r} is ambiguous — a"
+                f" concrete Struct by that name is alive in each of: {mods}."
+                f" Pass Ptr(..., module=...) to pick one"
+            )
+        raise TypeError(
+            f"{self.name}: cannot resolve the deferred target {target!r} —"
+            f" not in module {self.module!r}, and no concrete Struct class"
+            f" by that name is alive anywhere. Deferred targets resolve"
+            f" against the module the Ptr was built in, then against all"
+            f" Struct classes by name; pass module= or a callable"
+            f" (Ptr(lambda: {target})) to be explicit"
+        )
 
     @property
     def deferred(self) -> bool:
@@ -1343,9 +1360,15 @@ class Ptr(Adapted):
     A bare forward name cannot work — ``Ptr(Node)`` inside ``Node``'s own body
     is evaluated before the class exists, even under
     ``from __future__ import annotations``, because the metaclass resolves
-    hints during class creation. The string defers past that point. Use
-    ``module=__name__`` (or a callable) if the ``Ptr`` is built somewhere its
-    defining module is not where the name lives.
+    hints during class creation. The string defers past that point.
+
+    Resolution looks in two places, in order: the module the ``Ptr`` was
+    built in, then — if the name is not bound there — the set of all live
+    concrete Struct classes, when exactly ONE bears that name. So a map
+    split across several files can say ``Ptr("RoomHeader")`` without
+    importing the class into the declaring module; two live records with
+    the same name refuse with the modules listed. Use ``module=__name__``
+    (or a callable) to be explicit when it matters.
     """
 
     __slots__ = ()
