@@ -38,6 +38,15 @@ so the convention gets a name and is declared once::
         multiplier: float = field(Mult)         # checker-visible
         table:      list  = array(ThumbPtr, 8)  # as an Array element
 
+One rule decides between this module and :class:`bytemaker.rom.Ptr`, which
+also fuses an adapter onto a wire integer: **if the value is an address,
+use** ``Ptr`` — it additionally records what the address points at, so
+``space.deref`` can follow it and ``space.coverage`` can audit it.
+``adapter @ base`` is for value conventions (fixed-point, bias, enums);
+``Ptr(target, adapt=...)`` composes a convention onto an address (e.g. a
+THUMB function pointer). An address fused with plain ``@`` still decodes
+correctly but is invisible to the pointer audit.
+
 Ship functions, not lambdas: schema objects travel through
 copy/pickle (``Array.__reduce__`` carries its adapter), so ``load``/
 ``store`` should be module-level callables or ``functools.partial`` of
