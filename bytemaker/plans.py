@@ -322,6 +322,39 @@ class Plan:
             acc |= v << shift
         return acc.to_bytes(self.num_bits // 8, self._int_order)
 
+    def pack_into(self, buf, offset: int, values: Sequence) -> None:
+        """Encode a flat value sequence straight into a writable ``buf`` at
+        ``offset`` — the in-place twin of :meth:`pack_tuple`.
+
+        The struct tier writes through ``struct.pack_into`` with no
+        intermediate bytes object; the shiftmask tier splices. ``buf`` must
+        be writable (a ``bytearray`` or a writable ``memoryview``); bounds
+        are checked, so a short buffer raises instead of truncating.
+        """
+        if len(values) != len(self.fields):
+            raise ValueError(
+                f"pack_into: expected {len(self.fields)} values,"
+                f" got {len(values)}"
+            )
+        size = self.num_bytes
+        avail = buf.nbytes if isinstance(buf, memoryview) else len(buf)
+        if offset < 0 or offset + size > avail:
+            raise ValueError(
+                f"pack_into: a {size}-byte record at offset {offset} does not"
+                f" fit in a {avail}-byte buffer"
+            )
+        if self.tier == "struct":
+            try:
+                self.struct_obj.pack_into(buf, offset, *values)
+            except (_struct.error, TypeError):
+                # Same C-narrowing fallback as pack_tuple. A partial write
+                # from the failed attempt is fully overwritten by the retry.
+                self.struct_obj.pack_into(
+                    buf, offset, *self._wrap_values(values)
+                )
+            return
+        buf[offset : offset + size] = self.pack_tuple(values)
+
     def _wrap_values(self, values: Sequence) -> list:
         wrapped = []
         for spec, v in zip(self._wrap_specs, values):

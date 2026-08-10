@@ -1219,12 +1219,28 @@ class Struct(metaclass=StructMeta):
         """
         return map(cls._bm_from_tuple, cls.plan.iter_tuples(data, offset, count))
 
+    @classmethod
+    def parse_at(cls, data: BytesLike, offset: int = 0) -> Self:
+        """Decode one record at a byte ``offset`` — :meth:`parse` without the
+        call-site slice (and with a bounds error that names the record)."""
+        return cls._bm_from_tuple(
+            next(iter(cls.plan.iter_tuples(data, offset, 1)))
+        )
+
     def pack(self) -> bytes:
         """Encode this instance; trusts the store-time narrowing invariant."""
         values = self._bm_to_tuple()
         if DEBUG_VALIDATE:
             self.plan.validate_tuple(values)
         return self.plan.pack_tuple(values)
+
+    def pack_into(self, buf, offset: int = 0) -> None:
+        """Encode this instance into a writable ``buf`` at ``offset``,
+        in place — the read-modify-write twin of :meth:`parse_at`."""
+        values = self._bm_to_tuple()
+        if DEBUG_VALIDATE:
+            self.plan.validate_tuple(values)
+        self.plan.pack_into(buf, offset, values)
 
     def detach_copy(self) -> Self:
         """A new instance with the same field values."""
