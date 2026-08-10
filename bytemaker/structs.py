@@ -70,10 +70,12 @@ from bytemaker.typing_redirect import (
     Any,
     ClassVar,
     Dict,
+    Iterator,
     List,
     Literal,
     Optional,
     Protocol,
+    Sequence,
     Tuple,
     runtime_checkable,
 )
@@ -1135,6 +1137,54 @@ class Struct(metaclass=StructMeta):
                 f"{cls.__name__}.parse: expected {n} bytes, got {len(data)}"
             )
         return cls._bm_from_tuple(cls.plan.unpack_tuple(data))
+
+    @classmethod
+    def from_tuple(cls, values: Sequence[Any]) -> Self:
+        """Build a record from one flat **wire-plane** tuple.
+
+        The inverse of :meth:`to_tuple`, and the record half of
+        :meth:`Plan.unpack_tuple <bytemaker.plans.Plan.unpack_tuple>`: the
+        values are in the plan's flat field order (nested Structs and array
+        elements splatted in place), exactly as ``plan.unpack_tuple`` yields
+        them. Trusted like :meth:`parse` — the narrowing descriptors are
+        bypassed, so values must already be in range.
+
+        Adapted fields take their **wire** value here; reads through the
+        attribute apply the adapter as usual.
+        """
+        want = len(cls.plan.fields)
+        if len(values) != want:
+            raise ValueError(
+                f"{cls.__name__}.from_tuple: expected {want} values,"
+                f" got {len(values)}"
+            )
+        return cls._bm_from_tuple(values)
+
+    def to_tuple(self) -> tuple:
+        """This record's flat **wire-plane** tuple (adapters not applied).
+
+        Round-trips through :meth:`from_tuple`, and is what
+        :meth:`Plan.pack_tuple <bytemaker.plans.Plan.pack_tuple>` consumes.
+        """
+        return self._bm_to_tuple()
+
+    @classmethod
+    def iter_records(
+        cls, data: BytesLike, offset: int = 0, count: Optional[int] = None
+    ) -> Iterator[Self]:
+        """Lazily decode consecutive records starting at ``offset``.
+
+        The record-plane twin of
+        :meth:`Plan.iter_tuples <bytemaker.plans.Plan.iter_tuples>`: no
+        slicing at the call site, no intermediate copies, and nothing is
+        decoded until the iterator is consumed. ``count=None`` reads as many
+        whole records as fit between ``offset`` and the end of ``data``.
+
+        For a table scan that never materializes records at all, use
+        ``cls.plan.iter_tuples(...)`` directly — the tuples are the same
+        wire-plane values :meth:`from_tuple` accepts.
+        """
+        return map(cls._bm_from_tuple, cls.plan.iter_tuples(data, offset, count))
 
     def pack(self) -> bytes:
         """Encode this instance; trusts the store-time narrowing invariant."""
