@@ -759,3 +759,52 @@ def test_annotation_may_be_looser_than_the_runtime_type():
 
         class Wrong(Struct, endian="little"):
             p: float = field(Ptr(RoomHeader))
+
+
+# ------------------------------------- deref by class attribute (rom-9)
+def test_deref_accepts_the_class_attribute():
+    """The no-string spelling of the record form: class-level access returns
+    the field descriptor, which knows the name it was installed under, so a
+    rename refactor updates the call site and a typo is an AttributeError at
+    the call, not a KeyError inside deref."""
+    s = space()
+    warp = s.read(WARPS, WarpPoint)
+    assert s.deref(warp, WarpPoint.room_ptr) == s.deref(warp, "room_ptr")
+    assert s.deref(warp, WarpPoint.room_ptr, 2) == s.deref(warp, "room_ptr", 2)
+
+
+def test_deref_accepts_an_array_field_attribute():
+    class Table(Struct, endian="little"):
+        rooms: List[int] = array(Ptr(RoomHeader), 2)
+
+    s = space()
+    t = s.read(PTR_TABLE, Table)
+    assert s.deref(t, Table.rooms) == s.deref(t, "rooms")
+
+
+def test_deref_with_a_value_instead_of_the_attribute_says_so():
+    """warp.room_ptr (instance access) is the VALUE, not the field; the
+    mistake is one keystroke away from the right call, so the error names
+    all three correct spellings."""
+    s = space()
+    warp = s.read(WARPS, WarpPoint)
+    with pytest.raises(TypeError, match="field's VALUE"):
+        s.deref(warp, warp.room_ptr)
+    with pytest.raises(TypeError, match=r"value\.deref\(space\)"):
+        s.deref(warp, warp.room_ptr)
+
+
+def test_deref_with_a_non_field_object_is_a_type_error():
+    s = space()
+    warp = s.read(WARPS, WarpPoint)
+    with pytest.raises(TypeError, match="is not a field"):
+        s.deref(warp, 3.14)
+    with pytest.raises(TypeError, match="is not a field"):
+        s.deref(warp, RoomHeader)
+
+
+def test_a_non_pointer_class_attribute_still_gets_the_pointer_listing():
+    s = space()
+    warp = s.read(WARPS, WarpPoint)
+    with pytest.raises(TypeError, match="pointer fields here: room_ptr"):
+        s.deref(warp, WarpPoint.sector)

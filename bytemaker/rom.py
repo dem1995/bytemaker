@@ -52,7 +52,13 @@ from typing import cast
 
 from bytemaker.adapters import Adapted, Adapter
 from bytemaker.introspect import bitsizeof, fields_of, sizeof
-from bytemaker.structs import Array, Struct, StructMeta, _structs_named
+from bytemaker.structs import (
+    Array,
+    Struct,
+    StructMeta,
+    _field_name_of,
+    _structs_named,
+)
 from bytemaker.typing_redirect import Any, List, Literal, Optional, Union
 from bytemaker.utils import validate_endianness
 
@@ -418,15 +424,31 @@ class Space:
     def deref(
         self,
         record: Any,
-        field_name: str,
+        field: Any,
         extent: Union[int, "Extent", None] = 1,
     ) -> Any:
         """Follow a :class:`Ptr` field of ``record``.
 
-        The field must have been declared with a ``Ptr`` (so the pointee's
-        codec is in the schema, not at the call site). An adapted array of
-        pointers dereferences element-wise and returns a list.
+        ``field`` is the field's name — as a string, or refactor-safely as
+        the CLASS attribute itself (``rom.deref(warp, WarpPoint.room_ptr)``;
+        class-level access returns the field descriptor, which knows its
+        name). The field must have been declared with a ``Ptr``, so the
+        pointee's codec is in the schema, not at the call site. An adapted
+        array of pointers dereferences element-wise and returns a list.
+
+        (For a pointer you already read, ``value.deref(space)`` on the
+        :class:`PtrValue` itself is the shortest spelling.)
         """
+        field_name = field if isinstance(field, str) else _field_name_of(field)
+        if field_name is None:
+            hint = (
+                " — that is the field's VALUE; pass the CLASS attribute"
+                " (e.g. WarpPoint.room_ptr) or the name string, or call"
+                " value.deref(space) directly"
+                if isinstance(field, int)
+                else " — pass the field's name or the class attribute"
+            )
+            raise TypeError(f"{self._label()}: {field!r} is not a field{hint}")
         cls = record if isinstance(record, type) else type(record)
         adapter = getattr(cls, "_bm_adapters", {}).get(field_name)
         ptr = _ptr_adapter_of(adapter)

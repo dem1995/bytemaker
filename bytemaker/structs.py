@@ -310,6 +310,19 @@ class _BytesField:
         self._slot.__set__(obj, v)
 
 
+def _field_name_of(descriptor) -> "Optional[str]":
+    """The field name a Struct field descriptor was installed under, or None
+    for anything that is not one. Class-level attribute access returns the
+    descriptor (``WarpPoint.room_ptr``), so this is what lets an API accept
+    the ATTRIBUTE as a refactor-safe alternative to the name string. The
+    name comes from the slot the descriptor wraps (``_bm_<field>``), the
+    same derivation the narrowing warning uses."""
+    inner = getattr(descriptor, "_inner", descriptor)  # _AdaptedField wraps
+    slot = getattr(inner, "_slot", None)
+    name = getattr(slot, "__name__", "")
+    return name[4:] if name.startswith("_bm_") else None
+
+
 class _AdaptedField:
     """Wraps a scalar field descriptor with an :class:`Adapter`: reads
     ``load`` the slot's wire value; writes ``store`` the user value and
