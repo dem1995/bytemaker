@@ -340,3 +340,150 @@ def test_coverage_of_an_empty_map():
     report = space().coverage([])
     assert report.claimed_bytes == 0 and report.percent == 0.0
     assert "0/1024 bytes (0.00%) in 0 entries" in report.render()
+
+
+# ------------------------------------------------- deferred targets (rom-5)
+#: Declared BEFORE the records they name, which is the whole point.
+NextNode = Annotated[int, Ptr("Node")]
+ExitsPtr = Annotated[int, Ptr("ExitList")]
+
+
+class Node(Struct, endian="little"):
+    """Self-referential: a linked-list node pointing at its own type."""
+
+    value: int = field(UInt16)
+    _pad: int = field(UInt16)
+    next: NextNode
+
+
+class Room(Struct, endian="little"):
+    w: int = field(UInt8)
+    h: int = field(UInt8)
+    _pad: int = field(UInt16)
+    exits: ExitsPtr
+
+
+class ExitList(Struct, endian="little"):  # defined AFTER Room references it
+    count_: int = field(UInt16)
+    first: int = field(UInt16)
+
+
+def linked_space():
+    """Three 8-byte Nodes packed contiguously at 0x10, chained 7 -> 9 -> 11."""
+    buf = bytearray(0x100)
+    assert Node.num_bytes == 8
+    Node(value=7, _pad=0, next=BASE + 0x18).pack_into(buf, 0x10)
+    Node(value=9, _pad=0, next=BASE + 0x20).pack_into(buf, 0x18)
+    Node(value=11, _pad=0, next=0).pack_into(buf, 0x20)
+    Room(w=16, h=12, _pad=0, exits=BASE + 0x40).pack_into(buf, 0x00)
+    ExitList(count_=3, first=5).pack_into(buf, 0x40)
+    return Space(buf, base=BASE, endian="little", name="L")
+
+
+def test_a_bare_forward_name_cannot_work():
+    """Ptr(Node) inside Node's own body is evaluated before the class exists,
+    even under deferred annotations -- the metaclass resolves hints during
+    class creation. This is why the string form exists."""
+    with pytest.raises(NameError):
+
+        class Broken(Struct, endian="little"):
+            v: int = field(UInt16)
+            _pad: int = field(UInt16)
+            nxt: Annotated[int, Ptr(Broken)]  # noqa: F821
+
+
+def test_deferred_target_resolves_on_first_use_and_memoizes():
+    p = Ptr("Node")
+    assert p.deferred and p.adapter.deferred
+    assert p.target is Node
+    assert not p.deferred  # memoized
+    assert p.target is Node  # stable
+
+
+def test_repr_does_not_force_resolution():
+    p = Ptr("NeverDefinedAnywhere")
+    assert repr(p) == "Ptr(NeverDefinedAnywhere->UInt32)"
+    assert p.deferred  # repr left it deferred
+    assert "ptr(NeverDefinedAnywhere)" in p.adapter.name
+
+
+def test_self_referential_pointer_walks_a_linked_list():
+    s = linked_space()
+    n = s.read(BASE + 0x10, Node)
+    chain = [n.value]
+    while n.next:
+        n = s.deref(n, "next")
+        chain.append(n.value)
+    assert chain == [7, 9, 11]
+
+
+def test_forward_reference_to_a_later_class():
+    s = linked_space()
+    r = s.read(BASE, Room)
+    exits = s.deref(r, "exits")
+    assert isinstance(exits, ExitList)
+    assert (exits.count_, exits.first) == (3, 5)
+
+
+def test_callable_target_is_the_no_magic_escape_hatch():
+    p = Ptr(lambda: Node)
+    assert p.deferred and p.target is Node
+    s = linked_space()
+    assert s.deref_value(BASE + 0x10, p).value == 7
+
+
+def test_unresolvable_deferred_target_says_where_it_looked():
+    p = Ptr("NoSuchRecord")
+    with pytest.raises(TypeError, match="no such name in module"):
+        p.target
+    with pytest.raises(TypeError, match="rom_ptr_test"):
+        p.target
+
+
+def test_deferred_target_resolving_to_a_non_codec_is_refused():
+    p = Ptr("BASE")  # a module-level int, not a codec
+    with pytest.raises(TypeError, match="is not a codec"):
+        p.target
+
+
+def test_explicit_module_overrides_the_captured_one():
+    p = Ptr("UInt16", module="bytemaker.bittypes")
+    assert p.target is UInt16 and not p.deferred
+
+
+def test_bad_target_types_are_refused_at_construction():
+    with pytest.raises(TypeError, match="Ptr target must be a codec"):
+        Ptr(3)
+    with pytest.raises(TypeError, match="Ptr target must be a codec"):
+        Ptr(b"Node")
+
+
+def test_deferred_target_survives_pickle_while_still_deferred():
+    p = Ptr("Node")
+    clone = pickle.loads(pickle.dumps(p))
+    assert isinstance(clone, Ptr) and clone.deferred
+    assert clone.target is Node  # resolves in the unpickling process too
+
+
+def test_resolved_target_pickles_by_reference():
+    p = Ptr("Node")
+    assert p.target is Node  # force resolution first
+    clone = pickle.loads(pickle.dumps(p))
+    assert clone.target is Node and not clone.deferred
+
+
+def test_deferred_pointers_are_audited_without_being_resolved():
+    """coverage() classifies addresses; it must not need the pointee's codec
+    (and must not blow up on a target that cannot resolve)."""
+    s = linked_space()
+    entries = [
+        Entry(BASE + 0x10, Node, count(3), name="nodes"),
+        Entry(BASE, Room, count(1), name="room"),
+        Entry(BASE + 0x40, ExitList, count(1), name="exits"),
+    ]
+    report = s.coverage(entries)
+    by_field = {(p.source, p.field): p for p in report.pointers}
+    assert by_field[("room", "exits")].verdict == "claimed"
+    assert by_field[("room", "exits")].claimed_by == "exits"
+    nodes = [p for p in report.pointers if p.source == "nodes"]
+    assert [p.verdict for p in nodes] == ["claimed", "claimed", "null"]

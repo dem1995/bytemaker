@@ -43,7 +43,9 @@ Two layers build on that base:
   what it double-claims, and where its pointers land.
 """
 
+import sys
 from dataclasses import dataclass
+from typing import cast
 
 from bytemaker.adapters import Adapted, Adapter
 from bytemaker.introspect import bitsizeof, fields_of, sizeof
@@ -1216,23 +1218,84 @@ class PtrAdapter(Adapter):
     ``_bm_adapters`` and :func:`~bytemaker.introspect.fields_of`.
     """
 
-    __slots__ = ("target", "inner")
+    __slots__ = ("_target", "inner", "module")
 
-    target: Any
+    #: The target as GIVEN: a codec, a name/callable awaiting resolution, or
+    #: None. Read it through :attr:`target`, which resolves and memoizes.
+    _target: Any
     inner: Optional[Adapter]
+    module: Optional[str]
 
-    def __init__(self, target=None, inner=None, name=None):
+    def __init__(self, target=None, inner=None, name=None, module=None):
         if inner is not None and not isinstance(inner, Adapter):
             raise TypeError(f"Ptr adapt= must be an Adapter, got {inner!r}")
+        if not (target is None or _is_codec(target) or isinstance(target, str)
+                or callable(target)):
+            raise TypeError(
+                f"Ptr target must be a codec (Struct class, BitType class,"
+                f" Array, fused adapter@BitType), a name to resolve later, a"
+                f" zero-argument callable returning one, or None — got"
+                f" {target!r}"
+            )
         load = inner.load if inner is not None else _identity
         store = inner.store if inner is not None else _identity
         label = name or _default_ptr_name(target)
         super().__init__(load, store, int, label)
-        object.__setattr__(self, "target", target)
+        object.__setattr__(self, "_target", target)
         object.__setattr__(self, "inner", inner)
+        object.__setattr__(self, "module", module)
+
+    @property
+    def target(self):
+        """The pointee's codec, resolving a deferred target on first use.
+
+        A string or zero-argument callable is resolved once and memoized, so
+        a pointer can name a record that does not exist yet — the shape a
+        linked list, a tree node, or any pair of mutually-referencing tables
+        forces.
+        """
+        target = self._target
+        if target is None or _is_codec(target):
+            return target
+        resolved = self._resolve(target)
+        if not _is_codec(resolved):
+            raise TypeError(
+                f"{self.name}: deferred target {target!r} resolved to"
+                f" {resolved!r}, which is not a codec"
+            )
+        object.__setattr__(self, "_target", resolved)  # memoize
+        return resolved
+
+    def _resolve(self, target):
+        if callable(target) and not isinstance(target, str):
+            return target()
+        namespace = getattr(sys.modules.get(self.module or ""), "__dict__", None)
+        if namespace is None:
+            raise TypeError(
+                f"{self.name}: cannot resolve the deferred target"
+                f" {target!r} — module {self.module!r} is not importable."
+                f" Pass Ptr(..., module=__name__), or a callable"
+                f" (Ptr(lambda: {target}))"
+            )
+        try:
+            return namespace[target]
+        except KeyError:
+            raise TypeError(
+                f"{self.name}: cannot resolve the deferred target"
+                f" {target!r} — no such name in module {self.module!r}."
+                f" Deferred targets resolve against the module the Ptr was"
+                f" built in, at first deref"
+            ) from None
+
+    @property
+    def deferred(self) -> bool:
+        """True while the target is still an unresolved name/callable."""
+        return not (self._target is None or _is_codec(self._target))
 
     def __reduce__(self):
-        return (PtrAdapter, (self.target, self.inner, self.name))
+        # Pickle the RAW target: a deferred one stays deferred (and picklable,
+        # since it is just a string) instead of forcing resolution here.
+        return (PtrAdapter, (self._target, self.inner, self.name, self.module))
 
 
 class Ptr(Adapted):
@@ -1260,29 +1323,78 @@ class Ptr(Adapted):
     ``Ptr(None)`` means "this is an address, but the pointee is not modelled
     yet": :meth:`Space.coverage` still audits it, and :meth:`Space.deref`
     refuses it by name.
+
+    **Deferred targets.** A pointer very often names a record that does not
+    exist yet — a self-referential node, or two tables that point at each
+    other. Pass the target as a *string* (or a zero-argument callable) and it
+    is resolved on first deref, against the module the ``Ptr`` was built in::
+
+        NextNode = Annotated[int, Ptr("Node")]   # resolved later, by name
+
+        class Node(Struct, endian="little"):
+            value: u16
+            _pad:  u16
+            next:  NextNode                      # points at its own type
+
+        n = rom.read(addr, Node)
+        while n.next:
+            n = rom.deref(n, "next")             # walk the list
+
+    A bare forward name cannot work — ``Ptr(Node)`` inside ``Node``'s own body
+    is evaluated before the class exists, even under
+    ``from __future__ import annotations``, because the metaclass resolves
+    hints during class creation. The string defers past that point. Use
+    ``module=__name__`` (or a callable) if the ``Ptr`` is built somewhere its
+    defining module is not where the name lives.
     """
 
     __slots__ = ()
 
-    def __init__(self, target=None, *, base=None, adapt=None, name=None):
+    def __init__(self, target=None, *, base=None, adapt=None, name=None,
+                 module=None):
         if base is None:
             from bytemaker.bittypes import UInt32
 
             base = UInt32
-        super().__init__(base, PtrAdapter(target, adapt, name))
+        if module is None and isinstance(target, str):
+            # A deferred name resolves against the module this Ptr was built
+            # in, which is the one the reader expects it to mean. Captured
+            # here (not at resolution time) because by then the frame is gone.
+            frame = sys._getframe(1)
+            module = frame.f_globals.get("__name__")
+        super().__init__(base, PtrAdapter(target, adapt, name, module))
+
+    @property
+    def _ptr_adapter(self) -> PtrAdapter:
+        """The adapter, narrowed. Every Ptr constructor installs a PtrAdapter
+        (``__init__`` and ``_rebuild_ptr`` are the only two), so this states
+        an invariant for the checker rather than hiding a doubt."""
+        return cast(PtrAdapter, self.adapter)
 
     @property
     def target(self):
-        """The codec this address points at, or None when unmodelled."""
-        return self.adapter.target
+        """The codec this address points at, or None when unmodelled.
+
+        Resolves a deferred target (a name or callable) on first access.
+        """
+        return self._ptr_adapter.target
+
+    @property
+    def deferred(self) -> bool:
+        """True while the target is still an unresolved name/callable."""
+        return self._ptr_adapter.deferred
 
     def __repr__(self):
-        head = f"Ptr({_codec_name(self.target)}->{self.base.__name__}"
+        # The RAW target throughout: a repr must never trigger resolution, nor
+        # fail because a deferred name is not importable yet.
+        raw = self._ptr_adapter._target
+        head = f"Ptr({_codec_name(raw)}->{self.base.__name__}"
         # Show a composed value convention: two pointer tables that differ
         # only in whether bit 0 is an instruction-set selector must not read
         # identically in a map listing.
-        if self.adapter.inner is not None or self.adapter.name != _default_ptr_name(
-            self.target
+        if (
+            self.adapter.inner is not None
+            or self.adapter.name != _default_ptr_name(raw)
         ):
             head += f", {self.adapter.name}"
         return head + ")"
@@ -1300,6 +1412,13 @@ def _rebuild_ptr(base, adapter) -> Ptr:
     return ptr
 
 
+def _is_codec(obj) -> bool:
+    """True for anything that can decode bytes at an address. The duck test
+    (``num_bits``) is the same one :mod:`bytemaker.introspect` uses, and it
+    is what distinguishes a real codec from a deferred name or callable."""
+    return isinstance(getattr(obj, "num_bits", None), int)
+
+
 def _default_ptr_name(target) -> str:
     return f"ptr({_codec_name(target)})"
 
@@ -1307,6 +1426,8 @@ def _default_ptr_name(target) -> str:
 def _codec_name(codec) -> str:
     if codec is None:
         return "?"
+    if isinstance(codec, str):
+        return codec  # a deferred target names itself
     return getattr(codec, "__name__", None) or repr(codec)
 
 
