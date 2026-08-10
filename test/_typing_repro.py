@@ -128,6 +128,26 @@ class BareFused(Struct, endian="little"):
     fn: ThumbPtr  # type: ignore[valid-type]
 
 
+# The ergonomic form for a convention used more than once: bind the
+# ANNOTATION to a module-level alias. Terse AND checked -- and the reason
+# bytemaker does not offer a `ThumbPtr[int]` subscript, which a checker would
+# refuse the same way BareFused.fn is refused above.
+FnAddr = Annotated[int, ThumbPtr]
+Q4 = Annotated[float, Mult]
+
+
+class Aliased(Struct, endian="little"):
+    update_fn: FnAddr
+    next_fn: FnAddr
+    scale: Q4
+
+
+al = Aliased(update_fn=0x0803EBA8, next_fn=0, scale=1.5)
+reveal_type(al.update_fn)  # noqa: F821  -> int
+reveal_type(al.scale)      # noqa: F821  -> float
+al.update_fn = "x"         # type: ignore  # the alias is still int
+
+
 # A fused element makes a standalone Array report the adapter's type.
 mults = Array.of(Mult, 4, endian="little")
 reveal_type(mults.parse(b"\x00" * 8))  # noqa: F821  -> list[float]

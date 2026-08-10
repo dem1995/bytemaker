@@ -141,11 +141,27 @@ class Adapted(Generic[U]):
     **Type-checking a fused field.** A fused codec is a *value*, not a
     class, so the terse ``update_fn: ThumbPtr`` spelling works at runtime
     but is not a valid *type* to a checker — the same trade-off as
-    ``Elem * N`` for arrays. For checker visibility use ``Annotated[<plain
-    type>, ThumbPtr]`` or ``field(ThumbPtr)`` with the plain annotation;
-    the plain type is the ADAPTER's user-plane type (``int`` for
-    ``THUMB_PTR``, ``float`` for ``fixed(4)``), which ``field()`` also
-    verifies. See ``test/_typing_repro.py`` for the mypy contract.
+    ``Elem * N`` for arrays. (Nor would a subscript hook help:
+    ``ThumbPtr[int]`` could be made to work at runtime, but a checker never
+    evaluates a variable in a type position, so the field would silently go
+    untyped. bytemaker deliberately does not offer that spelling.) The two
+    checked forms are ``Annotated[<plain type>, ThumbPtr]`` and
+    ``field(ThumbPtr)`` with the plain annotation; the plain type is the
+    ADAPTER's user-plane type (``int`` for ``THUMB_PTR``, ``float`` for
+    ``fixed(4)``), which ``field()`` also verifies.
+
+    For a convention used more than once, bind the ANNOTATION to a
+    module-level alias — the array analog of ``Colors8``. This is both the
+    terse form and the checked one::
+
+        ThumbPtr = THUMB_PTR @ UInt32          # the codec
+        FnAddr   = Annotated[int, ThumbPtr]    # the field annotation
+
+        class Anim(Struct, endian="little"):
+            update_fn: FnAddr                  # reads as int
+            next_fn:   FnAddr
+
+    See ``test/_typing_repro.py`` for the mypy contract.
 
     Equality and hashing are by IDENTITY (an :class:`Adapter` is too, since
     two ``fixed(4)`` calls build distinct transform pairs). Bind the fused
