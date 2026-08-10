@@ -1374,10 +1374,12 @@ class Ptr(Adapted):
     yet": :meth:`Space.coverage` still audits it, and :meth:`Space.deref`
     refuses it by name.
 
-    **Deferred targets.** A pointer very often names a record that does not
-    exist yet — a self-referential node, or two tables that point at each
-    other. Pass the target as a *string* (or a zero-argument callable) and it
-    is resolved on first deref, against the module the ``Ptr`` was built in::
+    **Deferred targets.** Pass the class itself whenever it is bound at the
+    declaration — that is the normal form: a typo fails at import time, the
+    IDE can follow it, and nothing resolves at runtime. A *string* (or a
+    zero-argument callable) exists for the declarations evaluation order
+    forbids — a self-referential node, mutually-referencing records, a
+    cross-module cycle — and is resolved on first deref::
 
         NextNode = Annotated[int, Ptr("Node")]   # resolved later, by name
 
