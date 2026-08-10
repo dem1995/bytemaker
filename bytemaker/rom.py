@@ -160,6 +160,11 @@ class span(Extent):
             raise ValueError(f"span(end) needs an int address, got {end!r}")
         self.end = end
 
+    def __repr__(self):
+        # An address in decimal is unreadable, and this one is always an
+        # address (unlike count's n, which is a quantity).
+        return f"span(end=0x{self.end:08X})"
+
 
 class unknown(Extent):
     """The length is not known. Reads refuse; the entry still documents the
@@ -1221,7 +1226,7 @@ class PtrAdapter(Adapter):
             raise TypeError(f"Ptr adapt= must be an Adapter, got {inner!r}")
         load = inner.load if inner is not None else _identity
         store = inner.store if inner is not None else _identity
-        label = name or f"ptr({_codec_name(target)})"
+        label = name or _default_ptr_name(target)
         super().__init__(load, store, int, label)
         object.__setattr__(self, "target", target)
         object.__setattr__(self, "inner", inner)
@@ -1272,7 +1277,15 @@ class Ptr(Adapted):
         return self.adapter.target
 
     def __repr__(self):
-        return f"Ptr({_codec_name(self.target)}->{self.base.__name__})"
+        head = f"Ptr({_codec_name(self.target)}->{self.base.__name__}"
+        # Show a composed value convention: two pointer tables that differ
+        # only in whether bit 0 is an instruction-set selector must not read
+        # identically in a map listing.
+        if self.adapter.inner is not None or self.adapter.name != _default_ptr_name(
+            self.target
+        ):
+            head += f", {self.adapter.name}"
+        return head + ")"
 
     def __reduce__(self):
         return (_rebuild_ptr, (self.base, self.adapter))
@@ -1285,6 +1298,10 @@ def _rebuild_ptr(base, adapter) -> Ptr:
     object.__setattr__(ptr, "base", base)
     object.__setattr__(ptr, "adapter", adapter)
     return ptr
+
+
+def _default_ptr_name(target) -> str:
+    return f"ptr({_codec_name(target)})"
 
 
 def _codec_name(codec) -> str:
