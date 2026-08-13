@@ -1,5 +1,7 @@
 """Tests for the size/introspection front door (wd-2):
-sizeof / bitsizeof / fields_of."""
+sizeof / bitsizeof / fields_of / layout."""
+
+import re
 
 import pytest
 
@@ -10,6 +12,7 @@ from bytemaker import (
     bitsizeof,
     field,
     fields_of,
+    layout,
     sizeof,
     u8,
     u16,
@@ -133,3 +136,106 @@ def test_endian_is_the_last_member_so_earlier_positions_are_stable():
     (info,) = fields_of(MixedInner)[:1]
     assert info[:5] == ("be", UInt16, 0, 16, None)
     assert info.endian == "big"
+
+
+# ------------------------------------------- the layout renderer (intro-2)
+#: A layout row: "  +0x04.4   4b  name  Type  note...". Parsed rather than
+#: split by position so the assertions below say which COLUMN they mean.
+_ROW = re.compile(
+    r"^  \+(?P<off>\S+) +(?P<bits>\d+)b +(?P<name>\S+) +(?P<rest>.*)$"
+)
+
+
+def rows_of(text):
+    """``{field name: match}`` for a layout's rows (its head line dropped)."""
+    out = {}
+    for line in text.splitlines()[1:]:
+        m = _ROW.match(line)
+        assert m is not None, f"unparseable layout row: {line!r}"
+        out[m.group("name")] = m
+    return out
+
+
+class Nibbles(Struct, endian="little"):
+    lo: int = field(UInt4)
+    hi: int = field(UInt4)
+    after: int = field(UInt16, endian="big")
+
+
+def test_layout_header_names_size_tier_and_record_order():
+    head = layout(Rec).splitlines()[0]
+    assert head.startswith("Rec  (")
+    assert f"{sizeof(Rec)} bytes" in head
+    assert f"tier={Rec.plan.tier}" in head and "little-endian" in head
+
+
+def test_layout_has_one_row_per_field_in_wire_order():
+    names = [
+        _ROW.match(line).group("name") for line in layout(Rec).splitlines()[1:]
+    ]
+    assert names == [i.name for i in fields_of(Rec)]
+
+
+def test_layout_rows_carry_the_offset_width_and_type():
+    rows = rows_of(layout(Rec))
+    assert rows["hp"].group("off") == "0x00"
+    assert rows["hp"].group("bits") == "16"
+    assert rows["hp"].group("rest") == "UInt16"
+    assert rows["name"].group("off") == "0x02"  # 16 bits in
+    assert rows["inner"].group("bits") == "16"
+
+
+def test_layout_marks_a_sub_byte_offset_with_the_bit():
+    rows = rows_of(layout(Nibbles))
+    assert rows["lo"].group("off") == "0x00"  # byte-aligned: no suffix
+    assert rows["hi"].group("off") == "0x00.4"  # the second nibble
+    assert rows["after"].group("off") == "0x01"
+
+
+def test_layout_notes_only_what_the_row_cannot_show():
+    rows = rows_of(layout(Rec))
+    assert "adapt=biased(+1)" in rows["tag"].group("rest")  # the convention
+    assert "endian=big" in rows["inner"].group("rest")  # differs from record
+    assert "endian" not in rows["hp"].group("rest")  # matches: no noise
+
+
+def test_layout_reports_a_mixed_nested_record_as_mixed():
+    rows = rows_of(layout(Orders))
+    assert "endian=mixed" in rows["mixed"].group("rest")
+    assert "endian=big" in rows["over"].group("rest")
+    assert "endian" not in rows["plain"].group("rest")
+
+
+def test_layout_renders_an_array_field_as_its_declaration_spelling():
+    """Not the Array's repr: that repeats the row's adapt= note and would
+    print endian=unset for an array that inherits the record's order."""
+    rest = rows_of(layout(Rec))["colors"].group("rest")
+    assert rest == "UInt16 * 3"
+    assert "unset" not in rest and "Array(" not in rest
+
+
+def test_layout_of_an_adapted_array_names_the_element_adapter_once():
+    class Table(Struct, endian="little"):
+        mults: list = field(Array.of(UInt16, 3, "little", biased(1)))
+
+    rest = rows_of(layout(Table))["mults"].group("rest")
+    assert rest == "UInt16 * 3  adapt=biased(+1)"
+
+
+def test_layout_takes_an_instance_and_rejects_a_non_record():
+    r = Rec(hp=1, name="ab", inner=Inner(x=2), colors=[1, 2, 3], raw=b"xy")
+    assert layout(r) == layout(Rec)
+    with pytest.raises(TypeError, match="concrete Struct"):
+        layout(UInt16)
+
+
+def test_layout_columns_align_across_uneven_name_and_offset_widths():
+    """Nibbles mixes a 0x00.4 offset with byte-aligned ones, and Orders
+    mixes 1- and 2-digit bit widths -- the cases fixed-width columns get
+    wrong. The width column is RIGHT-aligned (so "8b" and "16b" line up on
+    the b, not on the digit); the name and type columns are left-aligned."""
+    for cls in (Rec, Orders, Nibbles):
+        rows = [_ROW.match(line) for line in layout(cls).splitlines()[1:]]
+        assert len({m.end("bits") for m in rows}) == 1, cls
+        assert len({m.start("name") for m in rows}) == 1, cls
+        assert len({m.start("rest") for m in rows}) == 1, cls

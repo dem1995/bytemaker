@@ -65,7 +65,13 @@ from bytemaker.fields import (
     u32,
     u64,
 )
-from bytemaker.introspect import FieldInfo, bitsizeof, fields_of, sizeof
+from bytemaker.introspect import (
+    FieldInfo,
+    bitsizeof,
+    fields_of,
+    layout,
+    sizeof,
+)
 from bytemaker.plans import Plan, PlanCompileError
 from bytemaker.structs import (
     Array,
@@ -84,6 +90,7 @@ __all__ = [
     "sizeof",
     "bitsizeof",
     "fields_of",
+    "layout",
     "FieldInfo",
     "Plan",
     "PlanCompileError",
