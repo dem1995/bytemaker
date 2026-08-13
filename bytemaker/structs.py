@@ -168,14 +168,43 @@ class Codec(Protocol):
 # --------------------------------------------------------------------------
 
 
+def _attributed(exc, label: str):
+    """``exc`` re-expressed with ``label`` prefixed to its message.
+
+    Rebuilding an exception from a single string — ``type(exc)(msg)`` — only
+    works for classes whose ``__init__`` takes one argument, and the ones
+    that reach here do not: ``UnicodeDecodeError``/``UnicodeEncodeError``
+    take five, and a String field or a text adapter raises them on real
+    data. The naive form makes the *constructor* fail, so the caller gets a
+    TypeError about argument counts and loses the message, the exception
+    type and the attribution in one go — the exact opposite of the point.
+
+    So: rebuild the real class where that works (the single-argument case,
+    which is nearly everything, including ``ValueError`` and ``KeyError``),
+    and otherwise fall back to ValueError — or TypeError for a TypeError —
+    so the message and the attribution survive and ``except ValueError``
+    still catches. Callers chain the original as ``__cause__``, which is
+    what preserves the precise type either way.
+    """
+    msg = f"{label}: {exc}"
+    try:
+        return type(exc)(msg)
+    except Exception:  # noqa: BLE001 - any constructor may refuse one string
+        return TypeError(msg) if isinstance(exc, TypeError) else ValueError(msg)
+
+
 def _raise_named(slot, obj, exc):
-    """Re-raise a store-time conversion error naming the record class and
-    field. Compile-time diagnostics always name their field; runtime value
-    errors previously surfaced bare ("'str' object cannot be interpreted
-    as an integer"), which on a 20-field record names nothing. The
-    original message survives as the suffix and ``__cause__``."""
+    """Re-raise a field conversion error naming the record class and field.
+
+    Used by both directions: a store-time narrowing/validation failure, and
+    (via :class:`_AdaptedField`) an adapter ``load`` failure on data the
+    schema does not describe. Compile-time diagnostics always name their
+    field; runtime value errors previously surfaced bare ("'str' object
+    cannot be interpreted as an integer"), which on a 20-field record names
+    nothing. The original message survives as the suffix and ``__cause__``.
+    """
     field_name = slot.__name__[4:]  # strip the "_bm_" slot prefix
-    raise type(exc)(f"{type(obj).__name__}.{field_name}: {exc}") from exc
+    raise _attributed(exc, f"{type(obj).__name__}.{field_name}") from exc
 
 
 class _UIntField:
@@ -324,6 +353,15 @@ class _AdaptedField:
     plain attribute READ, arbitrarily far from the ``parse`` that accepted
     the bytes (parse fills slots wire-plane and never calls ``load``), so
     an unattributed message would name neither the record nor the field.
+
+    An adapter is USER code, so both handlers catch ``Exception`` rather
+    than a shortlist: a table adapter spelled ``Adapter(TABLE.__getitem__,
+    ...)`` -- the obvious way to decode a game's character table, and the
+    most likely adapter after ``enum_`` -- raises ``KeyError`` on precisely
+    the undocumented byte this attribution exists for. Nothing is
+    swallowed: :func:`_attributed` re-raises, keeping the exception's own
+    class wherever it can be rebuilt and chaining the original as
+    ``__cause__`` regardless.
     """
 
     __slots__ = ("_inner", "_adapter")
@@ -338,13 +376,13 @@ class _AdaptedField:
         wire = self._inner.__get__(obj, objtype)
         try:
             return self._adapter.load(wire)
-        except (TypeError, ValueError) as exc:
+        except Exception as exc:  # noqa: BLE001 - see the class docstring
             _raise_named(self._inner._slot, obj, exc)
 
     def __set__(self, obj, value):
         try:
             wire = self._adapter.store(value)
-        except (TypeError, ValueError) as exc:
+        except Exception as exc:  # noqa: BLE001 - see the class docstring
             _raise_named(self._inner._slot, obj, exc)
         self._inner.__set__(obj, wire)
 
@@ -363,8 +401,8 @@ def _elem_loader(load, cls_name: str, field_name: str):
     def load_elems(values):
         try:
             return [load(v) for v in values]
-        except (TypeError, ValueError) as exc:
-            raise type(exc)(f"{cls_name}.{field_name}: {exc}") from exc
+        except Exception as exc:  # noqa: BLE001 - as _AdaptedField.__get__
+            raise _attributed(exc, f"{cls_name}.{field_name}") from exc
 
     return load_elems
 

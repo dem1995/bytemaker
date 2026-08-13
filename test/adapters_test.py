@@ -624,3 +624,99 @@ def test_only_a_scalar_field_can_hold_an_unreadable_value():
     with pytest.raises(ValueError, match=r"^TileRow\.kinds:"):
         TileRow.from_tuple((0, 99))  # eager: no TileRow to repr
     assert repr(Tile.parse(b"\x63\x05")).startswith("Tile(kind=<unreadable:")
+
+
+# ------------------- attribution must not destroy the exception (fix-1)
+def test_a_multi_arg_exception_survives_attribution():
+    """UnicodeEncodeError is a ValueError with FIVE constructor arguments, so
+    rebuilding it from one string made the CONSTRUCTOR fail -- the caller got
+    a TypeError about argument counts and lost the message, the type and the
+    attribution together. Reachable with no adapter at all: a String field."""
+    Name4 = UTF8String.of(nbytes=4, name="Name4Fix1")
+
+    class T(Struct, endian="little"):
+        n: str = field(Name4)
+
+    t = T(n="ab")
+    with pytest.raises(ValueError) as caught:
+        t.n = "\ud800"  # a lone surrogate: not encodable as UTF-8
+    assert not isinstance(caught.value, TypeError)
+    assert str(caught.value).startswith("T.n: ")
+    assert "surrogate" in str(caught.value)  # the real reason survives
+    assert isinstance(caught.value.__cause__, UnicodeEncodeError)
+
+
+class WireNotInTable(ValueError):
+    """A user exception whose __init__ takes two arguments -- the shape a
+    table-mapping adapter naturally raises."""
+
+    def __init__(self, wire, table):
+        super().__init__(f"wire {wire} is not in {table}")
+        self.wire = wire
+
+
+def _strict_table_load(wire):
+    if wire != 1:
+        raise WireNotInTable(wire, "terrain")
+    return "floor"
+
+
+def test_a_multi_arg_user_exception_keeps_its_message_and_attribution():
+    strict = Adapter(_strict_table_load, str, str, "strict_table")
+
+    class R(Struct, endian="little"):
+        t: str = field(UInt8, adapt=strict)
+
+    r = R.parse(b"\x63")
+    with pytest.raises(ValueError) as caught:
+        r.t
+    assert str(caught.value) == "R.t: wire 99 is not in terrain"
+    assert isinstance(caught.value.__cause__, WireNotInTable)
+    # ... and the marker names the reason, not a constructor complaint
+    assert repr(r) == "R(t=<unreadable: wire 99 is not in terrain>)"
+
+
+def test_a_single_arg_exception_class_is_preserved_exactly():
+    """The common case must keep its own type, not be flattened."""
+
+    class OneArg(ValueError):
+        pass
+
+    def load(wire):
+        raise OneArg("nope")
+
+    class R(Struct, endian="little"):
+        t: int = field(UInt8, adapt=Adapter(load, int, int, "one_arg"))
+
+    with pytest.raises(OneArg, match=r"^R\.t: nope"):
+        R.parse(b"\x00").t
+
+
+TERRAIN_TABLE = {0: "floor", 1: "wall"}
+
+
+def test_a_dict_table_adapters_keyerror_is_attributed():
+    """Adapter(TABLE.__getitem__, ...) is the obvious way to decode a game's
+    character table, and it raises KeyError -- not ValueError -- on exactly
+    the undocumented byte this attribution exists for."""
+    table = Adapter(TERRAIN_TABLE.__getitem__, str, str, "table")
+
+    class Tile2(Struct, endian="little"):
+        kind: str = field(UInt8, adapt=table)
+
+    with pytest.raises(KeyError) as caught:
+        Tile2.parse(b"\x63").kind
+    assert "Tile2.kind" in str(caught.value) and "99" in str(caught.value)
+    assert isinstance(caught.value.__cause__, KeyError)
+
+
+def test_a_dict_table_adapters_keyerror_is_attributed_in_an_array_too():
+    table = Adapter(TERRAIN_TABLE.__getitem__, str, str, "table")
+
+    class Row2(Struct, endian="little"):
+        kinds: List[str] = array(table @ UInt8, 2)
+
+    with pytest.raises(KeyError) as caught:
+        Row2.parse(b"\x00\x63")  # fails inside parse
+    assert "Row2.kinds" in str(caught.value)
+    assert list(Row2.parse(b"\x00\x01").kinds) == ["floor", "wall"]
