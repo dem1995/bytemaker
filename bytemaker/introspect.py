@@ -76,8 +76,10 @@ class FieldInfo(NamedTuple):
     adapter: Optional[Any]
     #: The field's wire byte order, from the compiled plan -- so a
     #: ``field(T, endian=...)`` override, or a nested record's own
-    #: declaration, is visible where every other layout fact is. None when
-    #: the field's leaves disagree (a nested record of mixed orders).
+    #: declaration, is visible where every other layout fact is. None
+    #: whenever the field's leaves disagree, which a field spanning several
+    #: leaves can do in more than one way: a nested record of mixed orders,
+    #: or an ARRAY whose element records are internally mixed.
     endian: Optional[str]
 
 
@@ -154,18 +156,28 @@ def _offset_text(bit_offset: int) -> str:
 def layout(struct) -> str:
     """A record's layout as text — the whole compiled shape in one look::
 
-        FontPixelEntry  (14 bytes, tier=shiftmask, little-endian)
-          +0x00   16b  char_number  UInt16  endian=big
-          +0x02   96b  pixels       Buffer96
+        FontPixelEntry  (14 bytes, tier=shiftmask, little-endian, lsb-first)
+          +0x00  16b  char_number  UInt16  endian=big
+          +0x02  96b  pixels       Bufferx12
 
-    One row per :func:`fields_of` entry (so a nested Struct or an array is
-    ONE row spanning its leaves; call ``layout(info.type)`` to open it up),
-    carrying every layout fact the plan knows: byte offset — with a
-    ``.bit`` suffix where a field is not byte-aligned — bit width, name,
-    wire type, and two notes only when they are worth reading. ``endian=``
-    appears when a field's byte order differs from the record's own (or
-    ``endian=mixed`` for a nested record whose leaves disagree), and
-    ``adapt=`` names the field's value convention.
+    That example is this docstring's own output, asserted by
+    ``test_layout_docstring_example_is_real_output`` — a rendering example
+    that drifts from the renderer is worse than none.
+
+    The header carries the record-level facts: size, plan tier, and BOTH
+    compile-time order parameters. ``bit_order`` is there because it is what
+    gives a sub-byte offset its meaning — ``+0x04.4`` names a different
+    nibble under ``lsb`` than under ``msb`` — so the ``.bit`` suffix below
+    would be ambiguous without it. It is a property of the record, not of a
+    field, which is why :class:`FieldInfo` has no such member.
+
+    Then one row per :func:`fields_of` entry (so a nested Struct or an array
+    is ONE row spanning its leaves; call ``layout(info.type)`` to open it
+    up): byte offset — with a ``.bit`` suffix where a field is not
+    byte-aligned — bit width, name, wire type, and two notes only when they
+    are worth reading. ``endian=`` appears when a field's byte order differs
+    from the record's own (or ``endian=mixed`` when its leaves disagree),
+    and ``adapt=`` names the field's value convention.
 
     Accepts a Struct class or an instance; :class:`TypeError` otherwise.
     """
@@ -174,7 +186,7 @@ def layout(struct) -> str:
     plan = cls.plan
     head = (
         f"{cls.__name__}  ({sizeof(cls)} bytes, tier={plan.tier},"
-        f" {plan.endian}-endian)"
+        f" {plan.endian}-endian, {plan.bit_order}-first)"
     )
     if not infos:
         return head

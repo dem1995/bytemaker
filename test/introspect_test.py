@@ -2,6 +2,7 @@
 sizeof / bitsizeof / fields_of / layout."""
 
 import re
+import textwrap
 
 import pytest
 
@@ -239,3 +240,65 @@ def test_layout_columns_align_across_uneven_name_and_offset_widths():
         assert len({m.end("bits") for m in rows}) == 1, cls
         assert len({m.start("name") for m in rows}) == 1, cls
         assert len({m.start("rest") for m in rows}) == 1, cls
+
+
+def _docstring_example(doc, first_word):
+    """The indented block in ``doc`` that starts with ``first_word``."""
+    lines = doc.splitlines()
+    start = next(
+        i for i, ln in enumerate(lines) if ln.strip().startswith(first_word)
+    )
+    block = []
+    for ln in lines[start:]:
+        if not ln.strip():
+            break
+        block.append(ln)
+    return textwrap.dedent("\n".join(block))
+
+
+def test_layout_docstring_example_is_real_output():
+    """A rendering example that drifts from the renderer is worse than none:
+    the docstring promised a `Buffer96` type column and three-space gutter
+    that layout() never produced. Now the docstring IS the assertion."""
+    Pixels12 = Buffer.of(nbytes=0xC)  # unnamed: __name__ is what renders
+
+    class FontPixelEntry(Struct, endian="little"):
+        char_number: int = field(UInt16, endian="big")
+        pixels: bytes = field(Pixels12)
+
+    expected = _docstring_example(layout.__doc__, "FontPixelEntry")
+    assert layout(FontPixelEntry) == expected
+
+
+def test_layout_header_states_the_bit_order():
+    """bit_order is what gives a sub-byte offset its meaning -- +0x00.4 names
+    a different nibble under lsb than under msb -- so the .bit suffix is
+    ambiguous without it."""
+
+    class Lsb(Struct, endian="little", bit_order="lsb"):
+        a: UInt4
+        b: UInt4
+
+    class Msb(Struct, endian="little", bit_order="msb"):
+        a: UInt4
+        b: UInt4
+
+    assert "lsb-first" in layout(Lsb).splitlines()[0]
+    assert "msb-first" in layout(Msb).splitlines()[0]
+    # the two pack the same values to DIFFERENT bytes, so the listings must
+    # not read identically
+    assert Lsb(a=1, b=2).pack() != Msb(a=1, b=2).pack()
+    assert layout(Lsb).splitlines()[1:] == layout(Msb).splitlines()[1:]
+    assert layout(Lsb) != layout(Msb)  # ... the header is the only difference
+
+
+def test_endian_is_none_for_an_array_of_internally_mixed_records():
+    """The None case is "the leaves disagree", which a field can do in more
+    than one way -- not only as a nested record."""
+
+    class Row(Struct, endian="little"):
+        entries: list = field(Array.of(MixedInner, 2, "little"))
+
+    (info,) = fields_of(Row)
+    assert info.endian is None
+    assert "endian=mixed" in layout(Row)
