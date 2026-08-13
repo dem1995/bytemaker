@@ -1348,8 +1348,30 @@ class Struct(metaclass=StructMeta):
     __hash__ = None  # mutable record semantics, like an eq dataclass
 
     def __repr__(self):
-        args = ", ".join(f"{n}={getattr(self, n)!r}" for n in self._bm_fields)
+        args = ", ".join(f"{n}={self._bm_repr_of(n)}" for n in self._bm_fields)
         return f"{type(self).__name__}({args})"
+
+    def _bm_repr_of(self, name: str) -> str:
+        """One field's repr text, or a marker if reading it raises.
+
+        A repr must never raise. Reading a field CAN: an adapter's ``load``
+        runs over whatever the bytes say, so one value the schema does not
+        describe (``enum_(E)`` over an undocumented wire byte) would
+        otherwise take out the whole record's repr -- and with it
+        ``print(records)``, the first thing anyone does with a table they
+        are still figuring out. The other fields are readable and must
+        still be shown; the unreadable one says so, and names the reason.
+        """
+        try:
+            return repr(getattr(self, name))
+        except Exception as exc:  # noqa: BLE001 - a repr must not raise
+            reason = str(exc)
+            # _AdaptedField already prefixes "Record.field: "; inside the
+            # record's own repr, beside the field's name, that is noise.
+            prefix = f"{type(self).__name__}.{name}: "
+            if reason.startswith(prefix):
+                reason = reason[len(prefix) :]
+            return f"<unreadable: {reason or type(exc).__name__}>"
 
 
 # --------------------------------------------------------------------------

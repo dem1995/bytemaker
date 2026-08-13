@@ -596,3 +596,31 @@ def test_a_lenient_load_is_not_wrapped():
     fail on an int wire, and their values arrive untouched."""
     s = SkillEntry.parse(WIRE)
     assert (s.multiplier, s.reward_id) == (1.5, 4)
+
+
+def test_repr_shows_the_healthy_fields_and_marks_the_unreadable_one():
+    """A repr must never raise: one undocumented byte would otherwise take
+    out print(record) for the whole table."""
+    t = Tile.parse(b"\x63\x05")
+    text = repr(t)
+    assert text == "Tile(kind=<unreadable: 99 is not a valid Terrain>, height=5)"
+    # the record-and-field prefix adapted-3 adds is noise beside the name
+    assert "Tile.kind:" not in text
+
+
+def test_repr_of_a_readable_record_is_unchanged():
+    assert repr(Tile.parse(b"\x01\x05")) == (
+        "Tile(kind=<Terrain.WALL: 1>, height=5)"
+    )
+
+
+def test_only_a_scalar_field_can_hold_an_unreadable_value():
+    """Where the load runs decides where it can fail, and the two field
+    kinds differ: a scalar adapted field's slot is WIRE, so the load is
+    deferred to the read and the record exists either way (repr degrades).
+    An adapted array's slot is USER-plane, so its loads run eagerly in
+    from_tuple -- an undocumented element means the record is never built,
+    and there is no repr to degrade."""
+    with pytest.raises(ValueError, match=r"^TileRow\.kinds:"):
+        TileRow.from_tuple((0, 99))  # eager: no TileRow to repr
+    assert repr(Tile.parse(b"\x63\x05")).startswith("Tile(kind=<unreadable:")
