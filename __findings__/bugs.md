@@ -4,7 +4,7 @@
 
 Logic errors, boundary/edge-case failures, cross-implementation divergences, and contracts that lie. Ordered by severity then confidence.
 
-_28 findings — 11 high, 10 medium, 7 low._
+_29 findings — 12 high, 10 medium, 7 low._ (#29 was added later, during the usability round; see its provenance note.)
 
 ---
 
@@ -735,5 +735,63 @@ Repro:
 ```
 
 **Suggestion.** Either mask into range (`number &= (1 << n_bits) - 1`) so the result is always exactly `n_bits` wide, or validate that `number` fits `[-(1<<(n_bits-1)), (1<<(n_bits-1))-1]` and raise `ValueError` otherwise. Update the docstring to state the width guarantee.
+
+---
+
+## 29. A nested Struct's `bit_order` is silently ignored; the same record packs different bytes standalone vs nested
+
+**Severity:** high · **Confidence:** high · **✓ Reproduced** · [`bytemaker/plans.py:598`](../bytemaker/plans.py#L598)
+
+> **Provenance note.** Unlike findings 1-28, this one was found later, during the
+> usability round (commits `eadfc9a..0ce026d`), while checking whether
+> `introspect.layout()` should report `bit_order` per field or per record. It is
+> recorded here rather than fixed because the fix is a behavior decision.
+
+**What.** `endian` is resolved and stored *per plan leaf*, so a nested record keeps
+its own byte order when it is flattened into a parent (that is what wd-1/wd-4 and
+`FieldInfo.endian` rely on). `bit_order` is **not**: it is a single per-`Plan`
+value, `compile_plan` takes it from the class being compiled, and the flatten path
+for a nested Struct copies leaf `endian` but has no leaf `bit_order` to copy. So a
+nested record declared `bit_order="msb"` is packed under its parent's order with no
+error, no warning, and nothing in introspection to reveal it — the exact footgun
+shape wd-1 refused for an unset Array endian, left open one level in.
+
+**Evidence.**
+
+```python
+from bytemaker.bittypes import UInt4
+from bytemaker.structs import Struct
+
+class InnerMsb(Struct, endian="little", bit_order="msb"):
+    x: UInt4
+    y: UInt4
+
+class OuterLsb(Struct, endian="little"):      # default bit_order="lsb"
+    i: InnerMsb
+
+InnerMsb(x=1, y=2).pack()                     # b'\x12'
+OuterLsb(i=InnerMsb(x=1, y=2)).pack()         # b'\x21'  <- same values, other bytes
+```
+
+`InnerMsb.plan.bit_order == "msb"` and `OuterLsb.plan.bit_order == "lsb"`, and the
+flattened leaves (`i.x`, `i.y`) carry no `bit_order` attribute at all, so the
+child's declaration is unrecoverable after compilation.
+
+**Why it matters.** A sub-byte record modelled and verified standalone changes
+meaning when someone nests it, which is precisely the case sub-byte records are
+used for (tile attributes, packed flags). `layout()` reports the record-level
+`bit_order` in its header, so nesting produces two listings that each look right.
+
+**Suggestion.** Two coherent options, in order of preference:
+
+1. **Refuse the mismatch at compile time**, as wd-1 does for an unset Array endian:
+   flattening a child whose `bit_order` differs from the parent's raises
+   `PlanCompileError` naming both. Cheap, and no silent reinterpretation survives.
+2. **Carry `bit_order` per leaf**, like `endian`, and honour it in the shiftmask
+   tier. Strictly more expressive (a genuinely mixed record becomes possible) but
+   it touches the shift/mask computation, and the struct fast tier would have to
+   refuse or fall back on a mismatch.
+
+Option 1 is a one-branch change and makes option 2 a compatible follow-up.
 
 ---
