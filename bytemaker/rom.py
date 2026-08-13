@@ -68,6 +68,7 @@ __all__ = [
     "Edit",
     "Entry",
     "Extent",
+    "Gap",
     "IPS_EOF_OFFSET",
     "Overlap",
     "Patch",
@@ -520,6 +521,7 @@ class Space:
         return CoverageReport(
             space_name=self._name,
             space_size=len(self),
+            space_base=self._base,
             regions=regions,
             overlaps=overlaps,
             pointers=tuple(pointers),
@@ -1645,6 +1647,27 @@ class Overlap:
     size: int
 
 
+@dataclass(frozen=True)
+class Gap:
+    """A run of bytes no resolved entry claims.
+
+    The complement of a coverage report, and the question a mapping session
+    actually runs on: not "how much have I got" but "what is left, and where
+    is the big one".
+    """
+
+    start: int
+    size: int
+
+    @property
+    def end(self) -> int:
+        """One past the last unclaimed address."""
+        return self.start + self.size
+
+    def describe(self) -> str:
+        return f"0x{self.start:08X}-0x{self.end - 1:08X} ({self.size} bytes)"
+
+
 def _enumerate_values(value):
     """``(index, one)`` pairs for a scalar, a list, or None: normalizes the
     three shapes a Ptr-carrying read can produce."""
@@ -1718,29 +1741,60 @@ class CoverageReport:
 
     space_name: str
     space_size: int
+    space_base: int
     regions: tuple
     overlaps: tuple
     pointers: tuple
+
+    def _merged_spans(self) -> "List[tuple]":
+        """Resolved footprints merged into maximal disjoint ``(start, end)``
+        runs, in address order. What the map claims and what it does not are
+        both read off this one list."""
+        merged: "List[List[int]]" = []
+        for start, end in sorted(
+            (r.start, r.end) for r in self.regions if r.resolved and r.size
+        ):
+            if merged and start <= merged[-1][1]:
+                merged[-1][1] = max(merged[-1][1], end)
+            else:
+                merged.append([start, end])
+        return [(start, end) for start, end in merged]
 
     @property
     def claimed_bytes(self) -> int:
         """Distinct bytes claimed by at least one resolved entry (overlaps
         counted once)."""
-        spans = sorted(
-            (r.start, r.end) for r in self.regions if r.resolved and r.size
-        )
-        total = 0
-        cur_start = cur_end = None
-        for start, end in spans:
-            if cur_end is None or start > cur_end:
-                if cur_end is not None:
-                    total += cur_end - cur_start
-                cur_start, cur_end = start, end
-            else:
-                cur_end = max(cur_end, end)
-        if cur_end is not None:
-            total += cur_end - cur_start
-        return total
+        return sum(end - start for start, end in self._merged_spans())
+
+    def gaps(self, min_size: int = 1) -> tuple:
+        """Runs of at least ``min_size`` bytes that no resolved entry
+        claims, as :class:`Gap` values in address order.
+
+        The complement of :attr:`claimed_bytes`, and the direction a map
+        actually grows in: percentages say how far along you are, gaps say
+        where to look next — especially paired with the ``unclaimed``
+        pointer verdicts, which name addresses something already points at.
+
+        An UNRESOLVED region claims nothing, so its bytes read as gap. That
+        is deliberate (the entry may be right about the address and wrong
+        about the length, and a report must not credit a length it could not
+        resolve); :attr:`unresolved` names those entries and why.
+        """
+        gaps = []
+        cursor = self.space_base
+        limit = self.space_base + self.space_size
+        for start, end in self._merged_spans():
+            if start > cursor:
+                gaps.append(Gap(cursor, start - cursor))
+            cursor = max(cursor, end)
+        if cursor < limit:
+            gaps.append(Gap(cursor, limit - cursor))
+        return tuple(g for g in gaps if g.size >= min_size)
+
+    @property
+    def unclaimed_bytes(self) -> int:
+        """Total bytes in :meth:`gaps` — ``space_size - claimed_bytes``."""
+        return self.space_size - self.claimed_bytes
 
     @property
     def percent(self) -> float:
@@ -1756,9 +1810,9 @@ class CoverageReport:
     def dangling(self) -> tuple:
         return tuple(p for p in self.pointers if p.is_dangling)
 
-    def render(self, max_pointers: int = 20) -> str:
-        """A text report. Truncates the pointer listing, and says by how
-        much — a silent cap would read as "all clear"."""
+    def render(self, max_pointers: int = 20, max_gaps: int = 10) -> str:
+        """A text report. Truncates the pointer and gap listings, and says by
+        how much — a silent cap would read as "all clear"."""
         label = self.space_name or "space"
         lines = [
             f"coverage of {label}: {self.claimed_bytes}/{self.space_size} bytes"
@@ -1774,6 +1828,24 @@ class CoverageReport:
                 lines.append(
                     f"    {o.a} and {o.b} share {o.size} bytes at"
                     f" 0x{o.start:08X}"
+                )
+        gaps = self.gaps()
+        if gaps:
+            # Listed LARGEST first, unlike gaps() itself: on a real map the
+            # first gaps by address are the least interesting (a ROM starts
+            # with code), and the question being asked is where the big
+            # unmapped region is.
+            lines.append(
+                f"  gaps ({len(gaps)}): {self.unclaimed_bytes} bytes"
+                f" unclaimed, largest first"
+            )
+            by_size = sorted(gaps, key=lambda g: (-g.size, g.start))
+            for g in by_size[:max_gaps]:
+                lines.append(f"    {g.describe()}")
+            if len(by_size) > max_gaps:
+                lines.append(
+                    f"    ... and {len(by_size) - max_gaps} more gaps"
+                    f" (raise max_gaps to see them)"
                 )
         if self.pointers:
             counts: dict = {}

@@ -808,3 +808,96 @@ def test_a_non_pointer_class_attribute_still_gets_the_pointer_listing():
     warp = s.read(WARPS, WarpPoint)
     with pytest.raises(TypeError, match="pointer fields here: room_ptr"):
         s.deref(warp, WarpPoint.sector)
+
+
+# ------------------------------------------------ coverage gaps (cov-1)
+def gap_map():
+    """Claims 0x...10-0x...1F and 0x...30-0x...3F of a 0x400 space, leaving
+    a gap at the start, one between, and one running to the end."""
+    return [
+        Entry(BASE + 0x10, UInt8, count(16), name="a"),
+        Entry(BASE + 0x30, UInt8, count(16), name="b"),
+    ]
+
+
+def test_gaps_are_the_complement_of_the_claimed_bytes():
+    report = space().coverage(gap_map(), audit_pointers=False)
+    assert [(g.start, g.size) for g in report.gaps()] == [
+        (BASE, 0x10),  # before the first entry
+        (BASE + 0x20, 0x10),  # between the two
+        (BASE + 0x40, len(BUF) - 0x40),  # ... and out to the end
+    ]
+    assert sum(g.size for g in report.gaps()) == report.unclaimed_bytes
+    assert report.claimed_bytes + report.unclaimed_bytes == report.space_size
+
+
+def test_gap_end_is_one_past_the_last_unclaimed_byte():
+    (first, *_) = space().coverage(gap_map(), audit_pointers=False).gaps()
+    assert first.end == first.start + first.size == BASE + 0x10
+    assert first.describe() == "0x08000000-0x0800000F (16 bytes)"
+
+
+def test_gaps_are_addresses_not_offsets():
+    """The report carries the space's base, so a gap in a GBA ROM reads as
+    0x08000000, the address a disassembly listing would show."""
+    report = space().coverage(gap_map(), audit_pointers=False)
+    assert report.space_base == BASE
+    assert all(g.start >= BASE for g in report.gaps())
+
+
+def test_min_size_filters_the_noise():
+    report = space().coverage(gap_map(), audit_pointers=False)
+    big = report.gaps(min_size=0x20)
+    assert [g.start for g in big] == [BASE + 0x40]
+    assert report.gaps(min_size=1) == report.gaps()
+
+
+def test_overlapping_claims_do_not_split_a_gap():
+    overlapping = gap_map() + [Entry(BASE + 0x18, UInt8, count(16), name="c")]
+    report = space().coverage(overlapping, audit_pointers=False)
+    # a..c now covers 0x10-0x27, so the middle gap shrinks rather than
+    # appearing twice
+    assert [(g.start, g.size) for g in report.gaps()][1] == (BASE + 0x28, 8)
+    assert report.claimed_bytes == 0x18 + 0x10  # overlap counted once
+
+
+def test_a_fully_covered_space_has_no_gaps():
+    entries = [Entry(BASE, UInt8, count(len(BUF)), name="all")]
+    report = space().coverage(entries, audit_pointers=False)
+    assert report.gaps() == () and report.unclaimed_bytes == 0
+    assert "gaps" not in report.render()
+
+
+def test_an_unresolved_region_claims_nothing_so_its_bytes_are_gap():
+    """An entry that cannot resolve its length may still be right about its
+    address -- but a report must not credit a length it could not resolve.
+    The unresolved section says which entry and why."""
+    entries = [Entry(BASE + 0x10, RoomHeader, unknown("length unknown"), name="m")]
+    report = space().coverage(entries, audit_pointers=False)
+    assert [(g.start, g.size) for g in report.gaps()] == [(BASE, len(BUF))]
+    assert [r.name for r in report.unresolved] == ["m"]
+
+
+def test_render_lists_the_largest_gaps_first_and_says_so():
+    report = space().coverage(gap_map(), audit_pointers=False)
+    text = report.render()
+    assert f"gaps (3): {report.unclaimed_bytes} bytes unclaimed" in text
+    assert "largest first" in text
+    listed = [
+        line for line in text.splitlines() if line.startswith("    0x")
+    ]
+    assert listed[0].startswith(f"    0x{BASE + 0x40:08X}")  # the big one
+
+
+def test_render_truncates_the_gap_listing_and_says_by_how_much():
+    report = space().coverage(gap_map(), audit_pointers=False)
+    text = report.render(max_gaps=1)
+    assert "... and 2 more gaps (raise max_gaps to see them)" in text
+    assert "more gaps" not in report.render()
+
+
+def test_an_empty_map_is_one_whole_gap():
+    report = space().coverage([])
+    (only,) = report.gaps()
+    assert (only.start, only.size) == (BASE, len(BUF))
+    assert "0/1024 bytes (0.00%)" in report.render()
