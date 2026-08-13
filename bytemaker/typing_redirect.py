@@ -4,10 +4,14 @@ typing_redirect.py
 This module allows for Python version-agnostic typing and collections.abc imports.
     It uses Python standard library batteries where possible.
     For older versions, this module will export from typing_extensions.
+
+``typing_extensions`` is a DECLARED dependency below 3.13 (see pyproject), so
+every pre-3.13 branch here imports it unconditionally: a missing name is an
+ImportError naming the missing distribution, not a silently degraded shim that
+turns a type into ``Any`` and takes the checker's guarantees with it.
 """
 
 import sys
-from importlib.util import find_spec
 from typing import Any
 
 if sys.version_info < (3, 9):
@@ -19,6 +23,7 @@ if sys.version_info < (3, 9):
         MutableSequence,
         Sequence,
     )
+    from typing_extensions import Annotated
 else:
     from collections.abc import (
         Callable,
@@ -28,18 +33,14 @@ else:
         MutableSequence,
         Sequence,
     )
+    from typing import Annotated
 
 if sys.version_info < (3, 10):
-    UnionType = Any
-    if find_spec("typing_extensions"):
-        from typing_extensions import Concatenate, ParamSpec
-    else:
-        ParamSpec = Any
-        Concatenate = Any
+    UnionType = Any  # no typing_extensions equivalent; types.UnionType is 3.10+
+    from typing_extensions import Concatenate, ParamSpec
 else:
     from types import UnionType
-    from typing import ParamSpec
-    from typing import Concatenate
+    from typing import Concatenate, ParamSpec
 
 from collections.abc import Hashable
 from typing import (
@@ -67,28 +68,18 @@ from typing import (
 )
 
 if sys.version_info < (3, 12):
-    if find_spec("typing_extensions"):
-        from typing_extensions import Buffer
-    else:
-        Buffer = TypeVar("Buffer")  # Fall back to TypeVar
+    from typing_extensions import Buffer
 else:
     from collections.abc import Buffer
 
 if sys.version_info < (3, 13):
-    if find_spec("typing_extensions"):
-        from typing_extensions import TypeIs  # type: ignore[reportAssignmentType]
-    else:
-        T = TypeVar("T")
-
-        class TypeIs(Generic[T]):
-            def __class_getitem__(cls, item):
-                return cls
-
+    from typing_extensions import TypeIs  # type: ignore[reportAssignmentType]
 else:
     from typing import TypeIs
 
 
 __all__ = [
+    "Annotated",
     "Any",
     "Buffer",
     "Callable",
@@ -97,6 +88,7 @@ __all__ = [
     "Dict",
     "Final",
     "ForwardRef",
+    "Generic",
     "Hashable",
     "ItemsView",
     "Iterable",
@@ -126,9 +118,7 @@ __all__ = [
 
 if sys.version_info >= (3, 11):
     from typing import Self  # noqa: F401
-elif find_spec("typing_extensions"):
+else:
     from typing_extensions import Self  # noqa: F401
-else:  # pragma: no cover - typing-extensions is a declared dependency
-    Self = TypeVar("Self")  # degraded shim for a no-deps source checkout
 
 __all__.append("Self")

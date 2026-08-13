@@ -19,6 +19,7 @@ from typing import NamedTuple
 
 from bytemaker.structs import StructMeta
 from bytemaker.typing_redirect import (
+    Annotated,
     Any,
     Optional,
     Tuple,
@@ -26,21 +27,13 @@ from bytemaker.typing_redirect import (
     get_origin,
 )
 
-try:  # 3.9+ typing, else typing_extensions (a dependency), else no aliases
-    from typing import Annotated
-except ImportError:  # pragma: no cover - version-dependent
-    try:
-        from typing_extensions import Annotated
-    except ImportError:
-        Annotated = None  # type: ignore[assignment]
-
 __all__ = ["FieldInfo", "bitsizeof", "fields_of", "sizeof"]
 
 
 def _unwrap(obj):
     """``Annotated[int, UInt16]`` (the ``u16`` alias) -> ``UInt16``;
     everything else passes through."""
-    if Annotated is not None and get_origin(obj) is Annotated:
+    if get_origin(obj) is Annotated:
         for meta in get_args(obj)[1:]:
             if isinstance(getattr(meta, "num_bits", None), int):
                 return meta

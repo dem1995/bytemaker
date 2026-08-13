@@ -68,6 +68,7 @@ from bytemaker.bittypes.bittype import (
 )
 from bytemaker.plans import Plan, PlanCompileError, _classify_scalar, compile_plan
 from bytemaker.typing_redirect import (
+    Annotated,
     Any,
     ClassVar,
     Dict,
@@ -78,6 +79,8 @@ from bytemaker.typing_redirect import (
     Protocol,
     Sequence,
     Tuple,
+    get_args,
+    get_origin,
     runtime_checkable,
 )
 from bytemaker.utils import validate_endianness
@@ -104,21 +107,6 @@ except ImportError:  # pragma: no cover
                 return obj
 
             return decorator
-
-
-try:  # 3.9+ typing, else typing_extensions, else no Annotated aliases
-    from typing import Annotated, get_args, get_origin
-except ImportError:  # pragma: no cover
-    try:
-        from typing_extensions import Annotated, get_args, get_origin
-    except ImportError:
-        Annotated = None
-
-        def get_origin(_x):  # type: ignore[misc]
-            return None
-
-        def get_args(_x):  # type: ignore[misc]
-            return ()
 
 
 __all__ = [
@@ -516,7 +504,7 @@ def _reject_endian_tag_metadata(owner: str, field_name: str, hint) -> None:
     """A byte-order string in Annotated metadata — the spelling a user is
     most likely to guess for per-field endianness — was silently ignored
     and produced record-order bytes. Refuse it with the real spelling."""
-    if Annotated is None or get_origin(hint) is not Annotated:
+    if get_origin(hint) is not Annotated:
         return
     for meta in get_args(hint)[1:]:
         if isinstance(meta, str) and meta.lower() in ("big", "little", "be", "le"):
@@ -541,7 +529,7 @@ def _unwrap_annotation(owner: str, field: str, hint) -> Any:
     """``Annotated[int, UInt8]`` -> ``UInt8``; BitType/Adapted/Struct/Array
     pass through; anything else is a compile error."""
     _reject_endian_tag_metadata(owner, field, hint)
-    if Annotated is not None and get_origin(hint) is Annotated:
+    if get_origin(hint) is Annotated:
         for meta in get_args(hint)[1:]:
             if _is_wire_type(meta):
                 return meta
@@ -623,7 +611,7 @@ def _check_spec_annotation(owner, field_name, bittype, annotation, adapter=None)
         return
     _reject_endian_tag_metadata(owner, field_name, annotation)
     ann = annotation
-    if Annotated is not None and get_origin(ann) is Annotated:
+    if get_origin(ann) is Annotated:
         ann = get_args(ann)[0]
     if ann is Any:
         return  # explicit "untype this" escape hatch
@@ -646,7 +634,7 @@ def _check_spec_annotation(owner, field_name, bittype, annotation, adapter=None)
             else:
                 elem_expected = _expected_py_type(bittype.element)
             elem_ann = args[0]
-            if Annotated is not None and get_origin(elem_ann) is Annotated:
+            if get_origin(elem_ann) is Annotated:
                 elem_ann = get_args(elem_ann)[0]
             if (
                 elem_expected is not None
@@ -2218,17 +2206,16 @@ class Array(typing.Generic[V]):
 # import u31``); the common names are re-exported here for compatibility.
 # --------------------------------------------------------------------------
 
-if Annotated is not None:
-    from bytemaker.fields import (  # noqa: F401
-        f16,
-        f32,
-        f64,
-        s8,
-        s16,
-        s32,
-        s64,
-        u8,
-        u16,
-        u32,
-        u64,
-    )
+from bytemaker.fields import (  # noqa: E402,F401
+    f16,
+    f32,
+    f64,
+    s8,
+    s16,
+    s32,
+    s64,
+    u8,
+    u16,
+    u32,
+    u64,
+)

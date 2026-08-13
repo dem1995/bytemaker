@@ -52,6 +52,19 @@ from bytemaker.bitvector import (
     BitVector,
     FixedLengthBitVector,
 )
+from bytemaker.fields import (
+    f16,
+    f32,
+    f64,
+    s8,
+    s16,
+    s32,
+    s64,
+    u8,
+    u16,
+    u32,
+    u64,
+)
 from bytemaker.introspect import FieldInfo, bitsizeof, fields_of, sizeof
 from bytemaker.plans import Plan, PlanCompileError
 from bytemaker.structs import (
@@ -101,30 +114,10 @@ __all__ = [
     "TableString",
     "UTF8String",
     "Buffer",
+    "u8", "u16", "u32", "u64",
+    "s8", "s16", "s32", "s64",
+    "f16", "f32", "f64",
 ]
-
-try:  # absent on Python 3.8 without typing_extensions (no Annotated)
-    from bytemaker.fields import (  # noqa: F401
-        f16,
-        f32,
-        f64,
-        s8,
-        s16,
-        s32,
-        s64,
-        u8,
-        u16,
-        u32,
-        u64,
-    )
-
-    __all__ += [
-        "u8", "u16", "u32", "u64",
-        "s8", "s16", "s32", "s64",
-        "f16", "f32", "f64",
-    ]
-except ImportError:  # pragma: no cover - version-dependent
-    pass
 
 try:
     from importlib.metadata import version as _dist_version

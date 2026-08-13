@@ -136,7 +136,6 @@ bytemaker/plans.py :: attr-defined :: "type" has no attribute "element"
 bytemaker/plans.py :: attr-defined :: "type" has no attribute "endian"
 bytemaker/plans.py :: attr-defined :: "type" has no attribute "num_bits"
 bytemaker/structs.py :: assignment :: Incompatible types in assignment (expression has type "None", base class "object" defined the type as "Callable[[], int]")
-bytemaker/structs.py :: assignment :: Incompatible types in assignment (expression has type "None", variable has type "<typing special form>")
 bytemaker/structs.py :: attr-defined :: "BoundField[V]" has no attribute "_ftype"
 bytemaker/structs.py :: attr-defined :: "BoundField[V]" has no attribute "_name"
 bytemaker/structs.py :: attr-defined :: "BoundField[V]" has no attribute "_owner"
@@ -150,8 +149,3 @@ bytemaker/structs.py :: attr-defined :: "type[Self]" has no attribute "_bm_from_
 bytemaker/structs.py :: misc :: "None" object is not iterable
 bytemaker/structs.py :: misc :: Signatures of "__iadd__" and "__add__" are incompatible
 bytemaker/structs.py :: misc :: Signatures of "__imul__" and "__mul__" are incompatible
-bytemaker/structs.py :: no-redef :: Name "get_origin" already defined (possibly by an import)
-bytemaker/typing_redirect.py :: assignment :: Incompatible types in assignment (expression has type "TypeVar", variable has type "type[Buffer]")
-bytemaker/typing_redirect.py :: misc :: Cannot assign to a type
-bytemaker/typing_redirect.py :: misc :: Cannot redefine "Buffer" as a type variable
-bytemaker/typing_redirect.py :: no-redef :: Name "TypeIs" already defined (possibly by an import)

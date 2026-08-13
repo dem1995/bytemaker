@@ -22,23 +22,13 @@ The paired ``fields.pyi`` presents these to type checkers as descriptor
 types — reads are ``int``/``float``, writes (and the synthesized
 ``__init__`` parameters, per dataclass_transform) accept anything the
 narrowing store accepts, including BitType boxes via ``__index__``.
-
-The aliases are absent on Python 3.8 without ``typing_extensions``
-(no ``Annotated``); the bare-class annotation spelling still works there.
 """
 
 import re
 
 import bytemaker.bittypes as _bittypes
 from bytemaker.bittypes import SInt, UInt
-
-try:  # 3.9+ typing, else typing_extensions, else no Annotated aliases
-    from typing import Annotated
-except ImportError:  # pragma: no cover - version-dependent
-    try:
-        from typing_extensions import Annotated
-    except ImportError:
-        Annotated = None
+from bytemaker.typing_redirect import Annotated
 
 __all__ = [
     "u8",
@@ -54,32 +44,31 @@ __all__ = [
     "f64",
 ]
 
-if Annotated is not None:
-    from bytemaker.bittypes import (
-        Float16,
-        Float32,
-        Float64,
-        SInt8,
-        SInt16,
-        SInt32,
-        SInt64,
-        UInt8,
-        UInt16,
-        UInt32,
-        UInt64,
-    )
+from bytemaker.bittypes import (  # noqa: E402
+    Float16,
+    Float32,
+    Float64,
+    SInt8,
+    SInt16,
+    SInt32,
+    SInt64,
+    UInt8,
+    UInt16,
+    UInt32,
+    UInt64,
+)
 
-    u8 = Annotated[int, UInt8]
-    u16 = Annotated[int, UInt16]
-    u32 = Annotated[int, UInt32]
-    u64 = Annotated[int, UInt64]
-    s8 = Annotated[int, SInt8]
-    s16 = Annotated[int, SInt16]
-    s32 = Annotated[int, SInt32]
-    s64 = Annotated[int, SInt64]
-    f16 = Annotated[float, Float16]
-    f32 = Annotated[float, Float32]
-    f64 = Annotated[float, Float64]
+u8 = Annotated[int, UInt8]
+u16 = Annotated[int, UInt16]
+u32 = Annotated[int, UInt32]
+u64 = Annotated[int, UInt64]
+s8 = Annotated[int, SInt8]
+s16 = Annotated[int, SInt16]
+s32 = Annotated[int, SInt32]
+s64 = Annotated[int, SInt64]
+f16 = Annotated[float, Float16]
+f32 = Annotated[float, Float32]
+f64 = Annotated[float, Float64]
 
 
 _ALIAS_PATTERN = re.compile(r"(u|s)([1-9][0-9]*)")
@@ -98,12 +87,6 @@ def __getattr__(name):
                 f" split use Float.specialize"
             )
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-    if Annotated is None:  # pragma: no cover - version-dependent
-        raise AttributeError(
-            f"{name}: field aliases need typing.Annotated (Python 3.9+, or"
-            f" typing_extensions on 3.8); annotate with the BitType class"
-            f" directly instead"
-        )
     try:
         return _alias_cache[name]
     except KeyError:
