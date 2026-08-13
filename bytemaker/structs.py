@@ -316,7 +316,15 @@ class _AdaptedField:
     ``load`` the slot's wire value; writes ``store`` the user value and
     then run the inner descriptor's usual wire narrowing. The slot (and
     therefore parse/pack and the generated tuple converters, which bypass
-    descriptors) always holds the WIRE value."""
+    descriptors) always holds the WIRE value.
+
+    Both directions attribute their failures. A ``load`` can fail on data
+    the schema does not describe -- ``enum_(E)`` over a wire byte that is
+    not a member is the shipped example -- and that failure surfaces on a
+    plain attribute READ, arbitrarily far from the ``parse`` that accepted
+    the bytes (parse fills slots wire-plane and never calls ``load``), so
+    an unattributed message would name neither the record nor the field.
+    """
 
     __slots__ = ("_inner", "_adapter")
 
@@ -327,7 +335,11 @@ class _AdaptedField:
     def __get__(self, obj, objtype=None):
         if obj is None:
             return self
-        return self._adapter.load(self._inner.__get__(obj, objtype))
+        wire = self._inner.__get__(obj, objtype)
+        try:
+            return self._adapter.load(wire)
+        except (TypeError, ValueError) as exc:
+            _raise_named(self._inner._slot, obj, exc)
 
     def __set__(self, obj, value):
         try:
@@ -335,6 +347,26 @@ class _AdaptedField:
         except (TypeError, ValueError) as exc:
             _raise_named(self._inner._slot, obj, exc)
         self._inner.__set__(obj, wire)
+
+
+def _elem_loader(load, cls_name: str, field_name: str):
+    """A whole-field element loader for an adapted Array field.
+
+    An adapted array's elements are loaded in the generated
+    ``_bm_from_tuple`` (its slot holds USER-plane values), which has no
+    field context of its own — so a strict ``load`` over undocumented data
+    would fail *inside parse* with a message naming nothing. Binding the
+    names here keeps the attribution that :class:`_AdaptedField` gives a
+    scalar, at one call per field per record rather than per element.
+    """
+
+    def load_elems(values):
+        try:
+            return [load(v) for v in values]
+        except (TypeError, ValueError) as exc:
+            raise type(exc)(f"{cls_name}.{field_name}: {exc}") from exc
+
+    return load_elems
 
 
 class _StructField:
@@ -714,7 +746,9 @@ def _generate_methods(cls, field_defs, defaults) -> None:
                 # elements only -- an adapted Struct-element array is
                 # refused at Array construction).
                 adapted_array_of[n] = (f"_ald{i}", f"_ast{i}")
-                env[f"_ald{i}"] = ftype._adapter.load
+                env[f"_ald{i}"] = _elem_loader(
+                    ftype._adapter.load, cls.__name__, n
+                )
                 env[f"_ast{i}"] = ftype._adapter.store
         elif isinstance(ftype, type) and issubclass(ftype, String):
             str_of[n] = (f"_enc{i}", f"_dec{i}")
@@ -797,8 +831,7 @@ def _generate_methods(cls, field_defs, defaults) -> None:
                 load_var = adapted_array_of[n][0]
                 lines.append(
                     f"    {slot_of[n]}.__set__(obj, {arr_var}.field_list("
-                    f"[{load_var}(_bm_v) for _bm_v in"
-                    f" values[{idx}:{idx + count}]]))"
+                    f"{load_var}(values[{idx}:{idx + count}])))"
                 )
                 idx += count
             else:  # numeric array: the count flat entries are the values

@@ -528,3 +528,71 @@ def test_fields_of_reports_an_adapted_arrays_element_adapter():
     by_name = {f.name: f.adapter for f in fields_of(Mixed)}
     assert by_name["plain"] is None
     assert by_name["scalar"] is THUMB_PTR
+
+
+# ------------------------------- attributed load failures (adapted-3)
+class Terrain(enum.Enum):
+    """A small enum over data that is only partly documented -- the shape
+    real ROM tables have, and the reason a load can fail at all."""
+
+    FLOOR = 0
+    WALL = 1
+
+
+class Tile(Struct, endian="little"):
+    kind: Terrain = field(UInt8, adapt=enum_(Terrain))
+    height: int = field(UInt8)
+
+
+class TileRow(Struct, endian="little"):
+    kinds: List[Terrain] = array(enum_(Terrain) @ UInt8, 2)
+
+
+def test_scalar_load_failure_names_the_record_and_field():
+    t = Tile.parse(b"\x63\x05")  # 0x63 is not a Terrain member
+    with pytest.raises(ValueError, match=r"^Tile\.kind: 99 is not a valid"):
+        t.kind
+    try:
+        t.kind
+    except ValueError as exc:
+        assert isinstance(exc.__cause__, ValueError)  # original chained
+        assert "Tile.kind" not in str(exc.__cause__)  # ... and left intact
+
+
+def test_a_failing_load_leaves_the_wire_plane_usable():
+    """parse fills slots wire-plane and never calls load, so an undocumented
+    byte must not cost the record: the other fields, the wire tuple and a
+    byte-exact repack all still work."""
+    t = Tile.parse(b"\x63\x05")
+    assert t.height == 5
+    assert t.to_tuple() == (99, 5)
+    assert t.pack() == b"\x63\x05"
+
+
+def test_array_element_load_failure_names_the_record_and_field():
+    """An adapted ARRAY field loads inside the generated from_tuple, so the
+    failure lands in parse() itself -- where an unattributed message named
+    neither the record nor the field."""
+    with pytest.raises(ValueError, match=r"^TileRow\.kinds: 99 is not a valid"):
+        TileRow.parse(b"\x00\x63")
+    try:
+        TileRow.parse(b"\x00\x63")
+    except ValueError as exc:
+        assert isinstance(exc.__cause__, ValueError)
+    assert list(TileRow.parse(b"\x00\x01").kinds) == [
+        Terrain.FLOOR,
+        Terrain.WALL,
+    ]  # documented data is unaffected
+
+
+def test_store_side_attribution_is_unchanged():
+    t = Tile.parse(b"\x00\x05")
+    with pytest.raises(ValueError, match=r"^Tile\.kind: 99 is not a valid"):
+        t.kind = 99
+
+
+def test_a_lenient_load_is_not_wrapped():
+    """The wrapping is exception-path only: fixed/biased/scaled loads cannot
+    fail on an int wire, and their values arrive untouched."""
+    s = SkillEntry.parse(WIRE)
+    assert (s.multiplier, s.reward_id) == (1.5, 4)
