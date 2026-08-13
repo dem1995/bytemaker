@@ -377,6 +377,34 @@ def test_reserved_field_names_guarded():
     assert p.flags == 9
 
 
+def test_a_field_whose_slot_would_shadow_an_internal_is_refused():
+    """A field's storage is "_bm_<name>", so the collision has a second
+    direction the guard used to miss. Every one of these compiled: "repr_of"
+    put an int where the repr helper was (the record read and packed fine and
+    only repr() broke), "adapters" shadowed the dict rom.Space.deref reads,
+    and the rest surfaced as "'tuple' object has no attribute '__set__'" at
+    construction -- all of them far from the declaration that caused it."""
+    for bad in ("repr_of", "adapters", "fields", "field_types", "endian",
+                "concrete"):
+        with pytest.raises(PlanCompileError, match="Struct internal") as caught:
+            structs_mod.StructMeta(
+                "Bad", (Struct,), {"__annotations__": {bad: UInt8}}
+            )
+        assert f"_bm_{bad}" in str(caught.value)  # names the actual collision
+        assert f"{bad}_" in str(caught.value)  # ... and suggests a way out
+
+
+def test_a_field_named_after_a_plain_internal_prefix_is_still_fine():
+    """The guard must key off a real class member, not the "_bm_" spelling:
+    "hp" is fine even though "_bm_hp" is where it lives."""
+
+    class Ok(Struct, endian="little"):
+        hp: UInt8
+        repr_of_: UInt8  # the suggested rename works
+
+    assert repr(Ok(hp=1, repr_of_=2)) == "Ok(hp=1, repr_of_=2)"
+
+
 def test_eq_and_detach_copy():
     a = WarpDestination(1, 2, 3, -4, 5)
     b = WarpDestination(1, 2, 3, -4, 5)

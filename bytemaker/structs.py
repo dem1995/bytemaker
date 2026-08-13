@@ -1068,14 +1068,31 @@ class StructMeta(type):
             # API (or, for the _bm_ slot prefix, cross-wire field storage).
             # The invariant this buys: if the class compiles, documented
             # attributes mean what the docs say — for everyone.
+            # A field's storage slot is "_bm_<name>", so a field can collide
+            # with the Struct API from TWO directions: its own name, and its
+            # slot's. The second was silent -- a field named "repr_of" put an
+            # int where Struct._bm_repr_of (the repr helper) was, so the
+            # record parsed, packed and read correctly and only repr() broke;
+            # "adapters" shadowed the dict rom.Space.deref consults, and
+            # "fields"/"endian"/"concrete"/"field_types" surfaced as
+            # AttributeError: 'tuple' object has no attribute '__set__' at
+            # construction. All six now fail at class definition, naming the
+            # slot, which is the only place the collision is explainable.
+            slot_taken = any(hasattr(b, "_bm_" + n) for b in bases)
             if (
                 n.startswith("_bm_")
                 or n in _RESERVED_FIELD_NAMES
+                or slot_taken
                 or any(hasattr(b, n) for b in bases)
             ):
+                why = (
+                    f"its storage slot {'_bm_' + n!r} is a Struct internal"
+                    if slot_taken
+                    else f"{n!r} is reserved"
+                )
                 raise PlanCompileError(
                     f"{name}.{n}: field name collides with the Struct API"
-                    f" ({n!r} is reserved); rename the field"
+                    f" ({why}); rename the field"
                     f" (e.g. {n + '_'!r} — layout is positional, so field"
                     f" names never affect the wire format)"
                 )
