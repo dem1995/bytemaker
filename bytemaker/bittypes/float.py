@@ -17,12 +17,9 @@ from bytemaker.utils import classproperty
 if TYPE_CHECKING:
     from bytemaker.bittypes.int import Int
 
-    FloatSelf = TypeVar("FloatSelf", bound="Float")
-else:
-    try:
-        from typing_redirect import Self as FloatSelf
-    except ImportError:
-        FloatSelf = TypeVar("FloatSelf", bound="Float")
+#: See the note on ``BitSelf`` in bittypes/bittype.py: a bound TypeVar in
+#: both planes, the always-failing typing_redirect import removed.
+FloatSelf = TypeVar("FloatSelf", bound="Float")
 
 
 class Float(BitType[float]):

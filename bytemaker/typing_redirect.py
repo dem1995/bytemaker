@@ -117,8 +117,8 @@ __all__ = [
 ]
 
 if sys.version_info >= (3, 11):
-    from typing import Self  # noqa: F401
+    from typing import Self, dataclass_transform  # noqa: F401
 else:
-    from typing_extensions import Self  # noqa: F401
+    from typing_extensions import Self, dataclass_transform  # noqa: F401
 
-__all__.append("Self")
+__all__ += ["Self", "dataclass_transform"]

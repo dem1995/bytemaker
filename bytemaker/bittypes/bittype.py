@@ -87,13 +87,12 @@ def _narrow_int(value: int, num_bits: int, signed: bool, target: str) -> int:
     return narrowed
 
 
-if TYPE_CHECKING:
-    BitSelf = TypeVar("BitSelf", bound="BitType")
-else:
-    try:
-        from typing_redirect import Self as BitSelf
-    except ImportError:
-        BitSelf = TypeVar("BitSelf", bound="BitType")
+#: Stands in for ``Self`` on the methods below. A bound TypeVar, in both
+#: planes: the runtime once tried ``from typing_redirect import Self`` first,
+#: but that spelling is missing the ``bytemaker.`` prefix, so it always
+#: raised and always fell back to this identical TypeVar -- while promising a
+#: reader the two planes might differ.
+BitSelf = TypeVar("BitSelf", bound="BitType")
 
 
 class BitTypeMeta(ABCMeta):

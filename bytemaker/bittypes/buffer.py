@@ -4,13 +4,9 @@ from bytemaker.bittypes.bittype import BitType
 from bytemaker.bitvector import BitVector
 from bytemaker.typing_redirect import Optional, Type, TypeVar
 
-if TYPE_CHECKING:
-    BufferSelf = TypeVar("BufferSelf", bound="Buffer")
-else:
-    try:
-        from typing_redirect import Self as BufferSelf
-    except ImportError:
-        BufferSelf = TypeVar("BufferSelf", bound="Buffer")
+#: See the note on ``BitSelf`` in bittypes/bittype.py: a bound TypeVar in
+#: both planes, the always-failing typing_redirect import removed.
+BufferSelf = TypeVar("BufferSelf", bound="Buffer")
 
 
 class Buffer(BitType[BitVector]):

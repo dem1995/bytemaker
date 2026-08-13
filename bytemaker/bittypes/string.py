@@ -11,13 +11,9 @@ from bytemaker.bitvector import BitVector
 from bytemaker.typing_redirect import Optional, Tuple, TypeVar
 from bytemaker.utils import FrozenDict, HashableMapping, classproperty
 
-if TYPE_CHECKING:
-    StrSelf = TypeVar("StrSelf", bound="String")
-else:
-    try:
-        from typing_redirect import Self as StrSelf
-    except ImportError:
-        StrSelf = TypeVar("StrSelf", bound="String")
+#: See the note on ``BitSelf`` in bittypes/bittype.py: a bound TypeVar in
+#: both planes, the always-failing typing_redirect import removed.
+StrSelf = TypeVar("StrSelf", bound="String")
 
 
 def _table_bytes_per_char(table) -> "Tuple[Optional[int], Optional[str]]":

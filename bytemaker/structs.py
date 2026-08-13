@@ -79,6 +79,7 @@ from bytemaker.typing_redirect import (
     Protocol,
     Sequence,
     Tuple,
+    dataclass_transform,
     get_args,
     get_origin,
     runtime_checkable,
@@ -94,20 +95,6 @@ if typing.TYPE_CHECKING:
 #: (The abstract Buffer protocol guarantees neither, so the concrete union
 #: is the honest annotation.)
 BytesLike = typing.Union[bytes, bytearray, memoryview]
-
-try:  # 3.11+
-    from typing import dataclass_transform
-except ImportError:  # pragma: no cover
-    try:
-        from typing_extensions import dataclass_transform
-    except ImportError:
-
-        def dataclass_transform(**_kwargs):  # type: ignore[misc]
-            def decorator(obj):
-                return obj
-
-            return decorator
-
 
 __all__ = [
     "Codec",

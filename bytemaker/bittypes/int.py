@@ -23,12 +23,9 @@ from bytemaker.utils import is_instance_of_union, twos_complement_bit_length
 if TYPE_CHECKING:
     from bytemaker.bittypes.float import Float
 
-    IntSelf = TypeVar("IntSelf", bound="Int")
-else:
-    try:
-        from typing_redirect import Self as IntSelf
-    except ImportError:
-        IntSelf = TypeVar("IntSelf", bound="Int")
+#: See the note on ``BitSelf`` in bittypes/bittype.py: a bound TypeVar in
+#: both planes, the always-failing typing_redirect import removed.
+IntSelf = TypeVar("IntSelf", bound="Int")
 
 
 class Int(BitType[int]):
