@@ -64,3 +64,42 @@ def test_readme_quickstart():
         (b"\x80\xe1PP", 25, 35),
         (b"\x80\xe1PP", 25, 35),
     ]
+
+
+def test_adapters_are_importable_from_the_root():
+    """field(..., adapt=) requires an Adapter, so the adapters have to be
+    reachable from where field() is (pub-2). The rom layer deliberately is
+    NOT re-exported -- it is its own namespace -- but the root docstring
+    points at it."""
+    from bytemaker import (
+        THUMB_PTR,
+        Adapted,
+        Adapter,
+        biased,
+        enum_,
+        fixed,
+        scaled,
+    )
+
+    assert isinstance(THUMB_PTR, Adapter)
+    assert all(
+        isinstance(f(1), Adapter) for f in (biased, fixed, scaled)
+    )
+    assert isinstance(fixed(4) @ bytemaker.UInt16, Adapted)
+    assert enum_ is not None
+    assert bytemaker.__doc__ is not None
+    assert "bytemaker.adapters" in bytemaker.__doc__
+    assert "bytemaker.rom" in bytemaker.__doc__
+
+
+def test_the_root_declares_a_working_adapted_field():
+    """The docstring's own example, executed."""
+    from bytemaker import Struct, UInt8, UInt16, biased, field, fixed
+
+    class SkillEntry(Struct, endian="little"):
+        reward_id: int = field(UInt8, adapt=biased(1))
+        multiplier: float = field(UInt16, adapt=fixed(4))
+
+    s = SkillEntry(reward_id=4, multiplier=1.5)
+    assert s.pack() == b"\x05\x18\x00"
+    assert SkillEntry.parse(s.pack()) == s
