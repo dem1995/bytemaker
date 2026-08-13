@@ -454,12 +454,16 @@ class NarrowingList(list):
     it preserves length and the already-narrowed contents.
     """
 
-    __slots__ = ("_arr",)
+    __slots__ = ("_arr", "_label")
 
-    def __init__(self, arr, values):
+    def __init__(self, arr, values, label: str = ""):
         # values are pre-coerced (Array._coerce_seq) or trusted (parse).
         super().__init__(values)
         self._arr = arr
+        #: "Record.field", for attributing a failed element store. An Array
+        #: is standalone-capable and so has no name of its own; the list a
+        #: FIELD hands out is told the one it belongs to.
+        self._label = label
 
     def _violation(self):
         return ValueError(
@@ -467,15 +471,31 @@ class NarrowingList(list):
             f" fixed-count; assign a full-length sequence to replace it"
         )
 
+    def _coerce(self, value):
+        """``Array._coerce_one``, attributed to the owning record and field.
+
+        The element store was the last of the four ways to trip an array
+        field's element type that did not name it: whole-list assignment
+        goes through :class:`_ArrayField` and both load directions through
+        :class:`_AdaptedField` / :func:`_elem_loader`. ``s.fns[0] = 99``
+        reported "99 is not a valid Terrain" alone.
+        """
+        try:
+            return self._arr._coerce_one(value)
+        except Exception as exc:  # noqa: BLE001 - re-raised, attributed
+            if not self._label:
+                raise
+            raise _attributed(exc, self._label) from exc
+
     def __setitem__(self, key, value):
         if isinstance(key, slice):
-            vals = [self._arr._coerce_one(v) for v in value]
+            vals = [self._coerce(v) for v in value]
             span = len(range(*key.indices(len(self))))
             if len(vals) != span:
                 raise self._violation()
             super().__setitem__(key, vals)
         else:
-            super().__setitem__(key, self._arr._coerce_one(value))
+            super().__setitem__(key, self._coerce(value))
 
     def __delitem__(self, key):
         raise self._violation()
@@ -543,7 +563,8 @@ class _ArrayField:
             coerced = self._arr._coerce_seq(value)
         except (TypeError, ValueError) as exc:
             _raise_named(self._slot, obj, exc)
-        self._slot.__set__(obj, NarrowingList(self._arr, coerced))
+        label = f"{type(obj).__name__}.{self._slot.__name__[4:]}"
+        self._slot.__set__(obj, NarrowingList(self._arr, coerced, label))
 
 
 # Annotation-only ClassVars (invisible to hasattr on the base) that the
@@ -868,26 +889,31 @@ def _generate_methods(cls, field_defs, defaults) -> None:
         elif n in array_of:
             arr_var, elem_var = array_of[n]
             count = ftype.count
+            # The live list is told which field it belongs to, so an element
+            # store through it can name the record and field (the Array
+            # itself is standalone-capable and has no name).
+            label_var = f"_alab_{n}"
+            env[label_var] = f"{cls.__name__}.{n}"
             if elem_var is not None:  # Struct-element array: rebuild each
                 span = len(ftype.element.plan.fields)
                 lines.append(
                     f"    {slot_of[n]}.__set__(obj, {arr_var}.field_list(["
                     f"{elem_var}._bm_from_tuple("
                     f"values[{idx}+k*{span}:{idx}+(k+1)*{span}])"
-                    f" for k in range({count})]))"
+                    f" for k in range({count})], {label_var}))"
                 )
                 idx += count * span
             elif n in adapted_array_of:  # load each wire element
                 load_var = adapted_array_of[n][0]
                 lines.append(
                     f"    {slot_of[n]}.__set__(obj, {arr_var}.field_list("
-                    f"{load_var}(values[{idx}:{idx + count}])))"
+                    f"{load_var}(values[{idx}:{idx + count}]), {label_var}))"
                 )
                 idx += count
             else:  # numeric array: the count flat entries are the values
                 lines.append(
                     f"    {slot_of[n]}.__set__(obj, {arr_var}.field_list("
-                    f"values[{idx}:{idx + count}]))"
+                    f"values[{idx}:{idx + count}], {label_var}))"
                 )
                 idx += count
         elif n in str_of:
@@ -2093,10 +2119,15 @@ class Array(typing.Generic[V]):
     #: a structs<->plans cycle) recognizes an array field via getattr.
     _is_bm_array: ClassVar[bool] = True
 
-    def field_list(self, values) -> "NarrowingList":
+    def field_list(self, values, label: str = "") -> "NarrowingList":
         """Wrap already-decoded, in-range values into a live
-        :class:`NarrowingList` for the parse path (no re-narrow)."""
-        return NarrowingList(self, list(values))
+        :class:`NarrowingList` for the parse path (no re-narrow).
+
+        ``label`` is the owning ``"Record.field"``, which the generated
+        ``_bm_from_tuple`` knows and the Array does not, so a later element
+        store through the live list can name where it happened.
+        """
+        return NarrowingList(self, list(values), label)
 
     def _coerce_seq(self, values) -> list:
         """Validate length and narrow/canonicalize each element C-style, the

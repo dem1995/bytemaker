@@ -763,3 +763,39 @@ def test_the_sized_view_repr_degrades_through_the_record():
     t = Tile.parse(b"\x63\x05")
     assert repr(t.sizedview) == f"<sizedview of {t!r}>"
     assert "<unreadable: 99 is not a valid Terrain>" in repr(t.sizedview)
+
+
+# ------------------- the fourth way to trip an element type (fix-8)
+def test_every_way_to_trip_an_array_element_type_names_the_field():
+    """Three of the four paths were attributed; the element store through the
+    live list was not, and it is the one a user reaches for most."""
+    row = TileRow.parse(b"\x00\x01")
+    for do in (
+        lambda: row.kinds.__setitem__(0, 99),  # element store
+        lambda: row.kinds.__setitem__(slice(0, 2), [99, 0]),  # slice store
+        lambda: setattr(row, "kinds", [99, 0]),  # whole-list assignment
+        lambda: TileRow.parse(b"\x00\x63"),  # load, inside parse
+    ):
+        with pytest.raises(ValueError, match=r"^TileRow\.kinds: 99 is not") as c:
+            do()
+        assert isinstance(c.value.__cause__, ValueError)
+    # ... and the record is unharmed by the refused stores
+    assert list(row.kinds) == [Terrain.FLOOR, Terrain.WALL]
+
+
+def test_element_store_attribution_covers_unadapted_arrays_too():
+    class Plain(Struct, endian="little"):
+        colors: List[int] = array(UInt16, 2)
+
+    p = Plain(colors=[1, 2])
+    with pytest.raises(TypeError, match=r"^Plain\.colors: "):
+        p.colors[0] = "x"
+
+
+def test_a_standalone_arrays_list_has_no_field_to_name():
+    """An Array is standalone-capable, so its list is not always owned by a
+    field; with no label the original error passes through untouched."""
+    values = Array.of(UInt8, 2, "little").field_list([1, 2])
+    with pytest.raises(TypeError) as caught:
+        values[0] = "x"
+    assert "." not in str(caught.value).split(":")[0]  # no "Record.field:"
