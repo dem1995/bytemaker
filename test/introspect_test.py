@@ -15,7 +15,7 @@ from bytemaker import (
     u16,
 )
 from bytemaker.adapters import biased
-from bytemaker.bittypes import Buffer, UInt4, UInt16, UInt32, UTF8String
+from bytemaker.bittypes import Buffer, UInt4, UInt8, UInt16, UInt32, UTF8String
 from bytemaker.fields import s5
 
 Name4 = UTF8String.of(nbytes=4, name="Name4I")
@@ -70,7 +70,7 @@ def test_fields_of_layout():
     infos = fields_of(Rec)
     assert [i.name for i in infos] == ["hp", "name", "inner", "colors", "raw", "tag"]
     by = {i.name: i for i in infos}
-    assert by["hp"] == FieldInfo("hp", UInt16, 0, 16, None)
+    assert by["hp"] == FieldInfo("hp", UInt16, 0, 16, None, "little")
     assert by["name"].bit_offset == 16 and by["name"].bit_width == 32
     assert by["inner"].type is Inner and by["inner"].bit_width == 16
     assert by["colors"].bit_width == 48  # 3 x u16, one entry for the array
@@ -90,3 +90,46 @@ def test_fields_of_accepts_instance_and_rejects_others():
         fields_of(UInt16)
     with pytest.raises(TypeError, match="concrete Struct"):
         fields_of(Struct)
+
+
+# ------------------------------------- per-field byte order (intro-1)
+class MixedInner(Struct, endian="little"):
+    """Its own two leaves disagree, so no single order describes the field
+    it becomes."""
+
+    be: int = field(UInt16, endian="big")
+    le: int = field(UInt16)
+
+
+class Orders(Struct, endian="little"):
+    plain: int = field(UInt16)
+    over: int = field(UInt16, endian="big")
+    nested: Inner  # a record that declares "big" itself
+    mixed: MixedInner
+    arr: list = field(Array.of(UInt16, 2, "little"))
+    arr_big: list = field(Array.of(UInt16, 2, "big"))
+    byte: int = field(UInt8)
+
+
+def test_fields_of_reports_the_wire_byte_order():
+    """The one fact a layout listing could not show: a field(T, endian=)
+    override rendered identically to its little-endian neighbours."""
+    by = {i.name: i.endian for i in fields_of(Orders)}
+    assert by["plain"] == "little"  # inherited from the record
+    assert by["over"] == "big"  # per-field override (wd-4)
+    assert by["nested"] == "big"  # the nested record's own declaration
+    assert by["arr"] == "little" and by["arr_big"] == "big"
+    assert by["byte"] == "little"  # width-independent: 8-bit fields report too
+
+
+def test_a_field_whose_leaves_disagree_reports_no_single_order():
+    by = {i.name: i.endian for i in fields_of(Orders)}
+    assert by["mixed"] is None
+    # ... and recursing gives the two orders it is made of
+    assert [i.endian for i in fields_of(MixedInner)] == ["big", "little"]
+
+
+def test_endian_is_the_last_member_so_earlier_positions_are_stable():
+    (info,) = fields_of(MixedInner)[:1]
+    assert info[:5] == ("be", UInt16, 0, 16, None)
+    assert info.endian == "big"

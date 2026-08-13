@@ -11,8 +11,8 @@ helpers that plan-hopped between ``plan.num_bytes`` and
   in bits / whole bytes (sub-byte widths round up, matching
   ``len(bytes(box))``).
 * :func:`fields_of` — a Struct's top-level layout as
-  ``(name, type, bit_offset, bit_width, adapter)`` tuples, offsets from
-  the compiled plan.
+  ``(name, type, bit_offset, bit_width, adapter, endian)`` tuples, offsets
+  and byte order from the compiled plan.
 """
 
 from typing import NamedTuple
@@ -72,13 +72,18 @@ class FieldInfo(NamedTuple):
     #: it was declared -- ``adapt=``, a fused ``adapter @ BitType``, or an
     #: adapted Array, whose entry is the ELEMENT adapter.
     adapter: Optional[Any]
+    #: The field's wire byte order, from the compiled plan -- so a
+    #: ``field(T, endian=...)`` override, or a nested record's own
+    #: declaration, is visible where every other layout fact is. None when
+    #: the field's leaves disagree (a nested record of mixed orders).
+    endian: Optional[str]
 
 
 def fields_of(struct) -> Tuple[FieldInfo, ...]:
     """A Struct's top-level fields as :class:`FieldInfo` tuples, in wire
-    order, with bit offsets from the compiled plan (nested Structs and
-    arrays appear as ONE entry spanning all their leaves; recurse with
-    ``fields_of(info.type)`` for nested records)."""
+    order, with bit offsets and byte order from the compiled plan (nested
+    Structs and arrays appear as ONE entry spanning all their leaves;
+    recurse with ``fields_of(info.type)`` for nested records)."""
     cls = struct if isinstance(struct, type) else type(struct)
     if not (isinstance(cls, StructMeta) and getattr(cls, "_bm_concrete", False)):
         raise TypeError(
@@ -86,9 +91,11 @@ def fields_of(struct) -> Tuple[FieldInfo, ...]:
             f" instance"
         )
     first_leaf_offset: dict = {}
+    leaf_endians: dict = {}
     for leaf in cls.plan.fields:
         top = leaf.name.split(".", 1)[0]
         first_leaf_offset.setdefault(top, leaf.bit_offset)
+        leaf_endians.setdefault(top, set()).add(leaf.endian)
     adapters = cls._bm_adapters
     return tuple(
         FieldInfo(
@@ -97,6 +104,14 @@ def fields_of(struct) -> Tuple[FieldInfo, ...]:
             first_leaf_offset[n],
             bitsizeof(cls._bm_field_types[n]),
             adapters.get(n),
+            _sole(leaf_endians[n]),
         )
         for n in cls._bm_fields
     )
+
+
+def _sole(values):
+    """The one member of ``values``, or None if it holds more than one. A
+    field spans one plan leaf or many (an array, a nested record); a single
+    byte order describes it only when its leaves agree."""
+    return next(iter(values)) if len(values) == 1 else None
