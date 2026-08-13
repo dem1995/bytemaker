@@ -21,10 +21,15 @@ The two planes remain visible on a :class:`~bytemaker.structs.BoundField`
 handle: ``.value`` reads/writes the user plane; ``.bits`` and ``.boxed()``
 are the wire plane (the box is a serialization object).
 
-Adapters also apply element-wise to a STANDALONE :class:`Array`
-(``Array.of(UInt32, n, adapt=THUMB_PTR)``); an adapted Array as a Struct
-*field* is rejected at class definition (the live fixed-length list a
-field hands out does not thread adapters yet).
+Adapters also apply element-wise to an :class:`Array`, standalone
+(``Array.of(UInt32, n, adapt=THUMB_PTR)``) or as a Struct field
+(``array(THUMB_PTR @ UInt32, n)``). The two differ in one way worth
+knowing: an array field's slot holds USER-plane elements, so its loads run
+eagerly when the record is built and its elements re-encode through
+``store`` on ``pack`` — wire the adapter cannot represent exactly is
+canonicalized. A SCALAR adapted field keeps the wire value in its slot, so
+its load is deferred to the read and ``parse -> pack`` is byte-exact
+either way (see :class:`~bytemaker.structs.Array` for the full note).
 
 An adapter can also be **fused onto** a wire type with ``@``, producing an
 :class:`Adapted` codec that is usable anywhere a scalar BitType class is —

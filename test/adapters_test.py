@@ -591,11 +591,32 @@ def test_store_side_attribution_is_unchanged():
         t.kind = 99
 
 
-def test_a_lenient_load_is_not_wrapped():
-    """The wrapping is exception-path only: fixed/biased/scaled loads cannot
-    fail on an int wire, and their values arrive untouched."""
-    s = SkillEntry.parse(WIRE)
-    assert (s.multiplier, s.reward_id) == (1.5, 4)
+#: A load result with an identity to check. Module-level (not a lambda) as
+#: the adapters docstring asks, so the schema stays picklable.
+_SENTINEL: List[str] = ["untouched"]
+
+
+def _sentinel_load(wire):
+    return _SENTINEL
+
+
+def _sentinel_store(user):
+    return 0
+
+
+def test_a_successful_load_hands_back_its_own_object():
+    """The attribution is exception-path only. Asserting values would pass
+    against the pre-adapted-3 code AND against a __get__ that copied or
+    coerced what load returned; identity is what actually pins it."""
+
+    class R(Struct, endian="little"):
+        v: list = field(
+            UInt8, adapt=Adapter(_sentinel_load, _sentinel_store, list, "sentinel")
+        )
+
+    r = R.parse(b"\x00")
+    assert r.v is _SENTINEL  # not a copy, not wrapped
+    assert r.pack() == b"\x00"  # and the wire plane is untouched
 
 
 def test_repr_shows_the_healthy_fields_and_marks_the_unreadable_one():

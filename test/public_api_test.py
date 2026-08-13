@@ -92,14 +92,33 @@ def test_adapters_are_importable_from_the_root():
     assert "bytemaker.rom" in bytemaker.__doc__
 
 
-def test_the_root_declares_a_working_adapted_field():
-    """The docstring's own example, executed."""
-    from bytemaker import Struct, UInt8, UInt16, biased, field, fixed
+def test_the_root_docstrings_example_is_executed_from_the_docstring():
+    """Not a hand-typed copy of the example -- the example ITSELF, read out
+    of __doc__ and exec'd. A copy pins the behaviour but lets the docstring
+    rot independently, which is the failure it was supposed to prevent."""
+    import textwrap
 
-    class SkillEntry(Struct, endian="little"):
-        reward_id: int = field(UInt8, adapt=biased(1))
-        multiplier: float = field(UInt16, adapt=fixed(4))
+    doc = bytemaker.__doc__
+    assert doc is not None
+    lines = doc.splitlines()
+    start = next(
+        i for i, ln in enumerate(lines) if ln.strip().startswith("class SkillEntry")
+    )
+    block = []
+    for ln in lines[start:]:
+        if not ln.strip():
+            break
+        block.append(ln)
+    source = textwrap.dedent("\n".join(block))
+    assert "adapt=biased(1)" in source and "adapt=fixed(4)" in source
+
+    namespace = {n: getattr(bytemaker, n) for n in bytemaker.__all__}
+    exec(compile(source, "<root docstring>", "exec"), namespace)  # noqa: S102
+    SkillEntry = namespace["SkillEntry"]
 
     s = SkillEntry(reward_id=4, multiplier=1.5)
-    assert s.pack() == b"\x05\x18\x00"
+    assert s.pack() == b"\x05\x18\x00"  # wire = id + 1, and 1.5 * 16 = 0x18
     assert SkillEntry.parse(s.pack()) == s
+    # the comments in the example claim these two facts; check them
+    assert s.to_tuple() == (5, 0x18)
+    assert SkillEntry.parse(b"\x05\x10\x00").multiplier == 1.0
