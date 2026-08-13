@@ -20,7 +20,7 @@ bytemaker/bittypes/float.py :: misc :: Cannot assign to final name "packing_form
 bytemaker/bittypes/float.py :: misc :: Cannot assign to final name "py_type"
 bytemaker/bittypes/float.py :: misc :: Final name must be initialized with a value
 bytemaker/bittypes/float.py :: misc :: Invalid base class "cls"
-bytemaker/bittypes/float.py :: no-redef :: Name "_Float" already defined on line 280
+bytemaker/bittypes/float.py :: no-redef :: Name "_Float" already defined on line N
 bytemaker/bittypes/float.py :: valid-type :: Variable "cls" is not valid as a type
 bytemaker/bittypes/int.py :: arg-type :: Argument 2 to "is_instance_of_union" has incompatible type "<typing special form>"; expected "type"
 bytemaker/bittypes/int.py :: assignment :: Incompatible types in assignment (expression has type "str | None", base class "StructPackedBitType" defined the type as "str")
@@ -31,8 +31,8 @@ bytemaker/bittypes/int.py :: misc :: Cannot assign to final name "packing_format
 bytemaker/bittypes/int.py :: misc :: Cannot assign to final name "py_type"
 bytemaker/bittypes/int.py :: misc :: Final name must be initialized with a value
 bytemaker/bittypes/int.py :: misc :: Invalid base class "cls"
-bytemaker/bittypes/int.py :: no-redef :: Name "_SInt" already defined on line 705
-bytemaker/bittypes/int.py :: no-redef :: Name "_UInt" already defined on line 888
+bytemaker/bittypes/int.py :: no-redef :: Name "_SInt" already defined on line N
+bytemaker/bittypes/int.py :: no-redef :: Name "_UInt" already defined on line N
 bytemaker/bittypes/int.py :: valid-type :: Variable "cls" is not valid as a type
 bytemaker/bittypes/string.py :: arg-type :: Argument 1 to "decoding" of "String" has incompatible type "BitVector | str"; expected "BitVector"
 bytemaker/bittypes/string.py :: assignment :: Incompatible types in assignment (expression has type "classmethod[Any, [Any, Any], Any]", target has type "str | int | None")
@@ -44,7 +44,7 @@ bytemaker/bittypes/string.py :: misc :: Cannot assign to final attribute "base_b
 bytemaker/bittypes/string.py :: misc :: Cannot assign to final name "py_type"
 bytemaker/bittypes/string.py :: misc :: Cannot instantiate type "type[type[String]]"
 bytemaker/bittypes/string.py :: misc :: Invalid base class "cls"
-bytemaker/bittypes/string.py :: no-redef :: Name "codepoint_changes" already defined on line 147
+bytemaker/bittypes/string.py :: no-redef :: Name "codepoint_changes" already defined on line N
 bytemaker/bittypes/string.py :: type-abstract :: Can only assign concrete classes to a variable of type "type[BitType[Any]]"
 bytemaker/bittypes/string.py :: type-abstract :: Can only assign concrete classes to a variable of type "type[String]"
 bytemaker/bittypes/string.py :: valid-type :: Variable "cls" is not valid as a type
@@ -52,7 +52,7 @@ bytemaker/bitvector/bitvector_native.py :: arg-type :: Argument 2 to "is_instanc
 bytemaker/bitvector/bitvector_native.py :: assignment :: Incompatible types in assignment (expression has type "int | None", variable has type "Literal[0, 1] | None")
 bytemaker/bitvector/bitvector_native.py :: import-not-found :: Cannot find implementation or library stub for module named "utils"
 bytemaker/bitvector/bitvector_native.py :: no-redef :: Name "is_instance_of_union" already defined (possibly by an import)
-bytemaker/bitvector/bitvector_native.py :: no-redef :: Name "self" already defined on line 216
+bytemaker/bitvector/bitvector_native.py :: no-redef :: Name "self" already defined on line N
 bytemaker/bitvector/bitvector_native.py :: no-redef :: Name "twos_complement_bit_length" already defined (possibly by an import)
 bytemaker/bitvector/bitvector_native.py :: union-attr :: Item "Iterable[Literal[0, 1] | int]" of "str | Iterable[Literal[0, 1] | int] | BitsCastable | int" has no attribute "__Bits__"
 bytemaker/bitvector/bitvector_native.py :: union-attr :: Item "int" of "str | Iterable[Literal[0, 1] | int] | BitsCastable | int" has no attribute "__Bits__"
@@ -65,7 +65,7 @@ bytemaker/bitvector/bitvector_speedup.py :: assignment :: Incompatible types in 
 bytemaker/bitvector/bitvector_speedup.py :: assignment :: Incompatible types in assignment (expression has type "str | Iterable[Literal[0, 1] | int] | BitsCastable | int", variable has type "bytes")
 bytemaker/bitvector/bitvector_speedup.py :: import-not-found :: Cannot find implementation or library stub for module named "utils"
 bytemaker/bitvector/bitvector_speedup.py :: no-redef :: Name "is_instance_of_union" already defined (possibly by an import)
-bytemaker/bitvector/bitvector_speedup.py :: no-redef :: Name "self" already defined on line 281
+bytemaker/bitvector/bitvector_speedup.py :: no-redef :: Name "self" already defined on line N
 bytemaker/bitvector/bitvector_speedup.py :: no-redef :: Name "twos_complement_bit_length" already defined (possibly by an import)
 bytemaker/bitvector/bitvector_speedup.py :: union-attr :: Item "Iterable[Literal[0, 1] | int]" of "str | Iterable[Literal[0, 1] | int] | BitsCastable | int" has no attribute "__Bits__"
 bytemaker/bitvector/bitvector_speedup.py :: union-attr :: Item "int" of "str | Iterable[Literal[0, 1] | int] | BitsCastable | int" has no attribute "__Bits__"
@@ -79,10 +79,10 @@ bytemaker/bitvector/bitvector_with_bitarray_speedup.py :: call-arg :: Too many a
 bytemaker/bitvector/bitvector_with_bitarray_speedup.py :: call-arg :: Unexpected keyword argument "buffer" for "__new__" of "object"
 bytemaker/bitvector/bitvector_with_bitarray_speedup.py :: import-not-found :: Cannot find implementation or library stub for module named "utils"
 bytemaker/bitvector/bitvector_with_bitarray_speedup.py :: no-redef :: Name "Trie" already defined (possibly by an import)
-bytemaker/bitvector/bitvector_with_bitarray_speedup.py :: no-redef :: Name "accumulated_bits" already defined on line 1455
+bytemaker/bitvector/bitvector_with_bitarray_speedup.py :: no-redef :: Name "accumulated_bits" already defined on line N
 bytemaker/bitvector/bitvector_with_bitarray_speedup.py :: no-redef :: Name "is_instance_of_union" already defined (possibly by an import)
-bytemaker/bitvector/bitvector_with_bitarray_speedup.py :: no-redef :: Name "other" already defined on line 670
-bytemaker/bitvector/bitvector_with_bitarray_speedup.py :: no-redef :: Name "self" already defined on line 185
+bytemaker/bitvector/bitvector_with_bitarray_speedup.py :: no-redef :: Name "other" already defined on line N
+bytemaker/bitvector/bitvector_with_bitarray_speedup.py :: no-redef :: Name "self" already defined on line N
 bytemaker/bitvector/bitvector_with_bitarray_speedup.py :: operator :: Unsupported operand types for + ("bitarray" and "BitVector | bytes | bytearray | memoryview[int] | str | Iterable[Literal[0, 1] | int] | BitsCastable | bitarray")
 bytemaker/bitvector/bitvector_with_bitarray_speedup.py :: override :: Argument 1 of "__delitem__" is incompatible with supertype "bitarray.bitarray"; supertype defines the argument type as "int | slice[Any, Any, Any] | bitarray | Sequence[Any]"
 bytemaker/bitvector/bitvector_with_bitarray_speedup.py :: override :: Argument 1 of "to01" is incompatible with supertype "bitarray.bitarray"; supertype defines the argument type as "int"

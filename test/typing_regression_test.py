@@ -11,12 +11,14 @@ Regenerate the baseline after intentional changes with::
     python test/typing_regression_test.py --regen
 
 Errors are keyed as ``path :: error-code :: message`` (line numbers are
-deliberately excluded so unrelated edits don't churn the file). Message
+deliberately excluded so unrelated edits don't churn the file — including
+the ones mypy writes INSIDE a message, see :func:`_normalize`). Message
 text can drift between mypy feature releases, so the gate only enforces
 when the installed mypy matches the baseline's recorded major.minor —
 otherwise it skips and asks for a regen.
 """
 
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -24,6 +26,28 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 BASELINE = Path(__file__).resolve().parent / "mypy_baseline.txt"
 VERSION_PREFIX = "# mypy-version: "
+
+
+#: mypy writes a line number into the message of some errors ("Name "x"
+#: already defined on line 280"). The key drops the error's OWN line number,
+#: so leaving these in made any edit that shifts lines look like a batch of
+#: new errors — nine baseline entries carried one, and adding four lines to a
+#: file five modules away was enough to fire the gate. A false alarm is worse
+#: than no alarm here: it teaches a reflexive --regen, which is precisely how
+#: a real regression gets waved through.
+_LINE_IN_MESSAGE = re.compile(r"\bon line \d+")
+
+
+def _normalize(message: str) -> str:
+    """A message with its incidental details removed.
+
+    Two kinds: line numbers written into the text (above), and mypy's
+    did-you-mean suffixes — adding an attribute elsewhere can append
+    ``; maybe "x"?`` to an unrelated pre-existing error, which must not read
+    as a NEW one.
+    """
+    message = message.split("; maybe ")[0]
+    return _LINE_IN_MESSAGE.sub("on line N", message)
 
 
 def _mypy_version():
@@ -60,11 +84,7 @@ def _run_mypy():
             code = code[:-1]
         else:
             message, code = rest, "misc"
-        # Drop did-you-mean suffixes: adding an attribute elsewhere can
-        # append '; maybe "x"?' to an unrelated pre-existing error, which
-        # must not read as a NEW error.
-        message = message.split("; maybe ")[0]
-        keys.add(f"{path} :: {code} :: {message}")
+        keys.add(f"{path} :: {code} :: {_normalize(message)}")
     return keys, proc
 
 
