@@ -193,6 +193,31 @@ def _attributed(exc, label: str):
         return TypeError(msg) if isinstance(exc, TypeError) else ValueError(msg)
 
 
+def _repr_or_marker(read, prefix: str = "") -> str:
+    """``repr(read())``, or a ``<unreadable: why>`` marker if it raises.
+
+    A repr must never raise, and reading a field CAN: an adapter's ``load``
+    runs over whatever the bytes say, so one value the schema does not
+    describe (``enum_(E)`` over an undocumented wire byte) would otherwise
+    take out the repr of the whole record -- and with it ``print(records)``,
+    the first thing anyone does with a table they are still figuring out.
+    The readable fields are exactly what they need to see; the unreadable
+    one says so, and names the reason.
+
+    ``prefix`` is the "Record.field: " that :func:`_raise_named` prepends,
+    stripped back off: beside the field's own name in a repr it is noise.
+    Shared by :meth:`Struct.__repr__` and :meth:`BoundField.__repr__`, which
+    read the same plane and so can fail the same way.
+    """
+    try:
+        return repr(read())
+    except Exception as exc:  # noqa: BLE001 - a repr must not raise
+        reason = str(exc) or type(exc).__name__
+        if prefix and reason.startswith(prefix):
+            reason = reason[len(prefix) :]
+        return f"<unreadable: {reason}>"
+
+
 def _raise_named(slot, obj, exc):
     """Re-raise a field conversion error naming the record class and field.
 
@@ -1407,26 +1432,11 @@ class Struct(metaclass=StructMeta):
         return f"{type(self).__name__}({args})"
 
     def _bm_repr_of(self, name: str) -> str:
-        """One field's repr text, or a marker if reading it raises.
-
-        A repr must never raise. Reading a field CAN: an adapter's ``load``
-        runs over whatever the bytes say, so one value the schema does not
-        describe (``enum_(E)`` over an undocumented wire byte) would
-        otherwise take out the whole record's repr -- and with it
-        ``print(records)``, the first thing anyone does with a table they
-        are still figuring out. The other fields are readable and must
-        still be shown; the unreadable one says so, and names the reason.
-        """
-        try:
-            return repr(getattr(self, name))
-        except Exception as exc:  # noqa: BLE001 - a repr must not raise
-            reason = str(exc)
-            # _AdaptedField already prefixes "Record.field: "; inside the
-            # record's own repr, beside the field's name, that is noise.
-            prefix = f"{type(self).__name__}.{name}: "
-            if reason.startswith(prefix):
-                reason = reason[len(prefix) :]
-            return f"<unreadable: {reason or type(exc).__name__}>"
+        """One field's repr text, or a marker if reading it raises (see
+        :func:`_repr_or_marker`)."""
+        return _repr_or_marker(
+            lambda: getattr(self, name), f"{type(self).__name__}.{name}: "
+        )
 
 
 # --------------------------------------------------------------------------
@@ -1662,10 +1672,14 @@ class BoundField(typing.Generic[V]):
         return str(self.boxed())
 
     def __repr__(self):
-        return (
-            f"<bound {self._ftype.__name__} {self._name}={self.value!r}"
-            f" of {type(self._owner).__name__}>"
+        owner = type(self._owner).__name__
+        # Same plane as Struct.__repr__, so the same failure is possible: the
+        # session that just got a degraded record repr and reached for the
+        # handle to inspect the offending field must not be met with a raise.
+        value = _repr_or_marker(
+            lambda: self.value, f"{owner}.{self._name}: "
         )
+        return f"<bound {self._ftype.__name__} {self._name}={value} of {owner}>"
 
 
 class BoundBits:

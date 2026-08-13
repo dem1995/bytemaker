@@ -720,3 +720,25 @@ def test_a_dict_table_adapters_keyerror_is_attributed_in_an_array_too():
         Row2.parse(b"\x00\x63")  # fails inside parse
     assert "Row2.kinds" in str(caught.value)
     assert list(Row2.parse(b"\x00\x01").kinds) == ["floor", "wall"]
+
+
+def test_the_field_handle_repr_degrades_like_the_records():
+    """repr-1 stated "a repr must never raise" absolutely, but the sizedview
+    handle for the same field still read the user plane -- so the session that
+    got a degraded record repr and reached for the handle to inspect the
+    offending field was met with a raise after all."""
+    t = Tile.parse(b"\x63\x05")
+    handle = t.sizedview.kind
+    assert repr(handle) == (
+        "<bound UInt8 kind=<unreadable: 99 is not a valid Terrain> of Tile>"
+    )
+    # the WIRE plane still reads: that is how you inspect the actual byte
+    assert handle.boxed().value == 99
+    assert handle.bits.to01() == "01100011"
+    assert repr(t.sizedview.height) == "<bound UInt8 height=5 of Tile>"
+
+
+def test_the_sized_view_repr_degrades_through_the_record():
+    t = Tile.parse(b"\x63\x05")
+    assert repr(t.sizedview) == f"<sizedview of {t!r}>"
+    assert "<unreadable: 99 is not a valid Terrain>" in repr(t.sizedview)
