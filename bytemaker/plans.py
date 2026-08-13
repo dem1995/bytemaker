@@ -543,6 +543,24 @@ def compile_plan(
             return
         subplan = getattr(ftype, "plan", None)
         if isinstance(subplan, Plan):  # nested Struct: flatten, keep child endian
+            if subplan.bit_order != bit_order:
+                # endian survives flattening because it lives on each leaf;
+                # bit_order is one value per Plan, so a child compiled under
+                # the other order would be silently REPACKED under the
+                # parent's -- same record, same values, different bytes than
+                # it packs standalone, with nothing left after compilation to
+                # reveal it (findings #29). Until bit_order is carried per
+                # leaf, the honest behavior is to refuse the mismatch, as the
+                # unset-endian Array guard does for the byte-order twin of
+                # this footgun.
+                raise PlanCompileError(
+                    f"{owner_name}.{full}: nested {ftype.__name__} is"
+                    f" compiled with bit_order={subplan.bit_order!r}, but"
+                    f" {owner_name} packs {bit_order!r}-first -- flattening"
+                    f" would silently repack it, so the same record would"
+                    f" produce different bytes standalone vs nested. Declare"
+                    f" both classes with the same bit_order"
+                )
             for leaf in subplan.fields:
                 flat.append(
                     FieldSpec(

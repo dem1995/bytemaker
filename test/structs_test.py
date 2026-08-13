@@ -1378,3 +1378,52 @@ def test_store_errors_name_class_and_field():
     except TypeError as exc:
         assert exc.__cause__ is not None
         assert "interpreted as an integer" in str(exc)
+
+
+# --------------------------------------------- nested bit_order (find-29)
+class _NibblesMsb(Struct, endian="little", bit_order="msb"):
+    x: UInt4
+    y: UInt4
+
+
+def test_a_nested_records_bit_order_must_match_its_parents():
+    """endian survives flattening (it lives on each leaf); bit_order is one
+    value per Plan, so a child compiled under the other order was silently
+    REPACKED under the parent's -- InnerMsb(x=1, y=2) packed b'\x12'
+    standalone and b'\x21' nested, with nothing left after compilation to
+    reveal it. The mismatch now refuses at class definition, the same answer
+    wd-1 gave the unset-endian Array."""
+    with pytest.raises(PlanCompileError, match="bit_order") as caught:
+
+        class OuterLsb(Struct, endian="little"):  # default lsb
+            i: _NibblesMsb
+
+    msg = str(caught.value)
+    assert "OuterLsb.i" in msg and "_NibblesMsb" in msg
+    assert "'msb'" in msg and "'lsb'" in msg
+    assert "same bit_order" in msg  # ... and it names the way out
+
+
+def test_an_array_of_mismatched_bit_order_records_is_refused_too():
+    """Array-of-Struct elements flatten through the same nested branch, so
+    the guard covers them without a second check."""
+    with pytest.raises(PlanCompileError, match="bit_order"):
+
+        class ArrOuter(Struct, endian="little"):
+            rows: list = field(_NibblesMsb * 2)
+
+
+def test_matching_bit_order_nests_byte_compatibly():
+    """The property the guard buys: when the orders DO match, a nested record
+    occupies exactly the bytes it packs standalone."""
+
+    class OuterMsb(Struct, endian="little", bit_order="msb"):
+        i: _NibblesMsb
+        tail: UInt8
+
+    inner = _NibblesMsb(x=1, y=2)
+    outer = OuterMsb(i=_NibblesMsb(x=1, y=2), tail=0xAB)
+    assert inner.pack() == b"\x12"  # msb-first: x in the high nibble
+    assert outer.pack() == b"\x12\xab"
+    assert outer.pack()[:1] == inner.pack()
+    assert OuterMsb.parse(outer.pack()) == outer

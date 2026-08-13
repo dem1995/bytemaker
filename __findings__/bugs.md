@@ -744,8 +744,13 @@ Repro:
 
 > **Provenance note.** Unlike findings 1-28, this one was found later, during the
 > usability round (commits `eadfc9a..0ce026d`), while checking whether
-> `introspect.layout()` should report `bit_order` per field or per record. It is
-> recorded here rather than fixed because the fix is a behavior decision.
+> `introspect.layout()` should report `bit_order` per field or per record.
+>
+> **Status: FIXED (option 1)** — maintainer approved the recommendation; the
+> mismatch now refuses at class definition with a `PlanCompileError` naming both
+> orders and both classes (`bitorder-1`, the commit after this entry landed).
+> Option 2 (carry `bit_order` per leaf, allowing genuinely mixed records) remains
+> open as a compatible follow-up; the guard is the single branch to remove.
 
 **What.** `endian` is resolved and stored *per plan leaf*, so a nested record keeps
 its own byte order when it is flattened into a parent (that is what wd-1/wd-4 and
