@@ -901,3 +901,32 @@ def test_an_empty_map_is_one_whole_gap():
     (only,) = report.gaps()
     assert (only.start, only.size) == (BASE, len(BUF))
     assert "0/1024 bytes (0.00%)" in report.render()
+
+
+def test_claimed_and_unclaimed_partition_the_space_even_when_hand_built():
+    """The two are documented as one partition, so they must be read off the
+    same list. A hand-assembled report (the dataclass is public) with a region
+    hanging off the end used to inflate the claim AND stretch a gap past the
+    space's own end."""
+    from bytemaker.rom import CoverageReport, Region
+
+    s = space()
+    outside = Entry(BASE + len(BUF) - 4, UInt8, count(4), name="tail").bind(s)
+    report = CoverageReport(
+        space_name="hand",
+        space_size=8,  # deliberately smaller than the regions describe
+        space_base=BASE,
+        regions=(Region(outside, 4), Region(Entry(BASE, UInt8, count(4)), 4)),
+        overlaps=(),
+        pointers=(),
+    )
+    assert report.claimed_bytes + report.unclaimed_bytes == report.space_size
+    assert all(g.end <= BASE + report.space_size for g in report.gaps())
+    assert all(g.start >= BASE for g in report.gaps())
+
+
+def test_unclaimed_bytes_is_the_sum_of_the_gaps():
+    for entries in ([], gap_map(), rom_map()):
+        report = space().coverage(entries, audit_pointers=False)
+        assert report.unclaimed_bytes == sum(g.size for g in report.gaps())
+        assert report.claimed_bytes + report.unclaimed_bytes == len(BUF)

@@ -40,9 +40,10 @@ Two layers build on that base:
   against the original bytes, inverted, composed, and exported as IPS.
 * :class:`Ptr` and :meth:`Space.coverage` — a typed address (decoding to a
   :class:`PtrValue`, an int that can ``.deref(space)`` itself) plus a report
-  of what a map accounts for, what it double-claims, and where its pointers
-  land — verified for record type and alignment where a pointer declares
-  its pointee.
+  of what a map accounts for, what it leaves unaccounted for
+  (:meth:`CoverageReport.gaps`, the direction a map grows in), what it
+  double-claims, and where its pointers land — verified for record type and
+  alignment where a pointer declares its pointee.
 """
 
 import sys
@@ -1736,8 +1737,13 @@ class PointerRef:
 
 @dataclass(frozen=True)
 class CoverageReport:
-    """What a map accounts for, what it double-claims, and where its
-    pointers land."""
+    """What a map accounts for, what it leaves unaccounted for, what it
+    double-claims, and where its pointers land.
+
+    :attr:`claimed_bytes` and :meth:`gaps` are the two halves of one
+    partition of the space; :attr:`overlaps` and :attr:`pointers` report the
+    two ways a map can be wrong about bytes it does claim.
+    """
 
     space_name: str
     space_size: int
@@ -1748,12 +1754,26 @@ class CoverageReport:
 
     def _merged_spans(self) -> "List[tuple]":
         """Resolved footprints merged into maximal disjoint ``(start, end)``
-        runs, in address order. What the map claims and what it does not are
-        both read off this one list."""
+        runs, in address order, clipped to the space.
+
+        What the map claims and what it does not are both read off this one
+        list, which is what makes them two views of a single partition:
+        ``claimed_bytes + unclaimed_bytes == space_size``, always. The
+        clipping only bites for a report assembled by hand —
+        :meth:`Space.coverage` never resolves a region outside its own
+        bounds — but without it a stray region would inflate the claim and
+        stretch a gap past the end of the space it describes.
+        """
+        low = self.space_base
+        high = low + self.space_size
         merged: "List[List[int]]" = []
         for start, end in sorted(
-            (r.start, r.end) for r in self.regions if r.resolved and r.size
+            (max(low, r.start), min(high, r.end))
+            for r in self.regions
+            if r.resolved and r.size
         ):
+            if end <= start:
+                continue  # lies entirely outside the space
             if merged and start <= merged[-1][1]:
                 merged[-1][1] = max(merged[-1][1], end)
             else:
@@ -1793,8 +1813,10 @@ class CoverageReport:
 
     @property
     def unclaimed_bytes(self) -> int:
-        """Total bytes in :meth:`gaps` — ``space_size - claimed_bytes``."""
-        return self.space_size - self.claimed_bytes
+        """Total bytes in :meth:`gaps`, which is also
+        ``space_size - claimed_bytes`` — the two agree by construction, both
+        being read off :meth:`_merged_spans`."""
+        return sum(g.size for g in self.gaps())
 
     @property
     def percent(self) -> float:
