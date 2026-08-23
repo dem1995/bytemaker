@@ -144,22 +144,32 @@ def test_no_new_mypy_errors():
     )
 
 
-def test_both_sides_of_the_gate_normalize_identically():
+def test_both_sides_of_the_gate_normalize_identically(tmp_path, monkeypatch):
     """The set difference only means something if run output and baseline
-    pass through the same normalizer. _normalize must be idempotent (so a
-    regen-written baseline is untouched on read) and must repair a raw
-    hand-pasted mypy line into the key the run side produces."""
+    pass through the same normalizer. The load-bearing half is READ-side
+    repair: a baseline entry hand-pasted from raw mypy stdout must come out
+    of _read_baseline as the key the run side produces, or it reports as a
+    permanent false new error. Fed through the actual reader on a scratch
+    file — asserting _normalize alone passes with the read side reverted."""
     raw = 'bytemaker/x.py :: no-redef :: Name "y" already defined on line 280'
     fixed = 'bytemaker/x.py :: no-redef :: Name "y" already defined on line N'
-    assert _normalize(raw) == fixed
-    assert _normalize(fixed) == fixed  # idempotent
-    assert _normalize('m :: attr-defined :: no attr; maybe "x"?') == (
-        "m :: attr-defined :: no attr"
+    suffixed = 'bytemaker/y.py :: attr-defined :: no attr; maybe "x"?'
+    scratch = tmp_path / "baseline.txt"
+    scratch.write_text(
+        f"# comment\n{VERSION_PREFIX}9.9.9\n{raw}\n{suffixed}\n{fixed}\n",
+        encoding="utf-8",
     )
-    # ... and the real baseline is already in normal form, so read-side
-    # normalization is a no-op on a healthy file
-    _, keys = _read_baseline()
-    assert all(_normalize(k) == k for k in keys)
+    monkeypatch.setattr(sys.modules[__name__], "BASELINE", scratch)
+    version, keys = _read_baseline()
+    assert version == "9.9.9"
+    assert keys == {fixed, "bytemaker/y.py :: attr-defined :: no attr"}
+
+    assert _normalize(fixed) == fixed  # idempotent: regen output untouched
+    # ... and the real baseline is regen-written, so reading it through the
+    # normalizer changes nothing (the healthy-file no-op property)
+    monkeypatch.undo()
+    _, real_keys = _read_baseline()
+    assert all(_normalize(k) == k for k in real_keys)
 
 
 if __name__ == "__main__":
