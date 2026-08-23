@@ -911,21 +911,34 @@ def test_claimed_and_unclaimed_partition_the_space_even_when_hand_built():
     from bytemaker.rom import CoverageReport, Region
 
     s = space()
-    outside = Entry(BASE + len(BUF) - 4, UInt8, count(4), name="tail").bind(s)
+    past_end = Entry(BASE + len(BUF) - 4, UInt8, count(4), name="tail").bind(s)
+    # Straddles the LOW edge too: two of its four bytes lie below the base.
+    # The low-side clip is the half of the docstring's promise a mutation
+    # test showed nothing exercised.
+    before = Entry(BASE + 2, UInt8, count(4), name="head")
     report = CoverageReport(
         space_name="hand",
         space_size=8,  # deliberately smaller than the regions describe
-        space_base=BASE,
-        regions=(Region(outside, 4), Region(Entry(BASE, UInt8, count(4)), 4)),
+        space_base=BASE + 4,  # ... and past the "head" region's start
+        regions=(
+            Region(past_end, 4),
+            Region(before, 4),
+            Region(Entry(BASE + 8, UInt8, count(2)), 2),  # disjoint, in-space
+        ),
         overlaps=(),
         pointers=(),
     )
     assert report.claimed_bytes + report.unclaimed_bytes == report.space_size
-    assert all(g.end <= BASE + report.space_size for g in report.gaps())
-    assert all(g.start >= BASE for g in report.gaps())
+    low, high = report.space_base, report.space_base + report.space_size
+    assert all(low <= g.start and g.end <= high for g in report.gaps())
+    # the straddling region contributes only its in-space bytes to the claim
+    assert report.claimed_bytes == 2 + 2  # head's clipped half + the real one
 
 
 def test_unclaimed_bytes_is_the_sum_of_the_gaps():
+    """Falsifiable on purpose: unclaimed_bytes is computed as
+    space_size - claimed_bytes, so equality with the gap sum pins that the
+    two views really are one partition (they share _merged_spans)."""
     for entries in ([], gap_map(), rom_map()):
         report = space().coverage(entries, audit_pointers=False)
         assert report.unclaimed_bytes == sum(g.size for g in report.gaps())

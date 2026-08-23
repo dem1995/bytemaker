@@ -48,7 +48,7 @@ Two layers build on that base:
 
 import sys
 from dataclasses import dataclass
-from functools import partial
+from functools import cached_property, partial
 from typing import cast
 
 from bytemaker.adapters import Adapted, Adapter
@@ -60,7 +60,14 @@ from bytemaker.structs import (
     _field_name_of,
     _structs_named,
 )
-from bytemaker.typing_redirect import Any, List, Literal, Optional, Union
+from bytemaker.typing_redirect import (
+    Any,
+    List,
+    Literal,
+    Optional,
+    Tuple,
+    Union,
+)
 from bytemaker.utils import validate_endianness
 
 __all__ = [
@@ -1752,7 +1759,8 @@ class CoverageReport:
     overlaps: tuple
     pointers: tuple
 
-    def _merged_spans(self) -> "List[tuple]":
+    @cached_property
+    def _merged_spans(self) -> "Tuple[tuple, ...]":
         """Resolved footprints merged into maximal disjoint ``(start, end)``
         runs, in address order, clipped to the space.
 
@@ -1763,6 +1771,9 @@ class CoverageReport:
         :meth:`Space.coverage` never resolves a region outside its own
         bounds — but without it a stray region would inflate the claim and
         stretch a gap past the end of the space it describes.
+
+        Cached: the report is frozen and one ``render()`` reads this several
+        times over what can be thousands of regions.
         """
         low = self.space_base
         high = low + self.space_size
@@ -1778,13 +1789,13 @@ class CoverageReport:
                 merged[-1][1] = max(merged[-1][1], end)
             else:
                 merged.append([start, end])
-        return [(start, end) for start, end in merged]
+        return tuple((start, end) for start, end in merged)
 
     @property
     def claimed_bytes(self) -> int:
         """Distinct bytes claimed by at least one resolved entry (overlaps
         counted once)."""
-        return sum(end - start for start, end in self._merged_spans())
+        return sum(end - start for start, end in self._merged_spans)
 
     def gaps(self, min_size: int = 1) -> tuple:
         """Runs of at least ``min_size`` bytes that no resolved entry
@@ -1803,7 +1814,7 @@ class CoverageReport:
         gaps = []
         cursor = self.space_base
         limit = self.space_base + self.space_size
-        for start, end in self._merged_spans():
+        for start, end in self._merged_spans:
             if start > cursor:
                 gaps.append(Gap(cursor, start - cursor))
             cursor = max(cursor, end)
@@ -1813,10 +1824,13 @@ class CoverageReport:
 
     @property
     def unclaimed_bytes(self) -> int:
-        """Total bytes in :meth:`gaps`, which is also
-        ``space_size - claimed_bytes`` — the two agree by construction, both
-        being read off :meth:`_merged_spans`."""
-        return sum(g.size for g in self.gaps())
+        """``space_size - claimed_bytes``, which is also the total bytes in
+        :meth:`gaps` — the two agree because both sides are read off
+        :attr:`_merged_spans`, whose spans are clipped to the space. The
+        equality is pinned by a test against the gap sum, so this can stay
+        the cheap arithmetic form (the sum allocates a Gap per run just to
+        add its sizes)."""
+        return self.space_size - self.claimed_bytes
 
     @property
     def percent(self) -> float:
