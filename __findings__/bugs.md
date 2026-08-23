@@ -743,14 +743,23 @@ Repro:
 **Severity:** high · **Confidence:** high · **✓ Reproduced** · [`bytemaker/plans.py:598`](../bytemaker/plans.py#L598)
 
 > **Provenance note.** Unlike findings 1-28, this one was found later, during the
-> usability round (commits `eadfc9a..0ce026d`), while checking whether
-> `introspect.layout()` should report `bit_order` per field or per record.
+> usability round (commits `f525956..32b16f8`; the arc was later renamed to
+> commitizen-style subjects, so ranges here use the rewritten SHAs — the old
+> series ids survive as `Id:` trailers, e.g. `git log --grep "Id: fix-1"`),
+> while checking whether `introspect.layout()` should report `bit_order` per
+> field or per record.
 >
-> **Status: FIXED (option 1)** — maintainer approved the recommendation; the
-> mismatch now refuses at class definition with a `PlanCompileError` naming both
-> orders and both classes (`bitorder-1`, the commit after this entry landed).
-> Option 2 (carry `bit_order` per leaf, allowing genuinely mixed records) remains
-> open as a compatible follow-up; the guard is the single branch to remove.
+> **Status: FIXED (option 1, with an exemption)** — maintainer approved the
+> recommendation; a mismatch whose child has SUB-BYTE leaves refuses at class
+> definition with a `PlanCompileError` naming both orders and both classes
+> (`Id: bitorder-1`). A child whose leaves are all whole bytes is exempt
+> (`Id: fix-11`): for such a record `bit_order` is provably a no-op — the
+> aligned tier never reads it and the shiftmask tier packs byte-aligned
+> layouts identically either way, differentially pinned on the shiftmask tier
+> (`Id: fix-19`) — and refusing it made one byte-aligned child unusable across
+> parents that disagree about an order it does not express. Option 2 (carry
+> `bit_order` per leaf, allowing genuinely mixed records) remains open as a
+> compatible follow-up; `check_bit_order` in plans.py is what it would replace.
 
 **What.** `endian` is resolved and stored *per plan leaf*, so a nested record keeps
 its own byte order when it is flattened into a parent (that is what wd-1/wd-4 and
