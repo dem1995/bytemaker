@@ -4,8 +4,6 @@ import codecs
 import re
 from abc import abstractmethod
 from collections.abc import Mapping
-from typing import TYPE_CHECKING
-
 from bytemaker.bittypes.bittype import BitType
 from bytemaker.bitvector import BitVector
 from bytemaker.typing_redirect import Optional, Tuple, TypeVar
