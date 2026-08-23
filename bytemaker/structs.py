@@ -1619,9 +1619,16 @@ class BoundField(typing.Generic[V]):
         The byte order comes from the field's plan leaf, not the record: a
         ``field(T, endian=...)`` override must serialize from the box
         exactly as ``pack()`` writes it, or the one object documented as the
-        wire-inspection path lies about the wire.
+        wire-inspection path lies about the wire. Byte-payload fields
+        (String/Buffer, plan kind ``"b"``) have no byte order — ``pack()``
+        writes them in stream order whatever the record declares, and their
+        leaf endian exists only for tier selection — so their box is minted
+        big-endian, whose serialization IS stream order. (Under the old
+        record-endian stamp, a String box in a little-endian record
+        byte-reversed on ``bytes()`` — the wire backwards.)
         """
-        endianness = type(self._owner).plan._find(self._name).endian
+        leaf = type(self._owner).plan._find(self._name)
+        endianness = "big" if leaf.kind == "b" else leaf.endian
         return self._ftype(self._wire_value(), endianness=endianness)
 
     def __setattr__(self, name, value):

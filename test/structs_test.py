@@ -1510,3 +1510,26 @@ def test_boxed_serializes_in_the_fields_own_byte_order():
     assert bytes(bx) == r.pack()[:2]  # the box IS the wire, both orders
     assert bytes(by) == r.pack()[2:]
     assert (bx.value, by.value) == (0x1234, 0x5678)  # values unaffected
+
+
+def test_boxed_is_the_wire_for_byte_payload_fields_too():
+    """String/Buffer fields have no byte order -- pack() writes them in
+    stream order whatever the record declares -- but their box used to be
+    stamped with the record's endianness, so in a little-endian record
+    bytes(boxed()) came out REVERSED relative to the wire. Every field
+    kind's box must serialize as its pack() slice."""
+    Name4 = UTF8String.of(nbytes=4, name="Name4Boxed")
+    Buf3 = Buffer.of(nbytes=3, name="Buf3Boxed")
+
+    class R(Struct, endian="little"):
+        n: str = field(Name4)
+        raw: bytes = field(Buf3)
+        x: int = field(UInt16)
+
+    r = R(n="ab", raw=b"\x01\x02\x03", x=0x1234)
+    wire = r.pack()
+    assert wire == b"ab\x00\x00\x01\x02\x03\x34\x12"
+    assert bytes(r.sizedview.n.boxed()) == wire[0:4]  # was 00006261
+    assert bytes(r.sizedview.raw.boxed()) == wire[4:7]  # was 030201
+    assert bytes(r.sizedview.x.boxed()) == wire[7:9]  # numerics unchanged
+    assert r.sizedview.n.boxed().value == "ab"  # values unaffected
