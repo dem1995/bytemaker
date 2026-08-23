@@ -743,9 +743,9 @@ Repro:
 **Severity:** high · **Confidence:** high · **✓ Reproduced** · [`bytemaker/plans.py:598`](../bytemaker/plans.py#L598)
 
 > **Provenance note.** Unlike findings 1-28, this one was found later, during the
-> usability round (commits `f525956..32b16f8`; the arc was later renamed to
-> commitizen-style subjects, so ranges here use the rewritten SHAs — the old
-> series ids survive as `Id:` trailers, e.g. `git log --grep "Id: fix-1"`),
+> usability round (the commits carrying `Id:` trailers `clean-1` through
+> `fix-8` — the arc was history-rewritten to the conventional format, so SHAs
+> are unstable and commits are cited by id: `git log --grep "Id: fix-1"`),
 > while checking whether `introspect.layout()` should report `bit_order` per
 > field or per record.
 >
