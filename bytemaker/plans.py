@@ -524,11 +524,13 @@ def compile_plan(
         compilation to reveal it (findings #29).
 
         Exemption: a child whose leaves are all whole bytes. For such a
-        record bit_order is provably a no-op — both tiers serialize the
-        record int in an order that tracks bit_order, so byte-aligned
-        layouts come out identical either way (differentially tested) — and
-        refusing it would make one byte-aligned child unusable across
-        parents that disagree about an order it does not even express.
+        record bit_order is provably a no-op: the aligned tier never reads
+        it at all, and the shiftmask tier — the only code where bit_order
+        exists — serializes its record int in an order that tracks it, so
+        byte-aligned layouts come out identical either way (differentially
+        pinned on the shiftmask tier). Refusing it would make one
+        byte-aligned child unusable across parents that disagree about an
+        order it does not even express.
         """
         if subplan.bit_order == bit_order:
             return

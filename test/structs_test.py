@@ -1458,8 +1458,10 @@ def test_a_byte_aligned_child_is_exempt_from_the_bit_order_guard():
 
 
 def test_bit_order_is_a_noop_for_whole_byte_leaves():
-    """The fact the exemption rests on, pinned differentially: byte-aligned
-    records pack identically under both orders, both endians, both tiers."""
+    """The fact the exemption rests on, pinned differentially — ON THE
+    SHIFTMASK TIER, the only code where bit_order exists (the aligned tier
+    never reads it, so a struct-tier differential is vacuously equal and
+    pins nothing). The cross-endian field is what forces the tier."""
     from bytemaker.structs import StructMeta
 
     for endian in ("little", "big"):
@@ -1468,12 +1470,37 @@ def test_bit_order_is_a_noop_for_whole_byte_leaves():
             cls = StructMeta(
                 f"BA_{bo}_{endian}",
                 (Struct,),
-                {"__annotations__": {"a": UInt16, "b": UInt8, "c": UInt32}},
+                {
+                    "__annotations__": {"a": int, "b": UInt8, "c": UInt32},
+                    "a": field(
+                        UInt16,
+                        endian="big" if endian == "little" else "little",
+                    ),
+                },
                 endian=endian,
                 bit_order=bo,
             )
+            assert cls.plan.tier == "shiftmask", "differential must not degrade"
             packs.append(cls(a=0x2233, b=0x11, c=0x44556677).pack())
         assert packs[0] == packs[1], endian
+
+
+def test_the_exemption_holds_inside_a_shiftmask_parent():
+    """The exemption's actual risk case: a mismatched byte-aligned child
+    flattened into a parent that IS on the shiftmask tier (sub-byte
+    siblings), where bit_order genuinely governs serialization. The child's
+    bytes must appear in the parent exactly as it packs standalone."""
+
+    class ShiftParent(Struct, endian="little"):  # default lsb
+        lo: int = field(UInt4)
+        hi: int = field(UInt4)
+        child: _AlignedMsb  # declared msb; all-whole-byte leaves
+
+    assert ShiftParent.plan.tier == "shiftmask"
+    inner = _AlignedMsb(a=1, b=0x1234)
+    p = ShiftParent(lo=1, hi=2, child=_AlignedMsb(a=1, b=0x1234))
+    assert p.pack()[1:4] == inner.pack()  # child occupies its standalone bytes
+    assert ShiftParent.parse(p.pack()) == p
 
 
 def test_a_sub_byte_child_is_still_refused_and_the_error_says_sub_byte():
