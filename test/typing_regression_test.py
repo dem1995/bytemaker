@@ -95,7 +95,13 @@ def _read_baseline():
         if line.startswith(VERSION_PREFIX):
             version = line[len(VERSION_PREFIX):].strip()
         elif line and not line.startswith("#"):
-            keys.add(line.rstrip("\n"))
+            # Normalized on READ as well as on run: a baseline entry added
+            # by hand from raw mypy output (literal "on line 280", an
+            # unstripped did-you-mean) would otherwise never match its
+            # normalized twin and report as a permanent false new error.
+            # _normalize is idempotent, so a --regen-written file is
+            # untouched; only raw pastes are repaired.
+            keys.add(_normalize(line.rstrip("\n")))
     return version, keys
 
 
@@ -136,6 +142,24 @@ def test_no_new_mypy_errors():
         + "\nFix them, or if intentional regen the baseline with:"
         "\n  python test/typing_regression_test.py --regen"
     )
+
+
+def test_both_sides_of_the_gate_normalize_identically():
+    """The set difference only means something if run output and baseline
+    pass through the same normalizer. _normalize must be idempotent (so a
+    regen-written baseline is untouched on read) and must repair a raw
+    hand-pasted mypy line into the key the run side produces."""
+    raw = 'bytemaker/x.py :: no-redef :: Name "y" already defined on line 280'
+    fixed = 'bytemaker/x.py :: no-redef :: Name "y" already defined on line N'
+    assert _normalize(raw) == fixed
+    assert _normalize(fixed) == fixed  # idempotent
+    assert _normalize('m :: attr-defined :: no attr; maybe "x"?') == (
+        "m :: attr-defined :: no attr"
+    )
+    # ... and the real baseline is already in normal form, so read-side
+    # normalization is a no-op on a healthy file
+    _, keys = _read_baseline()
+    assert all(_normalize(k) == k for k in keys)
 
 
 if __name__ == "__main__":
