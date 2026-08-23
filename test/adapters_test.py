@@ -840,10 +840,12 @@ def test_the_sized_view_repr_degrades_through_the_record():
     assert "<unreadable: 99 is not a valid Terrain>" in repr(t.sizedview)
 
 
-# ------------------- the fourth way to trip an element type (fix-8)
+# ---------------- element-store attribution (fix-8; five ways total)
 def test_every_way_to_trip_an_array_element_type_names_the_field():
-    """Three of the four paths were attributed; the element store through the
-    live list was not, and it is the one a user reaches for most."""
+    """Of the five ways a value crosses an element type (loads at parse,
+    stores at pack, whole-list assignment/__init__, and the element store),
+    the element store was named last -- and it is the one a user reaches
+    for most."""
     row = TileRow.parse(b"\x00\x01")
     for do in (
         lambda: row.kinds.__setitem__(0, 99),  # element store
@@ -940,9 +942,10 @@ def _boxing_store(user):
 
 
 def test_pack_of_a_drifted_element_names_the_record_and_field():
-    """The fifth way to trip an element type: an adapted array's slot is
-    user-plane, so pack() re-encodes through store -- and a mutable user
-    value can have drifted into a state store refuses since it was stored."""
+    """The pack-direction way to trip an element type: an adapted array's
+    slot is user-plane, so pack() re-encodes through store -- and a mutable
+    user value can have drifted into a state store refuses since it was
+    stored."""
     boxing = Adapter(_boxing_load, _boxing_store, list, "boxing")
 
     class Rec(Struct, endian="little"):

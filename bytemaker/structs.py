@@ -180,11 +180,15 @@ def _attributed(exc, label: str):
     live. Two rules decide the wrapper's class:
 
     * The exact class, when it is a builtin constructed from one argument:
-      that rebuild is faithful (builtins keep no state beyond ``args``).
-      Naively doing this for everything broke twice — a multi-arg builtin
-      (``UnicodeEncodeError`` takes five) makes the *constructor* fail, and
-      a user subclass that captures constructor args as attributes gets
-      them silently replaced by the message string.
+      the family and the message — everything the ``except`` clause and the
+      error text depend on — rebuild faithfully. (Not necessarily every
+      attribute: an ``AttributeError`` minted by the interpreter carries
+      ``.name``/``.obj`` outside ``args``, and the wrapper's are None; the
+      original's are intact on ``__cause__``, which is the fidelity channel
+      throughout.) Naively rebuilding *everything* this way broke twice —
+      a multi-arg builtin (``UnicodeEncodeError`` takes five) makes the
+      constructor fail, and a user subclass that captures constructor args
+      as attributes gets them silently replaced by the message string.
     * Otherwise the nearest builtin family (:data:`_EXC_FAMILIES`), so
       ``except KeyError`` around a ``TABLE.__getitem__`` adapter still
       catches, whatever KeyError subclass the table raised. ValueError is
@@ -402,9 +406,10 @@ class _AdaptedField:
     ...)`` -- the obvious way to decode a game's character table, and the
     most likely adapter after ``enum_`` -- raises ``KeyError`` on precisely
     the undocumented byte this attribution exists for. Nothing is
-    swallowed: :func:`_attributed` re-raises, keeping the exception's own
-    class wherever it can be rebuilt and chaining the original as
-    ``__cause__`` regardless.
+    swallowed: :func:`_attributed` re-raises, keeping the exception's exact
+    class for one-arg builtins and its builtin FAMILY otherwise (see its
+    docstring for why subclasses are never rebuilt), always chaining the
+    intact original as ``__cause__``.
     """
 
     __slots__ = ("_inner", "_adapter")
@@ -430,41 +435,42 @@ class _AdaptedField:
         self._inner.__set__(obj, wire)
 
 
-def _elem_loader(load, cls_name: str, field_name: str):
+def _elem_loader(load, label: str):
     """A whole-field element loader for an adapted Array field.
 
     An adapted array's elements are loaded in the generated
     ``_bm_from_tuple`` (its slot holds USER-plane values), which has no
     field context of its own — so a strict ``load`` over undocumented data
     would fail *inside parse* with a message naming nothing. Binding the
-    names here keeps the attribution that :class:`_AdaptedField` gives a
-    scalar, at one call per field per record rather than per element.
+    ``"Record.field"`` label here keeps the attribution that
+    :class:`_AdaptedField` gives a scalar, at one call per field per record
+    rather than per element.
     """
 
     def load_elems(values):
         try:
             return [load(v) for v in values]
         except Exception as exc:  # noqa: BLE001 - as _AdaptedField.__get__
-            raise _attributed(exc, f"{cls_name}.{field_name}") from exc
+            raise _attributed(exc, label) from exc
 
     return load_elems
 
 
-def _elem_storer(store, cls_name: str, field_name: str):
+def _elem_storer(store, label: str):
     """The PACK-direction twin of :func:`_elem_loader`.
 
     An adapted array's slot is user-plane, so ``pack()`` re-encodes every
     element through ``store`` inside the generated ``_bm_to_tuple`` — and a
     mutable user value can have drifted into a state ``store`` refuses since
-    it was last stored, making pack the fifth (and last) place an element
-    type can be tripped. Anonymous there, it named neither record nor field.
+    it was last stored, making pack one of the five places an element type
+    can be tripped. Anonymous there, it named neither record nor field.
     """
 
     def store_elems(values):
         try:
             return [store(v) for v in values]
         except Exception as exc:  # noqa: BLE001 - store is user code
-            raise _attributed(exc, f"{cls_name}.{field_name}") from exc
+            raise _attributed(exc, label) from exc
 
     return store_elems
 
@@ -529,11 +535,13 @@ class NarrowingList(list):
     def _coerce(self, value):
         """``Array._coerce_one``, attributed to the owning record and field.
 
-        The element store was the last of the four ways to trip an array
-        field's element type that did not name it: whole-list assignment
-        goes through :class:`_ArrayField` and both load directions through
-        :class:`_AdaptedField` / :func:`_elem_loader`. ``s.fns[0] = 99``
-        reported "99 is not a valid Terrain" alone.
+        One of the FIVE ways a value crosses an array field's element type,
+        all attributed: whole-list assignment and ``__init__`` go through
+        :class:`_ArrayField`, parse-time loads through
+        :func:`_elem_loader`, pack-time stores through
+        :func:`_elem_storer`, and the element store lands here. It was the
+        last of them to be named — ``s.fns[0] = 99`` reported "99 is not a
+        valid Terrain" alone.
         """
         try:
             return self._arr._coerce_one(value)
@@ -609,9 +617,10 @@ class _ArrayField:
     def __init__(self, slot, arr, label: str = ""):
         self._slot = slot
         self._arr = arr
-        #: "Record.field", fixed at class definition — the ONE derivation of
-        #: the label, shared with the generated from_tuple/to_tuple (their
-        #: env binds the same string) and handed to every NarrowingList.
+        #: "Record.field", derived ONCE, at the descriptor's construction in
+        #: StructMeta. Every other consumer — the generated
+        #: from_tuple/to_tuple env, _elem_loader/_elem_storer, and every
+        #: NarrowingList this field hands out — reads it from here.
         self._label = label
 
     def __get__(self, obj, objtype=None):
@@ -882,12 +891,12 @@ def _generate_methods(cls, field_defs, defaults) -> None:
                 # elements only -- an adapted Struct-element array is
                 # refused at Array construction).
                 adapted_array_of[n] = (f"_ald{i}", f"_ast{i}")
-                env[f"_ald{i}"] = _elem_loader(
-                    ftype._adapter.load, cls.__name__, n
-                )
-                env[f"_ast{i}"] = _elem_storer(
-                    ftype._adapter.store, cls.__name__, n
-                )
+                # The label is READ off the field's descriptor (installed
+                # before codegen runs), never re-derived: one home, one
+                # spelling, nothing to drift.
+                field_label = cls.__dict__[n]._label
+                env[f"_ald{i}"] = _elem_loader(ftype._adapter.load, field_label)
+                env[f"_ast{i}"] = _elem_storer(ftype._adapter.store, field_label)
         elif isinstance(ftype, type) and issubclass(ftype, String):
             str_of[n] = (f"_enc{i}", f"_dec{i}")
             env[f"_enc{i}"] = ftype._encode_padded
@@ -958,9 +967,10 @@ def _generate_methods(cls, field_defs, defaults) -> None:
             count = ftype.count
             # The live list is told which field it belongs to, so an element
             # store through it can name the record and field (the Array
-            # itself is standalone-capable and has no name).
+            # itself is standalone-capable and has no name). Read off the
+            # descriptor, like the loader/storer labels above.
             label_var = f"_alab_{n}"
-            env[label_var] = f"{cls.__name__}.{n}"
+            env[label_var] = cls.__dict__[n]._label
             if elem_var is not None:  # Struct-element array: rebuild each
                 span = len(ftype.element.plan.fields)
                 lines.append(
