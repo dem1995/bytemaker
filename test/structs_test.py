@@ -1492,3 +1492,21 @@ def test_the_array_guard_error_names_the_field_not_element_zero():
             rows: list = field(_NibblesMsb * 2)
 
     assert "rows.0" not in str(caught.value)
+
+
+def test_boxed_serializes_in_the_fields_own_byte_order():
+    """boxed() stamped the RECORD's endianness, so for a field(T, endian=)
+    override the one object documented as the wire-inspection path
+    serialized byte-swapped relative to what pack() writes."""
+
+    class R(Struct, endian="little"):
+        x: int = field(UInt16, endian="big")
+        y: int = field(UInt16)
+
+    r = R(x=0x1234, y=0x5678)
+    assert r.pack() == b"\x12\x34\x78\x56"  # big-endian x, little-endian y
+    bx, by = r.sizedview.x.boxed(), r.sizedview.y.boxed()
+    assert bx.endianness == "big" and by.endianness == "little"
+    assert bytes(bx) == r.pack()[:2]  # the box IS the wire, both orders
+    assert bytes(by) == r.pack()[2:]
+    assert (bx.value, by.value) == (0x1234, 0x5678)  # values unaffected

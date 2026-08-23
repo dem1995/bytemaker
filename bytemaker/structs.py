@@ -1601,13 +1601,18 @@ class BoundField(typing.Generic[V]):
         return self._ftype.num_bits
 
     def boxed(self) -> "BitType[V]":
-        """A detached BitType snapshot (record's endianness); survives
-        later struct mutation. Wire-plane: for an adapted field the box
-        holds the slot's WIRE value (the box is a serialization object) —
-        the user-plane number is ``.value``."""
-        return self._ftype(
-            self._wire_value(), endianness=type(self._owner)._bm_endian
-        )
+        """A detached BitType snapshot in the FIELD's wire byte order;
+        survives later struct mutation. Wire-plane: for an adapted field the
+        box holds the slot's WIRE value (the box is a serialization object)
+        — the user-plane number is ``.value``.
+
+        The byte order comes from the field's plan leaf, not the record: a
+        ``field(T, endian=...)`` override must serialize from the box
+        exactly as ``pack()`` writes it, or the one object documented as the
+        wire-inspection path lies about the wire.
+        """
+        endianness = type(self._owner).plan._find(self._name).endian
+        return self._ftype(self._wire_value(), endianness=endianness)
 
     def __setattr__(self, name, value):
         # Only the two channels are assignable; everything else is a likely
