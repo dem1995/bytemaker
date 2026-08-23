@@ -155,33 +155,56 @@ class Codec(Protocol):
 # --------------------------------------------------------------------------
 
 
+#: Builtin exception families an attributed wrapper preserves, most-derived
+#: first. A caller who wrote ``except KeyError`` around a table adapter must
+#: still catch after attribution — losing the family is losing the caller's
+#: error handling. ValueError is the default for anything unlisted.
+_EXC_FAMILIES = (
+    TypeError,
+    KeyError,
+    IndexError,
+    LookupError,
+    AttributeError,
+    ArithmeticError,
+    OSError,
+    RuntimeError,
+)
+
+
 def _attributed(exc, label: str):
     """``exc`` re-expressed with ``label`` prefixed to its message.
 
-    Rebuilding an exception from a single string — ``type(exc)(msg)`` — only
-    works for classes whose ``__init__`` takes one argument, and the ones
-    that reach here do not: ``UnicodeDecodeError``/``UnicodeEncodeError``
-    take five, and a String field or a text adapter raises them on real
-    data. The naive form makes the *constructor* fail, so the caller gets a
-    TypeError about argument counts and loses the message, the exception
-    type and the attribution in one go — the exact opposite of the point.
+    The raised object is a WRAPPER carrying the attributed message; the
+    intact original is always chained as ``__cause__`` by the caller, and
+    that chain — not the wrapper — is where precise type and attributes
+    live. Two rules decide the wrapper's class:
 
-    So: rebuild the real class where that works (the single-argument case,
-    which is nearly everything, including ``ValueError`` and ``KeyError``),
-    and otherwise fall back to ValueError — or TypeError for a TypeError —
-    so the message and the attribution survive and ``except ValueError``
-    still catches. Callers chain the original as ``__cause__``, which is
-    what preserves the precise type either way.
+    * The exact class, when it is a builtin constructed from one argument:
+      that rebuild is faithful (builtins keep no state beyond ``args``).
+      Naively doing this for everything broke twice — a multi-arg builtin
+      (``UnicodeEncodeError`` takes five) makes the *constructor* fail, and
+      a user subclass that captures constructor args as attributes gets
+      them silently replaced by the message string.
+    * Otherwise the nearest builtin family (:data:`_EXC_FAMILIES`), so
+      ``except KeyError`` around a ``TABLE.__getitem__`` adapter still
+      catches, whatever KeyError subclass the table raised. ValueError is
+      the default: it is what "this wire value is wrong" means.
     """
     msg = f"{label}: {exc}"
-    try:
-        return type(exc)(msg)
-    except Exception:  # noqa: BLE001 - any constructor may refuse one string
-        return TypeError(msg) if isinstance(exc, TypeError) else ValueError(msg)
+    cls = type(exc)
+    if cls.__module__ == "builtins" and len(exc.args) == 1:
+        try:
+            return cls(msg)
+        except Exception:  # noqa: BLE001 - a builtin ctor may still refuse
+            pass
+    for base in _EXC_FAMILIES:
+        if isinstance(exc, base):
+            return base(msg)
+    return ValueError(msg)
 
 
-def _repr_or_marker(read, prefix: str = "") -> str:
-    """``repr(read())``, or a ``<unreadable: why>`` marker if it raises.
+def _unreadable(exc, prefix: str) -> str:
+    """The ``<unreadable: why>`` marker for a field whose read raised.
 
     A repr must never raise, and reading a field CAN: an adapter's ``load``
     runs over whatever the bytes say, so one value the schema does not
@@ -191,18 +214,26 @@ def _repr_or_marker(read, prefix: str = "") -> str:
     The readable fields are exactly what they need to see; the unreadable
     one says so, and names the reason.
 
-    ``prefix`` is the "Record.field: " that :func:`_raise_named` prepends,
-    stripped back off: beside the field's own name in a repr it is noise.
-    Shared by :meth:`Struct.__repr__` and :meth:`BoundField.__repr__`, which
-    read the same plane and so can fail the same way.
+    Called from the ``except`` path only, so its work (and ``prefix``, the
+    "Record.field: " :func:`_raise_named` prepends — noise beside the
+    field's own name in a repr) costs nothing when every field reads.
+    Shared by :meth:`Struct._bm_repr_of` and :meth:`BoundField.__repr__`,
+    which read the same plane and so can fail the same way.
+
+    The reason comes from ``args[0]`` when that is the message, not from
+    ``str(exc)``: for a KeyError ``str()`` is ``repr(args[0])``, which would
+    quote the message and defeat the prefix strip. The type-name fallback
+    runs AFTER the strip, so a message-less exception ("R.v: " stripped to
+    nothing) still names its type instead of rendering blank.
     """
-    try:
-        return repr(read())
-    except Exception as exc:  # noqa: BLE001 - a repr must not raise
-        reason = str(exc) or type(exc).__name__
-        if prefix and reason.startswith(prefix):
-            reason = reason[len(prefix) :]
-        return f"<unreadable: {reason}>"
+    args = exc.args
+    if len(args) == 1 and isinstance(args[0], str):
+        reason = args[0]
+    else:
+        reason = str(exc)
+    if reason.startswith(prefix):
+        reason = reason[len(prefix) :]
+    return f"<unreadable: {reason or type(exc).__name__}>"
 
 
 def _raise_named(slot, obj, exc):
@@ -1446,10 +1477,12 @@ class Struct(metaclass=StructMeta):
 
     def _bm_repr_of(self, name: str) -> str:
         """One field's repr text, or a marker if reading it raises (see
-        :func:`_repr_or_marker`)."""
-        return _repr_or_marker(
-            lambda: getattr(self, name), f"{type(self).__name__}.{name}: "
-        )
+        :func:`_unreadable`). The happy path is one getattr and one repr;
+        marker work is paid only on the field that cannot load."""
+        try:
+            return repr(getattr(self, name))
+        except Exception as exc:  # noqa: BLE001 - a repr must not raise
+            return _unreadable(exc, f"{type(self).__name__}.{name}: ")
 
 
 # --------------------------------------------------------------------------
@@ -1689,9 +1722,10 @@ class BoundField(typing.Generic[V]):
         # Same plane as Struct.__repr__, so the same failure is possible: the
         # session that just got a degraded record repr and reached for the
         # handle to inspect the offending field must not be met with a raise.
-        value = _repr_or_marker(
-            lambda: self.value, f"{owner}.{self._name}: "
-        )
+        try:
+            value = repr(self.value)
+        except Exception as exc:  # noqa: BLE001 - a repr must not raise
+            value = _unreadable(exc, f"{owner}.{self._name}: ")
         return f"<bound {self._ftype.__name__} {self._name}={value} of {owner}>"
 
 

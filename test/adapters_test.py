@@ -697,20 +697,95 @@ def test_a_multi_arg_user_exception_keeps_its_message_and_attribution():
     assert repr(r) == "R(t=<unreadable: wire 99 is not in terrain>)"
 
 
-def test_a_single_arg_exception_class_is_preserved_exactly():
-    """The common case must keep its own type, not be flattened."""
-
-    class OneArg(ValueError):
-        pass
+def test_an_exact_builtin_exception_class_is_preserved():
+    """A builtin raised with one argument rebuilds as itself: builtins keep
+    no state beyond args, so the rebuild is faithful."""
 
     def load(wire):
-        raise OneArg("nope")
+        raise IndexError("beyond the table")
 
     class R(Struct, endian="little"):
-        t: int = field(UInt8, adapt=Adapter(load, int, int, "one_arg"))
+        t: int = field(UInt8, adapt=Adapter(load, int, int, "idx"))
 
-    with pytest.raises(OneArg, match=r"^R\.t: nope"):
+    with pytest.raises(IndexError, match=r"^R\.t: beyond the table"):
         R.parse(b"\x00").t
+
+
+class _CapturingWire(ValueError):
+    """A subclass whose __init__ captures its argument -- rebuilding it from
+    the message string would silently replace .wire with that string."""
+
+    def __init__(self, wire):
+        super().__init__(f"bad wire {wire}")
+        self.wire = wire
+
+
+def _capturing_load(wire):
+    raise _CapturingWire(wire)
+
+
+def test_a_subclass_wraps_as_its_family_never_a_corrupt_rebuild():
+    """A one-arg SUBCLASS could be rebuilt without the constructor raising --
+    and its attributes would silently become the message string (.wire would
+    hold "R.t: bad wire 99", so a handler's hex(e.wire) explodes). The
+    wrapper is therefore the nearest builtin family, and the intact original
+    -- correct attributes and all -- is the __cause__."""
+
+    class R(Struct, endian="little"):
+        t: int = field(UInt8, adapt=Adapter(_capturing_load, int, int, "cap"))
+
+    with pytest.raises(ValueError, match=r"^R\.t: bad wire 99") as caught:
+        R.parse(b"\x63").t
+    assert type(caught.value) is ValueError  # the family, not the subclass
+    assert isinstance(caught.value.__cause__, _CapturingWire)
+    assert caught.value.__cause__.wire == 99  # the real attribute, intact
+
+
+def test_a_keyerror_subclass_still_satisfies_except_keyerror():
+    """The family rule exists for the caller's error handling: a table
+    adapter's KeyError subclass (multi-arg, so unrebuildable) must not
+    surface as ValueError past an `except KeyError`."""
+
+    class TableMiss(KeyError):
+        def __init__(self, wire, table):
+            super().__init__(f"wire {wire} is not in {table}")
+
+    def load(wire):
+        raise TableMiss(wire, "terrain")
+
+    class R(Struct, endian="little"):
+        t: str = field(UInt8, adapt=Adapter(load, str, str, "tbl"))
+
+    with pytest.raises(KeyError) as caught:
+        R.parse(b"\x63").t
+    assert type(caught.value) is KeyError
+    assert "R.t: " in caught.value.args[0] and "99" in caught.value.args[0]
+    assert isinstance(caught.value.__cause__, TableMiss)
+
+
+def test_the_repr_marker_is_clean_for_a_keyerror():
+    """KeyError's str() is repr(args[0]) -- quoted -- which used to defeat
+    the prefix strip and leak "'Tile2.kind: 99'" into the marker. The marker
+    reads args[0] directly."""
+    table = Adapter(TERRAIN_TABLE.__getitem__, str, str, "table")
+
+    class Tile2(Struct, endian="little"):
+        kind: str = field(UInt8, adapt=table)
+
+    assert repr(Tile2.parse(b"\x63")) == "Tile2(kind=<unreadable: 99>)"
+
+
+def test_a_messageless_exception_marks_with_its_type_name():
+    """"R.v: " stripped to nothing must fall back to the type, not render a
+    blank <unreadable: > marker."""
+
+    def load(wire):
+        raise ValueError()
+
+    class R(Struct, endian="little"):
+        v: int = field(UInt8, adapt=Adapter(load, int, int, "bare"))
+
+    assert repr(R.parse(b"\x00")) == "R(v=<unreadable: ValueError>)"
 
 
 TERRAIN_TABLE = {0: "floor", 1: "wall"}
