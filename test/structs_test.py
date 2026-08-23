@@ -1427,3 +1427,68 @@ def test_matching_bit_order_nests_byte_compatibly():
     assert outer.pack() == b"\x12\xab"
     assert outer.pack()[:1] == inner.pack()
     assert OuterMsb.parse(outer.pack()) == outer
+
+
+class _AlignedMsb(Struct, endian="little", bit_order="msb"):
+    """Whole-byte leaves only: bit_order carries no information about its
+    bytes (differentially pinned below)."""
+
+    a: UInt8
+    b: UInt16
+
+
+def test_a_byte_aligned_child_is_exempt_from_the_bit_order_guard():
+    """Refusing it would claim bytes could differ when they provably cannot
+    -- and would make one byte-aligned child unusable across parents that
+    disagree about an order it does not even express."""
+
+    class L(Struct, endian="little"):  # default lsb
+        i: _AlignedMsb
+        tail: UInt8
+
+    class M(Struct, endian="little", bit_order="msb"):
+        i: _AlignedMsb
+        tail: UInt8
+
+    inner = _AlignedMsb(a=1, b=0x1234)
+    for outer_cls in (L, M):  # ... including BOTH parents at once
+        outer = outer_cls(i=_AlignedMsb(a=1, b=0x1234), tail=9)
+        assert outer.pack()[:3] == inner.pack()  # standalone == nested
+        assert outer_cls.parse(outer.pack()) == outer
+
+
+def test_bit_order_is_a_noop_for_whole_byte_leaves():
+    """The fact the exemption rests on, pinned differentially: byte-aligned
+    records pack identically under both orders, both endians, both tiers."""
+    from bytemaker.structs import StructMeta
+
+    for endian in ("little", "big"):
+        packs = []
+        for bo in ("lsb", "msb"):
+            cls = StructMeta(
+                f"BA_{bo}_{endian}",
+                (Struct,),
+                {"__annotations__": {"a": UInt16, "b": UInt8, "c": UInt32}},
+                endian=endian,
+                bit_order=bo,
+            )
+            packs.append(cls(a=0x2233, b=0x11, c=0x44556677).pack())
+        assert packs[0] == packs[1], endian
+
+
+def test_a_sub_byte_child_is_still_refused_and_the_error_says_sub_byte():
+    with pytest.raises(PlanCompileError, match="sub-byte") as caught:
+
+        class Outer(Struct, endian="little"):
+            i: _NibblesMsb
+
+    assert "same bit_order" in str(caught.value)
+
+
+def test_the_array_guard_error_names_the_field_not_element_zero():
+    with pytest.raises(PlanCompileError, match=r"ArrOuter\.rows: ") as caught:
+
+        class ArrOuter(Struct, endian="little"):
+            rows: list = field(_NibblesMsb * 2)
+
+    assert "rows.0" not in str(caught.value)
