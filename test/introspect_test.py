@@ -2,9 +2,10 @@
 sizeof / bitsizeof / fields_of / layout."""
 
 import re
-import textwrap
 
 import pytest
+
+from test.conftest import docstring_example
 
 from bytemaker import (
     Array,
@@ -242,20 +243,6 @@ def test_layout_columns_align_across_uneven_name_and_offset_widths():
         assert len({m.start("rest") for m in rows}) == 1, cls
 
 
-def _docstring_example(doc, first_word):
-    """The indented block in ``doc`` that starts with ``first_word``."""
-    lines = doc.splitlines()
-    start = next(
-        i for i, ln in enumerate(lines) if ln.strip().startswith(first_word)
-    )
-    block = []
-    for ln in lines[start:]:
-        if not ln.strip():
-            break
-        block.append(ln)
-    return textwrap.dedent("\n".join(block))
-
-
 def test_layout_docstring_example_is_real_output():
     """A rendering example that drifts from the renderer is worse than none:
     the docstring promised a `Buffer96` type column and three-space gutter
@@ -266,7 +253,7 @@ def test_layout_docstring_example_is_real_output():
         char_number: int = field(UInt16, endian="big")
         pixels: bytes = field(Pixels12)
 
-    expected = _docstring_example(layout.__doc__, "FontPixelEntry")
+    expected = docstring_example(layout.__doc__, "FontPixelEntry")
     assert layout(FontPixelEntry) == expected
 
 

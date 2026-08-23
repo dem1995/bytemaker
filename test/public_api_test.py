@@ -96,20 +96,11 @@ def test_the_root_docstrings_example_is_executed_from_the_docstring():
     """Not a hand-typed copy of the example -- the example ITSELF, read out
     of __doc__ and exec'd. A copy pins the behaviour but lets the docstring
     rot independently, which is the failure it was supposed to prevent."""
-    import textwrap
+    from test.conftest import docstring_example
 
     doc = bytemaker.__doc__
     assert doc is not None
-    lines = doc.splitlines()
-    start = next(
-        i for i, ln in enumerate(lines) if ln.strip().startswith("class SkillEntry")
-    )
-    block = []
-    for ln in lines[start:]:
-        if not ln.strip():
-            break
-        block.append(ln)
-    source = textwrap.dedent("\n".join(block))
+    source = docstring_example(doc, "class SkillEntry")
     assert "adapt=biased(1)" in source and "adapt=fixed(4)" in source
 
     namespace = {n: getattr(bytemaker, n) for n in bytemaker.__all__}
