@@ -450,6 +450,25 @@ def _elem_loader(load, cls_name: str, field_name: str):
     return load_elems
 
 
+def _elem_storer(store, cls_name: str, field_name: str):
+    """The PACK-direction twin of :func:`_elem_loader`.
+
+    An adapted array's slot is user-plane, so ``pack()`` re-encodes every
+    element through ``store`` inside the generated ``_bm_to_tuple`` — and a
+    mutable user value can have drifted into a state ``store`` refuses since
+    it was last stored, making pack the fifth (and last) place an element
+    type can be tripped. Anonymous there, it named neither record nor field.
+    """
+
+    def store_elems(values):
+        try:
+            return [store(v) for v in values]
+        except Exception as exc:  # noqa: BLE001 - store is user code
+            raise _attributed(exc, f"{cls_name}.{field_name}") from exc
+
+    return store_elems
+
+
 class _StructField:
     __slots__ = ("_slot", "_child")
 
@@ -497,9 +516,14 @@ class NarrowingList(list):
         self._label = label
 
     def _violation(self):
+        # Attributed like a coercion error: on a 20-field record, "length is
+        # invariant" without a field name is as anonymous as the element
+        # errors used to be.
+        where = f"{self._label}: " if self._label else ""
         return ValueError(
-            f"length is invariant ({len(self)} elements): an array field is"
-            f" fixed-count; assign a full-length sequence to replace it"
+            f"{where}length is invariant ({len(self)} elements): an array"
+            f" field is fixed-count; assign a full-length sequence to"
+            f" replace it"
         )
 
     def _coerce(self, value):
@@ -559,8 +583,10 @@ class NarrowingList(list):
         # copy/deepcopy/pickle: rebuild via the constructor, never list's
         # default reduce (which repopulates an empty instance through the
         # guarded append/extend and would raise). Contents are already
-        # coerced, so the constructor stores them as trusted.
-        return (NarrowingList, (self._arr, list(self)))
+        # coerced, so the constructor stores them as trusted. The label
+        # rides along: a copied record's element stores must stay as
+        # attributed as the original's.
+        return (NarrowingList, (self._arr, list(self), self._label))
 
 
 class _ArrayField:
@@ -578,11 +604,15 @@ class _ArrayField:
     so default-constructed instances never share one. Numeric elements are
     immutable, so numeric arrays are fully independent."""
 
-    __slots__ = ("_slot", "_arr")
+    __slots__ = ("_slot", "_arr", "_label")
 
-    def __init__(self, slot, arr):
+    def __init__(self, slot, arr, label: str = ""):
         self._slot = slot
         self._arr = arr
+        #: "Record.field", fixed at class definition — the ONE derivation of
+        #: the label, shared with the generated from_tuple/to_tuple (their
+        #: env binds the same string) and handed to every NarrowingList.
+        self._label = label
 
     def __get__(self, obj, objtype=None):
         if obj is None:
@@ -592,10 +622,14 @@ class _ArrayField:
     def __set__(self, obj, value):
         try:
             coerced = self._arr._coerce_seq(value)
-        except (TypeError, ValueError) as exc:
+        except Exception as exc:  # noqa: BLE001 - store may be user code
+            # Exception, not a shortlist: _coerce_one runs the element
+            # adapter's store, and a table adapter raises KeyError on the
+            # value this attribution exists for — the same reach as
+            # _AdaptedField (whole-list assignment and __init__ are just the
+            # bulk spellings of the same store).
             _raise_named(self._slot, obj, exc)
-        label = f"{type(obj).__name__}.{self._slot.__name__[4:]}"
-        self._slot.__set__(obj, NarrowingList(self._arr, coerced, label))
+        self._slot.__set__(obj, NarrowingList(self._arr, coerced, self._label))
 
 
 # Annotation-only ClassVars (invisible to hasattr on the base) that the
@@ -851,7 +885,9 @@ def _generate_methods(cls, field_defs, defaults) -> None:
                 env[f"_ald{i}"] = _elem_loader(
                     ftype._adapter.load, cls.__name__, n
                 )
-                env[f"_ast{i}"] = ftype._adapter.store
+                env[f"_ast{i}"] = _elem_storer(
+                    ftype._adapter.store, cls.__name__, n
+                )
         elif isinstance(ftype, type) and issubclass(ftype, String):
             str_of[n] = (f"_enc{i}", f"_dec{i}")
             env[f"_enc{i}"] = ftype._encode_padded
@@ -972,10 +1008,7 @@ def _generate_methods(cls, field_defs, defaults) -> None:
                 )
             elif n in adapted_array_of:  # store each user-plane element
                 store_var = adapted_array_of[n][1]
-                parts.append(
-                    f"*[{store_var}(_bm_x) for _bm_x in"
-                    f" {slot_of[n]}.__get__(obj)]"
-                )
+                parts.append(f"*{store_var}({slot_of[n]}.__get__(obj))")
             else:  # splat the numeric list straight in
                 parts.append(f"*{slot_of[n]}.__get__(obj)")
         elif n in str_of:
@@ -1294,7 +1327,7 @@ class StructMeta(type):
             if isinstance(ftype, StructMeta):
                 descriptor = _StructField(slot, ftype)
             elif isinstance(ftype, Array):  # before issubclass (instance!)
-                descriptor = _ArrayField(slot, ftype)
+                descriptor = _ArrayField(slot, ftype, f"{name}.{n}")
             elif issubclass(ftype, Int):
                 mask = (1 << ftype.num_bits) - 1
                 if issubclass(ftype, SInt):

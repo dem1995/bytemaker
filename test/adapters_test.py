@@ -874,3 +874,83 @@ def test_a_standalone_arrays_list_has_no_field_to_name():
     with pytest.raises(TypeError) as caught:
         values[0] = "x"
     assert "." not in str(caught.value).split(":")[0]  # no "Record.field:"
+
+
+# --------------------- array attribution, completed (fix-10)
+_TBL = {0: "floor", 1: "wall"}
+_REV = {"floor": 0, "wall": 1}
+_TableAdapter = Adapter(_TBL.__getitem__, _REV.__getitem__, str, "tbl2")
+
+
+class _TableRow(Struct, endian="little"):
+    kinds: List[str] = array(_TableAdapter @ UInt8, 2)
+
+
+def test_whole_list_assignment_and_init_attribute_store_failures():
+    """The bulk spellings of the element store were the one adapter call
+    site left on a (TypeError, ValueError) shortlist, so a table adapter's
+    KeyError escaped bare with no __cause__."""
+    row = _TableRow.parse(b"\x00\x01")
+    for do in (
+        lambda: setattr(row, "kinds", ["floor", "bogus"]),
+        lambda: _TableRow(kinds=["bogus", "floor"]),
+    ):
+        with pytest.raises(KeyError) as caught:
+            do()
+        assert "_TableRow.kinds" in str(caught.value)
+        assert isinstance(caught.value.__cause__, KeyError)
+    assert list(row.kinds) == ["floor", "wall"]  # refused stores change nothing
+
+
+class _PlainColors(Struct, endian="little"):
+    """Module-level so the pickle round-trip below can find it."""
+
+    colors: List[int] = array(UInt16, 2)
+
+
+def test_copies_keep_the_element_store_attribution():
+    """NarrowingList.__reduce__ dropped the label, so any copied record
+    regressed to the anonymous error the attribution exists to prevent."""
+    p = _PlainColors(colors=[1, 2])
+    for clone in (copy.deepcopy(p), pickle.loads(pickle.dumps(p))):
+        with pytest.raises(TypeError, match=r"^_PlainColors\.colors: "):
+            clone.colors[0] = "x"
+
+
+def test_length_violations_name_the_field_too():
+    p = _PlainColors(colors=[1, 2])
+    for do in (
+        lambda: p.colors.append(3),
+        lambda: p.colors.pop(),
+        lambda: p.colors.__delitem__(0),
+        lambda: p.colors.__setitem__(slice(0, 1), [1, 2]),
+    ):
+        with pytest.raises(ValueError, match=r"^_PlainColors\.colors: length is"):
+            do()
+
+
+def _boxing_load(wire):
+    return [wire]  # a MUTABLE user value: the pack-direction hazard
+
+
+def _boxing_store(user):
+    if len(user) != 1:
+        raise ValueError(f"cannot re-encode {user!r}: exactly one entry")
+    return user[0]
+
+
+def test_pack_of_a_drifted_element_names_the_record_and_field():
+    """The fifth way to trip an element type: an adapted array's slot is
+    user-plane, so pack() re-encodes through store -- and a mutable user
+    value can have drifted into a state store refuses since it was stored."""
+    boxing = Adapter(_boxing_load, _boxing_store, list, "boxing")
+
+    class Rec(Struct, endian="little"):
+        xs: List[list] = array(boxing @ UInt8, 2)
+
+    rec = Rec.parse(b"\x01\x02")
+    assert rec.pack() == b"\x01\x02"  # healthy round trip
+    rec.xs[0].append(9)  # drift: mutate the user value in place
+    with pytest.raises(ValueError, match=r"^Rec\.xs: cannot re-encode") as c:
+        rec.pack()
+    assert isinstance(c.value.__cause__, ValueError)
