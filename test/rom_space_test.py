@@ -739,6 +739,44 @@ def test_a_geometry_only_write_needs_a_patch_to_land_in():
         gba().write(BASE, 1, UInt16)
 
 
+def test_an_expect_guard_claims_its_full_span():
+    """The guard you state is the guard you get: a u16 whose high byte
+    happens to match must still be guarded as a whole u16, or a live CAS
+    checks less than the caller said."""
+    s = gba()
+    p = Patch()
+    s.write(BASE + 4, 6, UInt16, patch=p, expect=5)  # only the low byte differs
+    assert p.edits == (Edit(4, b"\x06\x00", b"\x05\x00"),)  # 2 bytes, not 1
+    assert p.guards() == ((4, b"\x05\x00", b"\x06\x00"),)
+
+
+def test_writing_the_expected_value_still_records_the_check():
+    """new == expect is 'verify it is still 5 and write 5' -- an idempotent
+    guarded write, not nothing. Trimming it away would silently turn a CAS
+    into no check at all."""
+    s = gba()
+    p = Patch()
+    s.write(BASE + 4, 5, UInt16, patch=p, expect=5)
+    assert p.byte_count == 2 and p.changed_byte_count == 0
+    assert p.edits[0].is_noop and not p.edits[0].is_blind
+    assert p.guards() == ((4, b"\x05\x00", b"\x05\x00"),)
+    wrong = bytearray(16)  # holds 0, not 5
+    with pytest.raises(PatchVerifyError):
+        p.apply(bytes(wrong))
+
+
+def test_a_backed_expect_guard_is_also_recorded_whole():
+    buf = bytearray(16)
+    buf[4:6] = (5).to_bytes(2, "little")
+    s = Space(buf, base=BASE, endian="little")
+    p = Patch()
+    s.write(BASE + 4, 6, UInt16, patch=p, expect=5)
+    assert p.edits == (Edit(4, b"\x06\x00", b"\x05\x00"),)  # full span
+    q = Patch()
+    s.write(BASE + 4, 6, UInt16, patch=q)  # no guard stated: changed-only
+    assert q.byte_count == 1
+
+
 def test_expect_without_bytes_is_carried_into_the_patch():
     """Nothing to compare against now, so the claim rides into the patch and
     is checked when it is applied."""

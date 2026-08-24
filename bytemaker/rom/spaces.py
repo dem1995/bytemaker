@@ -400,6 +400,11 @@ class Space:
         Either way the write refuses to land somewhere it does not recognise,
         which is what catches a wrong build or a moved table.
 
+        A recorded ``expect`` claims the **full stated span**, exempt from the
+        changed-bytes-only rule below — the guard you state is the guard you
+        get, so ``guards()`` covers the whole value and writing the expected
+        value back still records a verifying (no-op) edit rather than nothing.
+
         With ``patch=``, nothing is mutated: the old bytes are read and an
         edit is recorded on the patch, so the same call works on a read-only
         ``bytes`` buffer. Without it, the buffer must be writable.
@@ -431,17 +436,27 @@ class Space:
                     f" geometry only, so a write has to be recorded; pass"
                     f" patch= to collect the edit"
                 )
-            # No bytes to compare against: expect= becomes what the edit
-            # claims was there, so applying the patch checks it later.
             if expected is None:
                 patch.write(off, data)
             else:
-                for i, was, now in _changed_runs(expected, data):
-                    patch.write(off + i, now, was)
+                # The caller stated a guard, so the guard they stated is the
+                # edit: the FULL span, old=expected, with no changed-bytes
+                # trimming. Trimming would shrink a compare-and-swap to the
+                # bytes that differ — and when new == expected it would
+                # record nothing, silently turning "verify it is still X and
+                # write X" into no check at all.
+                patch.write(off, data, expected)
             return
         if expected is not None:
             self._check_expectation(off, expected, addr)
         if patch is not None:
+            if expected is not None:
+                # Same rule as the unbacked branch: an explicit guard is
+                # recorded whole (expected == current here, just verified),
+                # so apply-time verify and guards() re-check what the caller
+                # actually stated rather than a trimmed remnant of it.
+                patch.write(off, data, expected)
+                return
             old = bytes(memoryview(self._buf)[off : off + len(data)])
             for i, was, now in _changed_runs(old, data):
                 patch.write(off + i, now, was)
