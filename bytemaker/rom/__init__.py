@@ -60,6 +60,7 @@ from .patches import (
     Edit,
     Patch,
     PatchConflict,
+    PatchUnverifiable,
     PatchVerifyError,
 )
 from .pointers import Ptr, PtrAdapter, PtrValue
@@ -85,6 +86,7 @@ __all__ = [
     "Overlap",
     "Patch",
     "PatchConflict",
+    "PatchUnverifiable",
     "PatchVerifyError",
     "PointerRef",
     "Ptr",

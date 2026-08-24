@@ -20,6 +20,16 @@ class PatchConflict(ValueError):
     """Two patches being composed disagree about the same byte."""
 
 
+class PatchUnverifiable(ValueError):
+    """An operation needs the original bytes, and this patch does not know
+    them for every byte it claims.
+
+    Raised by :meth:`Patch.invert` and :meth:`Patch.guards`, which cannot
+    guess: undoing an edit means restoring what was there, and a
+    compare-and-swap guard means naming what it must still be.
+    """
+
+
 @dataclass(frozen=True)
 class Edit:
     """One contiguous replacement: ``new`` goes where ``old`` was.
@@ -27,34 +37,47 @@ class Edit:
     Equal lengths, always — an edit that changed a region's size would shift
     everything after it, which is a different (and much larger) operation
     than patching.
+
+    ``old`` is ``None`` for a **blind** edit: bytes written without the
+    original in hand, which is the normal case when a patch is built before
+    the target exists (a randomizer emitting writes with no base image). Such
+    an edit still applies and still composes; it cannot be verified or
+    inverted.
     """
 
     offset: int
-    old: bytes
+    old: Optional[bytes]
     new: bytes
 
     def __post_init__(self):
-        if len(self.old) != len(self.new):
+        if self.old is not None and len(self.old) != len(self.new):
             raise ValueError(
                 f"Edit at {self.offset}: old is {len(self.old)} bytes and new"
                 f" is {len(self.new)} — an edit replaces bytes in place"
             )
-        if not self.old:
+        if not self.new:
             raise ValueError(f"Edit at {self.offset} is empty")
         if self.offset < 0:
             raise ValueError(f"Edit offset must be non-negative, got {self.offset}")
 
     @property
     def size(self) -> int:
-        return len(self.old)
+        return len(self.new)
 
     @property
     def end(self) -> int:
         """One past the last byte this edit touches."""
-        return self.offset + len(self.old)
+        return self.offset + len(self.new)
+
+    @property
+    def is_blind(self) -> bool:
+        """True when the original bytes are unknown."""
+        return self.old is None
 
     @property
     def is_noop(self) -> bool:
+        """True when this edit provably changes nothing. A blind edit is
+        never a no-op: unknown is not the same as unchanged."""
         return self.old == self.new
 
 
@@ -124,14 +147,24 @@ class Patch:
             self.write(e.offset, e.old, e.new)
 
     # -- building ----------------------------------------------------------
-    def write(self, offset: int, old: BytesLike, new: BytesLike) -> None:
+    def write(
+        self, offset: int, old: Optional[BytesLike], new: BytesLike
+    ) -> None:
         """Record that the bytes ``old`` at ``offset`` become ``new``.
 
         Later writes win per byte; the earliest ``old`` is kept, so the patch
         always describes a transition from the pristine buffer.
+
+        ``old=None`` records a **blind** write — the original bytes are not
+        known, because the patch is being built before the target image is in
+        hand. The edit applies and composes like any other, but the patch
+        stops being :attr:`verifiable` (see :meth:`invert`, :meth:`guards`).
+        A byte later written with a known original upgrades: more information
+        wins over less.
         """
-        old_b, new_b = bytes(old), bytes(new)
-        if len(old_b) != len(new_b):
+        new_b = bytes(new)
+        old_b = None if old is None else bytes(old)
+        if old_b is not None and len(old_b) != len(new_b):
             raise ValueError(
                 f"Patch.write at {offset}: old is {len(old_b)} bytes and new"
                 f" is {len(new_b)} — an edit replaces bytes in place"
@@ -140,29 +173,80 @@ class Patch:
             raise ValueError(
                 f"Patch.write offset must be non-negative, got {offset}"
             )
-        for i, (o, n) in enumerate(zip(old_b, new_b)):
+        for i, n in enumerate(new_b):
             at = offset + i
-            self._old.setdefault(at, o)  # earliest original wins
+            o = None if old_b is None else old_b[i]
+            if o is not None and self._old.get(at) is None:
+                self._old[at] = o  # earliest KNOWN original wins
+            else:
+                self._old.setdefault(at, o)
             self._new[at] = n  # latest edit wins
+
+    @classmethod
+    def diff(cls, base: BytesLike, edited: BytesLike, *, name: str = "") -> "Patch":
+        """The patch that turns ``base`` into ``edited``.
+
+        The honest artifact for a build that mutates a working copy in place
+        — where each step reads the state the previous ones left, so the
+        edits cannot be recorded as they happen. Diff the ends and you get a
+        verifiable, invertible, exportable value back.
+        """
+        base_b, edited_b = bytes(base), bytes(edited)
+        if len(base_b) != len(edited_b):
+            raise ValueError(
+                f"Patch.diff: buffers are {len(base_b)} and {len(edited_b)}"
+                f" bytes — a patch replaces bytes in place, so a length"
+                f" change is not expressible"
+            )
+        out = cls(name=name)
+        for at, was, now in _changed_runs(base_b, edited_b):
+            out.write(at, was, now)
+        return out
 
     @property
     def edits(self) -> tuple:
         """The byte map as maximal contiguous :class:`Edit` runs, in offset
-        order."""
+        order.
+
+        A run also breaks where knowledge of the original does, so an edit is
+        either wholly verifiable or wholly blind — never a mix that neither
+        :meth:`invert` nor a reader could make sense of.
+        """
         runs: List[List[int]] = []  # [first, last] byte offsets, inclusive
         for at in sorted(self._new):
-            if runs and at == runs[-1][1] + 1:
+            known = self._old[at] is not None
+            if runs and at == runs[-1][1] + 1 and known == runs[-1][2]:
                 runs[-1][1] = at
             else:
-                runs.append([at, at])
-        return tuple(self._edit(first, last) for first, last in runs)
+                runs.append([at, at, known])
+        return tuple(self._edit(first, last) for first, last, _ in runs)
 
     def _edit(self, start: int, last: int) -> Edit:
         rng = range(start, last + 1)
+        blind = self._old[start] is None
         return Edit(
             start,
-            bytes(self._old[i] for i in rng),
+            None if blind else bytes(self._old[i] for i in rng),
             bytes(self._new[i] for i in rng),
+        )
+
+    @property
+    def verifiable(self) -> bool:
+        """True when the original bytes are known for every byte claimed."""
+        return all(o is not None for o in self._old.values())
+
+    def _blind_offsets(self) -> List[int]:
+        return sorted(at for at, o in self._old.items() if o is None)
+
+    def _require_verifiable(self, what: str) -> None:
+        blind = self._blind_offsets()
+        if not blind:
+            return
+        shown = ", ".join(f"0x{at:X}" for at in blind[:4])
+        more = f" (+{len(blind) - 4} more)" if len(blind) > 4 else ""
+        raise PatchUnverifiable(
+            f"{self._label()}: {what} needs the original bytes, but"
+            f" {len(blind)} byte(s) were written blind: {shown}{more}"
         )
 
     def __len__(self) -> int:
@@ -188,11 +272,30 @@ class Patch:
 
     # -- algebra -----------------------------------------------------------
     def invert(self) -> "Patch":
-        """The patch that undoes this one."""
+        """The patch that undoes this one.
+
+        Refuses a patch with blind edits: restoring bytes nobody recorded is
+        not something to guess at.
+        """
+        self._require_verifiable("invert()")
         out = Patch(name=f"undo({self.name})" if self.name else "")
         out._old = dict(self._new)
         out._new = dict(self._old)
         return out
+
+    def guards(self):
+        """Yield ``(offset, expected, new)`` per coalesced run: write ``new``
+        at ``offset``, but only while the bytes there still equal
+        ``expected``.
+
+        The compare-and-swap triple a live target wants — a running game's
+        memory can change under a read, so a guarded write is the difference
+        between a correct update and a lost one. Refuses a blind patch, which
+        has nothing to compare against.
+        """
+        self._require_verifiable("guards()")
+        for e in self.edits:
+            yield (e.offset, e.old, e.new)
 
     def __or__(self, other: "Patch") -> "Patch":
         """Compose two independent patches; disagreement is a
@@ -230,6 +333,8 @@ class Patch:
         for at in sorted(self._new):
             self._check_range(at, size)
             want, got = self._old[at], view[at]
+            if want is None:
+                continue  # blind byte: nothing was recorded to check against
             if got != want:
                 raise PatchVerifyError(
                     f"{self._label()}: buffer byte at offset {at} (0x{at:X})"
@@ -327,15 +432,17 @@ class Patch:
         edits = self.edits
         if not edits:
             return f"{self._label()}: empty"
-        lines = [
+        blind = len(self._blind_offsets())
+        head = (
             f"{self._label()}: {len(edits)} edit(s),"
             f" {self.changed_byte_count}/{self.byte_count} bytes changed"
-        ]
+        )
+        lines = [head + (f", {blind} blind" if blind else "")]
         for e in edits:
             mark = "  (no-op)" if e.is_noop else ""
+            was = "??" * e.size if e.old is None else e.old.hex()
             lines.append(
-                f"  0x{e.offset:06X}+{e.size:<4} {e.old.hex()} ->"
-                f" {e.new.hex()}{mark}"
+                f"  0x{e.offset:06X}+{e.size:<4} {was} ->" f" {e.new.hex()}{mark}"
             )
         return "\n".join(lines)
 

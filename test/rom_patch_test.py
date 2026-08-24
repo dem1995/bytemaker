@@ -8,6 +8,7 @@ from bytemaker.rom import (
     Edit,
     Patch,
     PatchConflict,
+    PatchUnverifiable,
     PatchVerifyError,
     Space,
 )
@@ -303,6 +304,93 @@ def test_ips_offset_next_to_the_eof_quirk_is_untouched():
     p2.write(IPS_EOF_OFFSET + 1, b"\x00", b"\xaa")
     body2 = p2.to_ips()[5:-3]
     assert body2[0:3] == (IPS_EOF_OFFSET + 1).to_bytes(3, "big")
+
+
+# ------------------------------------------------- blind edits (rom-12)
+def test_a_blind_write_applies_but_is_not_verifiable():
+    """Writes built before the target image exists have no original bytes to
+    record -- the generation-time half of a randomizer pipeline."""
+    p = Patch(name="tokens")
+    p.write(4, None, b"\xaa\xbb")
+    assert not p.verifiable
+    assert p.edits == (Edit(4, None, b"\xaa\xbb"),)
+    assert p.edits[0].is_blind and not p.edits[0].is_noop
+    assert p.apply(ORIGINAL)[4:6] == b"\xaa\xbb"  # applies to anything
+    assert p.to_ips().startswith(b"PATCH")
+
+
+def test_invert_and_guards_refuse_a_blind_patch_by_offset():
+    p = Patch(name="tokens")
+    p.write(4, None, b"\xaa")
+    p.write(9, None, b"\xcc")
+    with pytest.raises(PatchUnverifiable, match=r"invert\(\).*0x4, 0x9"):
+        p.invert()
+    with pytest.raises(PatchUnverifiable, match=r"guards\(\)"):
+        list(p.guards())
+
+
+def test_guards_hand_back_the_compare_and_swap_triples():
+    p = Patch()
+    p.write(4, b"\x04\x05", b"\xaa\xbb")
+    p.write(9, b"\x09", b"\xcc")
+    assert list(p.guards()) == [(4, b"\x04\x05", b"\xaa\xbb"), (9, b"\x09", b"\xcc")]
+
+
+def test_a_known_original_upgrades_a_blind_byte():
+    p = Patch()
+    p.write(4, None, b"\xaa")
+    assert not p.verifiable
+    p.write(4, b"\x04", b"\xbb")
+    assert p.verifiable and p.edits == (Edit(4, b"\x04", b"\xbb"),)
+
+
+def test_edits_never_mix_known_and_blind_bytes():
+    p = Patch()
+    p.write(4, b"\x04", b"\xaa")
+    p.write(5, None, b"\xbb")  # contiguous, but nothing known about it
+    assert p.edits == (Edit(4, b"\x04", b"\xaa"), Edit(5, None, b"\xbb"))
+
+
+def test_summary_marks_the_blind_bytes():
+    p = Patch(name="tokens")
+    p.write(4, None, b"\xaa\xbb")
+    head, line = p.summary().splitlines()
+    assert "2 blind" in head
+    assert "???? -> aabb" in line  # two bytes of unknown original
+
+
+def test_verify_skips_blind_bytes_but_still_checks_the_known_ones():
+    p = Patch()
+    p.write(4, None, b"\xaa")
+    p.write(9, b"\x09", b"\xcc")
+    assert p.apply(ORIGINAL)[4] == 0xAA
+    wrong = bytearray(ORIGINAL)
+    wrong[9] = 0x77
+    with pytest.raises(PatchVerifyError, match="offset 9"):
+        p.apply(bytes(wrong))
+
+
+# ------------------------------------------------------- diff (rom-12)
+def test_diff_recovers_a_patch_from_a_mutated_working_copy():
+    """The artifact for a build that edits a working copy in place, where
+    each step reads what the previous ones left."""
+    work = bytearray(ORIGINAL)
+    work[4:6] = b"\xaa\xbb"
+    work[9] = 0xCC
+    p = Patch.diff(ORIGINAL, work, name="all features")
+    assert p.verifiable and p.byte_count == 3
+    assert p.edits == (Edit(4, b"\x04\x05", b"\xaa\xbb"), Edit(9, b"\x09", b"\xcc"))
+    assert p.apply(ORIGINAL) == bytes(work)
+    assert p.invert().apply(bytes(work)) == ORIGINAL
+
+
+def test_diff_of_identical_buffers_is_empty():
+    assert not Patch.diff(ORIGINAL, ORIGINAL)
+
+
+def test_diff_refuses_a_length_change():
+    with pytest.raises(ValueError, match="replaces bytes in place"):
+        Patch.diff(ORIGINAL, ORIGINAL + b"\x00")
 
 
 def test_save_ips_writes_the_file(tmp_path):
