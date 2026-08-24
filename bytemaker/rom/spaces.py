@@ -457,6 +457,22 @@ class Space:
         get, so ``guards()`` covers the whole value and writing the expected
         value back still records a verifying (no-op) edit rather than nothing.
 
+        A value too large for its codec **wraps**, silently, because that is
+        what C does: converting to an unsigned type is defined as reduction
+        modulo its width, so ``uint8_t x = 256`` is 0 and ``write(addr, 256,
+        UInt8)`` writes a zero byte. C still warns while doing it, and so can
+        this — ``NarrowingConfig.warn = True`` (or the
+        ``BYTEMAKER_WARN_NARROWING`` environment variable) turns every
+        value-changing store into a :class:`~bytemaker.NarrowingWarning`,
+        naming what became what. It is off by default for the same reason
+        ``-Wconversion`` is not on by default.
+
+        That knob reports a *type* overflowing its width. A limit the target
+        imposes — an opcode whose immediate field only encodes 0..255, a
+        table whose consumer rejects an index past its length — is not a
+        narrowing question and no codec knows it; state it where you know it,
+        the way ``expect=`` states what the bytes must already be.
+
         With ``patch=``, nothing is mutated: the old bytes are read and an
         edit is recorded on the patch, so the same call works on a read-only
         ``bytes`` buffer. Without it, the buffer must be writable.
@@ -1329,6 +1345,10 @@ class Entry:
         ``expect`` is what this entry must currently hold, as a value in its
         own codec — the guard for "change the drop rate from 32 to 5, and
         say so if it was not 32".
+
+        A value too wide for the codec wraps rather than raising, as it does
+        in C; :meth:`Space.write` explains the rule and the
+        ``NarrowingConfig.warn`` knob that reports it.
 
         The encoding must fit what this entry declares: a table of
         ``count(3)`` holds three records, and a blob may not outgrow the

@@ -1068,3 +1068,31 @@ def test_recording_refuses_a_second_destination_and_an_unbacked_space():
         rec.write(BASE, 1, UInt8, patch=Patch(name="other"))
     with pytest.raises(ValueError, match="nothing to mutate"):
         Space(None, size=16, base=BASE, endian="little").recording(Patch())
+
+
+# ------------------------------- narrowing at an address (rom-26)
+def test_a_too_wide_value_wraps_at_an_address_the_way_c_converts():
+    """`uint8_t x = 256` is 0 in C -- conversion to unsigned is defined as
+    reduction modulo the width, not an error. A write at an address is a
+    store, so it behaves the same."""
+    from bytemaker.bittypes import NarrowingConfig, NarrowingWarning
+
+    buf = bytearray(4)
+    s = Space(buf, base=BASE, endian="little")
+    s.write(BASE, 0x100, UInt8)
+    assert buf[0] == 0  # not an exception
+    s.write(BASE + 1, -1, UInt8)
+    assert buf[1] == 0xFF  # the mask idiom C users expect
+
+    # ...and the -Wconversion knob reports it on the address paths too
+    e = s.entry(BASE + 2, UInt8, count(1), name="b")
+    before = NarrowingConfig.warn
+    NarrowingConfig.warn = True
+    try:
+        for call in (lambda: s.write(BASE + 2, 0x100, UInt8),
+                     lambda: e.write(0x100),
+                     lambda: e.pack(0x100)):
+            with pytest.warns(NarrowingWarning, match="256 became 0"):
+                call()
+    finally:
+        NarrowingConfig.warn = before
