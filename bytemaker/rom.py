@@ -779,12 +779,19 @@ class Space:
             return type(value)
         if isinstance(value, (list, tuple)) and value and isinstance(value[0], Struct):
             return type(value[0])
+        if isinstance(value, (bytes, bytearray, memoryview)):
+            return bytes  # raw splice; _encode short-circuits on the value
         raise TypeError(
             f"{self._label()}: cannot infer a codec for {value!r}; pass one"
-            f" (codec= is optional only for Struct records)"
+            f" (codec= is optional only for Struct records and raw bytes)"
         )
 
     def _encode(self, value, codec) -> bytes:
+        if isinstance(value, (bytes, bytearray, memoryview)):
+            # Bytes go down verbatim, whatever the codec says: an injected
+            # blob (hook code, a relocated table) has no shape to encode,
+            # and a codec able to encode it would emit these same bytes.
+            return bytes(value)
         self._stride(codec)  # reject sub-byte codecs before encoding
         if isinstance(codec, StructMeta):
             if isinstance(value, codec):
@@ -934,8 +941,25 @@ class Entry:
         return space.read(self.addr, self.codec, extent)
 
     def write(self, value: Any, *, patch: Any = None) -> None:
-        """Write ``value`` at this entry's address (see :meth:`Space.write`)."""
-        self._space().write(self.addr, value, self.codec, patch=patch)
+        """Write ``value`` at this entry's address (see :meth:`Space.write`).
+
+        The encoding must fit what this entry declares: a table of
+        ``count(3)`` holds three records, and a blob may not outgrow the
+        space reserved for it. Writing *fewer* bytes stays legal, so a
+        partial table update writes the rows it has. An entry whose extent
+        needs the buffer (``until``) or is unknown declares no size, so
+        only the space's own bounds apply.
+        """
+        space = self._space()
+        data = space._encode(value, self.codec)
+        limit = self.size
+        if limit is not None and len(data) > limit:
+            raise ValueError(
+                f"Entry {self.name or hex(self.addr)}: {len(data)} bytes do"
+                f" not fit the {limit} declared by {self.extent!r}; widen the"
+                f" extent or write less"
+            )
+        space.write(self.addr, data, bytes, patch=patch)
 
     def describe(self) -> str:
         """One line: name, address range, codec and extent."""

@@ -500,6 +500,36 @@ def test_pack_into_round_trips_through_parse_at():
     assert Aligned.parse_at(buf, 8) == rec
 
 
+def test_entry_write_refuses_to_outgrow_its_extent():
+    """A count(3) table holds three records. Writing five used to splice
+    straight through the neighbour with no complaint."""
+    buf = bytearray(0x40)
+    s = Space(buf, base=BASE, endian="little")
+    e = s.entry(BASE, Reward, count(3), name="rewards")
+    with pytest.raises(ValueError, match="do not fit the 24 declared"):
+        e.write([Reward(max_frames=i, pad=0, item_id=i) for i in range(5)])
+    assert bytes(buf) == bytes(0x40)  # nothing was spliced
+    e.write([Reward(max_frames=7, pad=0, item_id=9)])  # fewer rows is fine
+    assert s.read(BASE, Reward) == Reward(max_frames=7, pad=0, item_id=9)
+
+
+def test_entry_write_without_a_known_size_only_meets_the_space_bounds():
+    buf = bytearray(0x20)
+    s = Space(buf, base=BASE, endian="little")
+    blob = s.entry(BASE, UInt8, unknown("hook blob"), name="hook")
+    blob.write(b"\xde\xad\xbe\xef")
+    assert bytes(buf[:4]) == b"\xde\xad\xbe\xef"
+    with pytest.raises(AddressError, match="past the end"):
+        blob.write(b"\x00" * 0x21)
+
+
+def test_space_write_splices_raw_bytes_with_no_codec():
+    buf = bytearray(8)
+    s = Space(buf, base=BASE, endian="little")
+    s.write(BASE + 2, b"\x01\x02\x03")
+    assert bytes(buf) == b"\x00\x00\x01\x02\x03\x00\x00\x00"
+
+
 def test_space_write_uses_the_in_place_path_for_records():
     buf = bytearray(32)
     s = Space(buf, base=BASE, endian="little")
