@@ -84,7 +84,7 @@ from bytemaker.typing_redirect import (
     get_origin,
     runtime_checkable,
 )
-from bytemaker.utils import validate_endianness
+from bytemaker.utils import unwrap_alias, validate_endianness
 
 if typing.TYPE_CHECKING:
     from bytemaker.typing_redirect import Self
@@ -2040,6 +2040,10 @@ class Array(typing.Generic[V]):
         # scalar classification, the plan, the parse/pack paths — ever sees
         # an Adapted. Array.of's cache still keys on the Adapted object, so
         # a module-level fused alias shares one Array as usual.
+        # u16 and UInt16 both mean the scalar: the field aliases read like C
+        # in a record body, so they arrive here too, and failing three layers
+        # down with an Annotated compile error taught nobody anything.
+        element = unwrap_alias(element)
         if isinstance(element, Adapted):
             if adapt is not None:
                 raise PlanCompileError(

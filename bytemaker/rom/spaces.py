@@ -24,7 +24,7 @@ from bytemaker.typing_redirect import (
     Tuple,
     Union,
 )
-from bytemaker.utils import validate_endianness
+from bytemaker.utils import unwrap_alias, validate_endianness
 
 from .coverage import (
     CoverageReport,
@@ -352,6 +352,7 @@ class Space:
         that happens to resolve to one item. So the return shape is a
         property of the *declaration*, never of the data.
         """
+        codec = unwrap_alias(codec)
         stride = self._stride(codec)
         extent = _as_extent(extent)
         if isinstance(extent, unknown):
@@ -419,8 +420,7 @@ class Space:
         intermediate state should mutate a ``bytearray`` space and take
         :meth:`Patch.diff` of the result.
         """
-        if codec is None:
-            codec = self._infer_codec(value)
+        codec = unwrap_alias(codec) if codec is not None else self._infer_codec(value)
         data = self._encode(value, codec)
         off = self.offset(addr)
         if off + len(data) > len(self):
@@ -989,6 +989,7 @@ class Entry:
         endian: Optional[str] = None,
     ):
         extent = _as_extent(extent)
+        codec = unwrap_alias(codec)  # u16 and UInt16 both mean the scalar
         if not isinstance(addr, int) or addr < 0:
             raise ValueError(f"Entry addr must be a non-negative int, got {addr!r}")
         if reserve is not None and (not isinstance(reserve, int) or reserve < 0):

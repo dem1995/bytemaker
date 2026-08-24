@@ -938,3 +938,20 @@ def test_the_module_docstrings_three_write_flows_actually_run():
     assert ns["tokens"] == {0x100: b"\x04\x02\x07\x00", 0x200: b"\x04\x02\x09\x00"}
     assert ns["p"].verifiable  # flow 3's diff knows the originals
     assert ns["p"].apply(original)[4] == 5 and ns["p"].apply(original)[8] == 9
+
+
+# ------------------------------------------ alias codecs (rom-23)
+def test_field_aliases_work_anywhere_a_codec_does():
+    """`u16` and `UInt16` are two spellings of one scalar. The aliases are
+    how records are declared, so they arrive at every codec boundary too --
+    and used to fail three layers down with an Annotated compile error."""
+    from bytemaker import u8 as u8_alias, u16 as u16_alias
+
+    s = space()
+    assert s.read(BASE + 0x200, u16_alias) == 0xABCD  # == the UInt16 read
+    assert s.entry(BASE, u8_alias, count(4)).read() == [7, 6, 8, 9]
+    assert Entry(BASE, u8_alias, count(4)).bind(s).read() == [7, 6, 8, 9]
+    assert Array.of(u8_alias, 4).parse(bytes([1, 2, 3, 4])) == [1, 2, 3, 4]
+    buf = bytearray(4)
+    Space(buf, base=BASE, endian="little").write(BASE, 0xBEEF, u16_alias)
+    assert bytes(buf[:2]) == b"\xef\xbe"

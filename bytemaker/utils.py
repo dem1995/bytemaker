@@ -3,6 +3,7 @@ from __future__ import annotations
 import dataclasses
 
 from bytemaker.typing_redirect import (
+    Annotated,
     Any,
     Dict,
     Hashable,
@@ -18,6 +19,24 @@ from bytemaker.typing_redirect import (
     get_args,
     get_origin,
 )
+
+
+def unwrap_alias(obj):
+    """``Annotated[int, UInt16]`` (the ``u16``/``s5`` field alias) -> the
+    ``UInt16`` class; everything else passes through untouched.
+
+    The aliases exist so record declarations read like C, and people then
+    reach for the same name anywhere a codec is wanted — a natural move that
+    used to fail three layers down with a compile error about ``Annotated``.
+    Any codec-accepting boundary should run its argument through here first,
+    so both spellings of a scalar mean the scalar.
+    """
+    if get_origin(obj) is Annotated:
+        for meta in get_args(obj)[1:]:
+            if isinstance(getattr(meta, "num_bits", None), int):
+                return meta
+    return obj
+
 
 #  General Python functionality
 
