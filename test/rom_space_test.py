@@ -955,3 +955,28 @@ def test_field_aliases_work_anywhere_a_codec_does():
     buf = bytearray(4)
     Space(buf, base=BASE, endian="little").write(BASE, 0xBEEF, u16_alias)
     assert bytes(buf[:2]) == b"\xef\xbe"
+
+
+def test_end_makes_adjacency_a_one_liner():
+    """Table clusters are checked by abutment: a.end == b.addr. Without
+    .end, every such check hand-spells addr + capacity."""
+    a = Entry(BASE, Reward, count(3), name="a")
+    b = Entry(BASE + 24, Reward, count(2), name="b")
+    assert a.end == b.addr and b.end == BASE + 40
+    hook = Entry(BASE + 0x100, UInt8, unknown("blob"), reserve=0x20)
+    assert hook.end == BASE + 0x120  # a reservation ends where its room does
+    assert Entry(BASE, UInt8, unknown("?")).end is None
+
+
+def test_a_buffer_codec_is_the_blob_reservation_spelling():
+    """A pure reservation needs no meaningless scalar filler: a byte-payload
+    codec sizes it, bounds writes, and reads back as bytes."""
+    from bytemaker.bittypes import Buffer
+
+    s = Space(bytearray(0x40), base=BASE, endian="little")
+    hook = s.entry(BASE + 0x10, Buffer.of(nbytes=0x10), name="hook")
+    hook.write(b"\xde\xad\xbe\xef")  # short blob fits
+    assert hook.read()[:4] == b"\xde\xad\xbe\xef"
+    with pytest.raises(ValueError, match="do not fit"):
+        hook.write(b"\x00" * 0x11)
+    assert hook.end == BASE + 0x20

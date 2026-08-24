@@ -970,6 +970,11 @@ class Entry:
     #: Bytes set aside here, when that differs from what the extent
     #: describes: "0x200 bytes are mine, and I may not yet know how many of
     #: them I use". Bounds writes and is what coverage counts as claimed.
+    #: A pure blob reservation is usually better spelled with a byte-payload
+    #: codec — ``Entry(addr, Buffer.of(nbytes=0x200), name=...)`` — which
+    #: reads back as ``bytes`` and bounds writes by its own size; ``reserve=``
+    #: is for when the CONTENT has a real shape (a growable table of records)
+    #: and the room is bigger than the rows currently in it.
     reserve: Optional[int]
     #: Byte order for this entry's codec, overriding the space's. Normally
     #: None; :meth:`field` sets it when a record declares an order its space
@@ -1082,6 +1087,14 @@ class Entry:
         one, else what its extent describes. What a write may not outgrow,
         and what coverage counts as claimed."""
         return self.reserve if self.reserve is not None else self.size
+
+    @property
+    def end(self) -> Optional[int]:
+        """One past the last byte this entry may occupy, or None when
+        unknown — so two entries abut exactly when ``a.end == b.addr``,
+        the adjacency every table-cluster check wants to state."""
+        size = self.capacity
+        return None if size is None else self.addr + size
 
     @property
     def byte_span(self):
