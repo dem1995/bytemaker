@@ -772,6 +772,72 @@ def test_geometry_only_coverage_audits_declarations_and_says_it_read_nothing():
     assert "pointers: not audited" in report.render()
 
 
+# ------------------------------------------- bytes in hand (rom-16)
+class Vitals(Struct, endian="little"):
+    current_hp: int = field(UInt16)
+    max_hp: int = field(UInt16)
+
+
+def test_request_says_where_and_how_many_bytes_to_fetch():
+    ewram = Space(None, size=0x40000, base=0x02000000, endian="little", name="EW")
+    vitals = ewram.entry(0x0201327A, Vitals, count(1), name="vitals")
+    assert vitals.request() == (0x1327A, 4)  # domain offset, size from the type
+    unknown_len = ewram.entry(0x02000000, UInt8, unknown("?"), name="mystery")
+    with pytest.raises(ValueError, match="not known"):
+        unknown_len.request()
+
+
+def test_parse_and_pack_move_between_fetched_bytes_and_values():
+    """The live-memory round trip: the caller owns the transport, the
+    declaration owns the address, the size and the decoding."""
+    ewram = Space(None, size=0x40000, base=0x02000000, endian="little", name="EW")
+    vitals = ewram.entry(0x0201327A, Vitals, count(1), name="vitals")
+
+    fetched = b"\x64\x00\xc8\x00"  # what a read_many() would hand back
+    v = vitals.parse(fetched)
+    assert v == Vitals(current_hp=100, max_hp=200)
+
+    v.current_hp = 1
+    assert vitals.pack(v) == b"\x01\x00\xc8\x00"  # new bytes for a write
+    assert vitals.pack(vitals.parse(fetched)) == fetched  # and the guard bytes
+
+
+def test_parse_reads_a_table_and_checks_the_length_it_was_given():
+    s = Space(None, size=0x100, base=BASE, endian="little")
+    table = s.entry(BASE, Reward, count(2), name="two")
+    data = Reward(max_frames=1, pad=0, item_id=2).pack() + Reward(
+        max_frames=3, pad=0, item_id=4
+    ).pack()
+    assert [r.max_frames for r in table.parse(data)] == [1, 3]
+    with pytest.raises(ValueError, match="needs 16 bytes, got 8"):
+        table.parse(data[:8])
+
+
+def test_parse_refuses_an_extent_that_needs_the_buffer():
+    s = Space(None, size=0x100, base=BASE, endian="little")
+    e = s.entry(BASE, UInt8, until(0), name="scanned")
+    with pytest.raises(ValueError, match="needs a length known up front"):
+        e.parse(b"\x01\x02\x00")
+
+
+def test_read_takes_the_bytes_as_an_argument():
+    """A map declared against an address plane reads a real image without
+    being rebound to it."""
+    plane = Space(None, size=0x400, base=BASE, endian="little", name="plane")
+    rewards = plane.entry(BASE + 0x030, Reward, count(3), name="rewards")
+    with pytest.raises(ValueError, match="geometry only"):
+        rewards.read()
+    got = rewards.read(space=space())  # the same declaration, real bytes
+    assert [r.max_frames for r in got] == [14400, 18000, 21600]
+
+
+def test_read_with_a_space_keeps_the_fields_own_byte_order():
+    s, _ = enemy_space()
+    plane = Space(None, size=0x40, base=BASE, endian="little")
+    ident = plane.entry(BASE, Enemy, count(1), name="e").field("ident")
+    assert ident.read(space=s) == 0xAABB  # big-endian field, honoured
+
+
 def test_space_write_uses_the_in_place_path_for_records():
     buf = bytearray(32)
     s = Space(buf, base=BASE, endian="little")

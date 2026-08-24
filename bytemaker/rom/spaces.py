@@ -22,6 +22,7 @@ from bytemaker.typing_redirect import (
     List,
     Literal,
     Optional,
+    Tuple,
     Union,
 )
 from bytemaker.utils import validate_endianness
@@ -765,10 +766,18 @@ class Space:
                 f"{self._label()}: {n} x {stride} bytes at 0x{addr:08X} run"
                 f" past the end of the space (0x{self.end - 1:08X})"
             )
+        return self._decode_from(
+            self._bytes("read()"), off, codec, n, stride, single
+        )
+
+    def _decode_from(self, data, off, codec, n, stride, single):
+        """Decode from bytes in hand — this space supplies only the byte
+        order, so a caller that fetched the bytes itself can decode them
+        through the same declaration."""
         if isinstance(codec, StructMeta):
-            records = list(codec.iter_records(self._bytes("read()"), off, n))
+            records = list(codec.iter_records(data, off, n))
             return records[0] if single else records
-        view = memoryview(self._bytes("read()"))
+        view = memoryview(data)
         if isinstance(codec, Array):
             resolved = self._in_space_endian(codec)
             items = [
@@ -1148,15 +1157,82 @@ class Entry:
             self.field(name).write(value, patch=patch)
 
     # -- access ------------------------------------------------------------
-    def read(self, extent: Any = _INHERIT) -> Any:
+    def read(self, extent: Any = _INHERIT, *, space: Optional[Space] = None) -> Any:
         """Read this entry. ``extent`` overrides the declared one — the way
         an ``unknown()`` entry is read once its length is known. (Passing
         ``0`` or ``count(0)`` means zero items, not "use the declared one".)
+
+        ``space`` reads the same declaration out of a different set of
+        bytes, which is what a map declared against an address plane needs
+        when the image finally shows up: no rebinding, and the map module
+        stays a description rather than a thing that owns a buffer.
         """
-        space = self._space()
+        view = self._view(space)
         if extent is _INHERIT:
             extent = self.extent
-        return space.read(self.addr, self.codec, extent)
+        return view.read(self.addr, self.codec, extent)
+
+    def _view(self, space: Optional[Space]) -> Space:
+        """The space to work through: the one passed in, else the bound one,
+        in this entry's byte order either way."""
+        if space is None:
+            return self._space()
+        return space._as_endian(self.endian)
+
+    # -- bytes in hand -----------------------------------------------------
+    def request(self) -> "Tuple[int, int]":
+        """``(offset, nbytes)`` — where this entry's bytes are, and how many.
+
+        What a transport is asked for. The offset is relative to the space's
+        base, which is what a memory-domain read wants, and the size comes
+        from the declaration rather than a hand-kept constant.
+        """
+        size = self.capacity
+        if size is None:
+            raise ValueError(
+                f"{self._name()}: how many bytes to fetch is not known"
+                f" ({self.extent!r}); declare count(n)/span(end) or reserve="
+            )
+        return self._space().offset(self.addr), size
+
+    def parse(self, data: BytesLike) -> Any:
+        """Decode this entry out of ``data`` — bytes someone else fetched.
+
+        The half of a read that does not need the bytes to be sitting in a
+        buffer at the right address: fetch by :meth:`request`, decode here.
+        Nothing about the transport (async, batched, guarded) reaches the
+        library, and the same declaration serves a file and a live machine.
+        """
+        space = self._space()
+        stride = space._stride(self.codec)
+        extent = self.extent
+        if isinstance(extent, (unknown, until)):
+            raise ValueError(
+                f"{self._name()}: parse() needs a length known up front,"
+                f" not {extent!r}; scan a buffer for that"
+            )
+        n = space._resolve_count(self.addr, extent, stride)
+        need = n * stride
+        if len(data) < need:
+            raise ValueError(
+                f"{self._name()}: needs {need} bytes, got {len(data)}"
+            )
+        single = isinstance(extent, count) and extent.n == 1
+        return space._decode_from(data, 0, self.codec, n, stride, single)
+
+    def pack(self, value: Any) -> bytes:
+        """Encode ``value`` as this entry's bytes, ready to hand to a
+        transport — the mirror of :meth:`parse`, and what a guarded write
+        needs for both its new bytes and its expected ones."""
+        space = self._space()
+        data = space._encode(value, self.codec)
+        limit = self.capacity
+        if limit is not None and len(data) > limit:
+            raise ValueError(
+                f"{self._name()}: {len(data)} bytes do not fit the {limit}"
+                f" this entry declares"
+            )
+        return data
 
     def write(self, value: Any, *, patch: Any = None, expect: Any = None) -> None:
         """Write ``value`` at this entry's address (see :meth:`Space.write`).
