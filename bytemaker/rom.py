@@ -1198,6 +1198,9 @@ class Patch:
         which naive readers treat as end-of-file. Given the buffer, such a
         record is extended one byte backwards (carrying the unchanged byte
         along) so its offset lands elsewhere; without it, this raises.
+        A long edit whose *split boundary* lands there needs no buffer: the
+        preceding byte is part of that same edit, so the record simply
+        starts one byte earlier.
         """
         parts = [b"PATCH"]
         for edit in self.edits:
@@ -1213,9 +1216,18 @@ class Patch:
                     )
                 offset -= 1
                 data = bytes(memoryview(buf)[offset : offset + 1]) + data
-            for start in range(0, len(data), IPS_MAX_RECORD):
-                chunk = data[start : start + IPS_MAX_RECORD]
+            start = 0
+            while start < len(data):
                 at = offset + start
+                if at == IPS_EOF_OFFSET:
+                    # A split boundary landed on the quirk offset. Only a
+                    # record after the first can (the edit's own offset was
+                    # handled above), so the preceding byte belongs to this
+                    # same edit: starting one byte earlier re-emits an
+                    # identical value and needs no buffer.
+                    start -= 1
+                    at -= 1
+                chunk = data[start : start + IPS_MAX_RECORD]
                 if at > IPS_MAX_OFFSET:
                     raise ValueError(
                         f"{self._label()}: IPS offsets are 24-bit; offset"
@@ -1224,6 +1236,7 @@ class Patch:
                 parts.append(at.to_bytes(3, "big"))
                 parts.append(len(chunk).to_bytes(2, "big"))
                 parts.append(chunk)
+                start += len(chunk)
         parts.append(b"EOF")
         return b"".join(parts)
 

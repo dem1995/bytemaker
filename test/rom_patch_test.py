@@ -264,6 +264,36 @@ def test_ips_eof_offset_quirk_needs_the_buffer():
     assert b"EOF" not in ips[5:-3]
 
 
+def test_ips_split_boundary_never_lands_on_the_eof_offset():
+    """The edit's own offset is fine; the SECOND record, at offset + 0xFFFF,
+    would encode as the ASCII bytes 'EOF' and truncate the patch for naive
+    readers. The quirk check has to be inside the split loop -- and needs no
+    buffer, since the byte it borrows belongs to the same edit."""
+    start = IPS_EOF_OFFSET - 0xFFFF  # the second record starts on the quirk
+    p = Patch(name="split")
+    p.write(start, bytes(0x1_0005), b"\xaa" * 0x1_0005)
+    ips = p.to_ips()  # no buf needed
+    body = ips[5:-3]
+    assert b"EOF" not in body
+    second = body[5 + 0xFFFF :]
+    assert second[0:3] == (IPS_EOF_OFFSET - 1).to_bytes(3, "big")
+    # the borrowed byte is this edit's own, so the record still writes 0xaa
+    assert second[5:6] == b"\xaa"
+    # every byte of the edit still lands where it belongs
+    assert p.apply(bytes(0x50_0000)) == _ips_applied(ips, bytes(0x50_0000))
+
+
+def _ips_applied(ips: bytes, buf: bytes) -> bytes:
+    """Minimal IPS reader: apply `ips` to `buf` the way a patcher would."""
+    out, i = bytearray(buf), 5
+    while ips[i : i + 3] != b"EOF":
+        at = int.from_bytes(ips[i : i + 3], "big")
+        size = int.from_bytes(ips[i + 3 : i + 5], "big")
+        out[at : at + size] = ips[i + 5 : i + 5 + size]
+        i += 5 + size
+    return bytes(out)
+
+
 def test_ips_offset_next_to_the_eof_quirk_is_untouched():
     p = Patch()
     p.write(IPS_EOF_OFFSET - 1, b"\x00", b"\xaa")
