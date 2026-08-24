@@ -92,6 +92,20 @@ def test_adapters_are_importable_from_the_root():
     assert "bytemaker.rom" in bytemaker.__doc__
 
 
+def test_the_layout_compiler_is_not_part_of_the_public_surface():
+    """Plan is the compiler's output, reached as cls.plan when you want it.
+    Exporting it invited users to learn a type they never need, and
+    introspect answers the questions they actually have."""
+    assert not hasattr(bytemaker, "Plan") and "Plan" not in bytemaker.__all__
+    assert hasattr(bytemaker, "PlanCompileError")  # a bad declaration raises
+
+    class R(bytemaker.Struct, endian="little"):
+        a: bytemaker.u8
+
+    assert R.plan is not None
+    assert bytemaker.offset_of(R, "a") == 0  # the front door for the numbers
+
+
 def test_the_root_docstrings_example_is_executed_from_the_docstring():
     """Not a hand-typed copy of the example -- the example ITSELF, read out
     of __doc__ and exec'd. A copy pins the behaviour but lets the docstring

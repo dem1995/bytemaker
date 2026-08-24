@@ -108,7 +108,7 @@ from bytemaker.introspect import (
     sizeof,
     span_of,
 )
-from bytemaker.plans import Plan, PlanCompileError
+from bytemaker.plans import PlanCompileError
 from bytemaker.structs import (
     Array,
     NarrowingConfig,
@@ -137,7 +137,6 @@ __all__ = [
     "enum_",
     "fixed",
     "scaled",
-    "Plan",
     "PlanCompileError",
     "NarrowingConfig",
     "NarrowingWarning",

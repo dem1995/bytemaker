@@ -244,7 +244,7 @@ def test_span_must_divide_evenly_and_run_forwards():
 def test_until_scans_to_the_sentinel():
     s = space()
     assert s.read(BASE + 0x100, ThumbPtr, until(0)) == [0x08000000]
-    assert s.scan(BASE + 0x100, ThumbPtr) == [0x08000000]
+    assert not hasattr(s, "scan")  # until() is the one spelling for this
     # an all-zero RECORD terminates a struct table
     rewards = s.read(BASE + 0x030, Reward, until(0))
     assert [r.item_id for r in rewards] == [91, 90, 69]
@@ -820,22 +820,22 @@ def test_parse_refuses_an_extent_that_needs_the_buffer():
         e.parse(b"\x01\x02\x00")
 
 
-def test_read_takes_the_bytes_as_an_argument():
-    """A map declared against an address plane reads a real image without
-    being rebound to it."""
+def test_a_declaration_reads_real_bytes_by_binding_to_them():
+    """A map declared against an address plane meets an image with one
+    verb, and that verb serves every accessor -- not just read()."""
     plane = Space(None, size=0x400, base=BASE, endian="little", name="plane")
     rewards = plane.entry(BASE + 0x030, Reward, count(3), name="rewards")
     with pytest.raises(ValueError, match="geometry only"):
         rewards.read()
-    got = rewards.read(space=space())  # the same declaration, real bytes
+    got = rewards.bind(space()).read()  # the same declaration, real bytes
     assert [r.max_frames for r in got] == [14400, 18000, 21600]
 
 
-def test_read_with_a_space_keeps_the_fields_own_byte_order():
+def test_binding_keeps_a_fields_own_byte_order():
     s, _ = enemy_space()
     plane = Space(None, size=0x40, base=BASE, endian="little")
     ident = plane.entry(BASE, Enemy, count(1), name="e").field("ident")
-    assert ident.read(space=s) == 0xAABB  # big-endian field, honoured
+    assert ident.bind(s).read() == 0xAABB  # big-endian field, honoured
 
 
 def test_space_write_uses_the_in_place_path_for_records():

@@ -359,19 +359,6 @@ class Space:
         single = isinstance(extent, count) and extent.n == 1
         return self._decode(addr, codec, n, stride, single=single)
 
-    def scan(
-        self,
-        addr: int,
-        codec: Any,
-        sentinel: Any = 0,
-        max_count: int = 4096,
-    ) -> list:
-        """Read items at ``addr`` until the first ``sentinel`` — the
-        call-site form of ``read(addr, codec, until(sentinel))``."""
-        return self._scan(
-            addr, codec, until(sentinel, max_count), self._stride(codec)
-        )
-
     def slice(self, addr: int, nbytes: int) -> memoryview:
         """A bounds-checked ``memoryview`` of ``nbytes`` at ``addr`` (no copy)."""
         off = self.offset(addr)
@@ -1157,27 +1144,19 @@ class Entry:
             self.field(name).write(value, patch=patch)
 
     # -- access ------------------------------------------------------------
-    def read(self, extent: Any = _INHERIT, *, space: Optional[Space] = None) -> Any:
+    def read(self, extent: Any = _INHERIT) -> Any:
         """Read this entry. ``extent`` overrides the declared one — the way
         an ``unknown()`` entry is read once its length is known. (Passing
         ``0`` or ``count(0)`` means zero items, not "use the declared one".)
 
-        ``space`` reads the same declaration out of a different set of
-        bytes, which is what a map declared against an address plane needs
-        when the image finally shows up: no rebinding, and the map module
-        stays a description rather than a thing that owns a buffer.
+        Reading a declaration against some other bytes is
+        ``entry.bind(space).read()`` — one verb for that, and it serves every
+        method here rather than only this one.
         """
-        view = self._view(space)
+        space = self._space()
         if extent is _INHERIT:
             extent = self.extent
-        return view.read(self.addr, self.codec, extent)
-
-    def _view(self, space: Optional[Space]) -> Space:
-        """The space to work through: the one passed in, else the bound one,
-        in this entry's byte order either way."""
-        if space is None:
-            return self._space()
-        return space._as_endian(self.endian)
+        return space.read(self.addr, self.codec, extent)
 
     # -- bytes in hand -----------------------------------------------------
     def request(self) -> "Tuple[int, int]":
