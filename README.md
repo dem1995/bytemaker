@@ -19,14 +19,19 @@ from bytemaker import Struct, String, u4, u6, u8, u16
 # happen at the byte layer, before decoding
 MonName = String.of(
     nbytes=4,
+
     encoding={0x80: "A", 0x81: "B", 0xE1: "[PK]"},
+
     pad=0x50,
+
     terminator=0x50,
 )
 
 class Monster(Struct, endian="little"):
     name:    MonName
+
     species: u8
+
     hp:      u16
 
 m = Monster(name="A[PK]", species=25, hp=35)
@@ -35,7 +40,9 @@ Monster.parse(m.pack())    # Monster(name='A[PK]', species=25, hp=35)
 
 class TileAttr(Struct, endian="big"):   # sub-byte fields, C-bitfield style
     palette:  u4
+
     priority: u6
+
     bank:     u6
 
 t = TileAttr(palette=3, priority=40, bank=12)
@@ -53,7 +60,7 @@ f = t.sizedview.priority   # live width-carrying handle: f.num_bits == 6,
 ## What else is in the box?
 - `BitVector` — a `bytearray` analog for bit quantities, with slicing, searching, and bitwise operations. Pure-Python by default; installs a C-backed implementation with the `[speedups]` extra. `FixedLengthBitVector` is its width-locked sibling (it backs the live `.bits` views).
 - `BitTypes` boxes — `UInt8`…`UInt64`, `SInt8`…`SInt64`, `Float16/32/64`, the `String` family, and `Buffer` — value+bits pairs with C promotion arithmetic and live, width-locked `.bits` handles. Any bit width via `specialize`.
-- `bytemaker.rom` — where those records actually live. A `Space` maps a buffer at a base address, or describes a bare address plane with no bytes behind it at all, which is what you need when the image does not exist yet or its bytes are arriving from a running game. An `Entry` declares one mapped thing (an address, a codec, and how far it runs), and it addresses rows and fields of itself, so `enemies.item(54).field("soul_rate")` replaces a hand-counted `+0x12` that goes stale the day the record grows. A `Patch` makes an edit a value you can verify against the bytes it was built from, invert, compose with another feature's edits, and export as IPS. Writes can guard on the value they expect to replace, record without mutating, or land and record at once; `space.coverage(...)` reports what a map claims, double-claims and leaves unaccounted for; and typed `Ptr` fields dereference themselves and get audited for where they land.
+- `bytemaker.rom` — the address-space layer. A `Space` maps a buffer at a base address and owns its byte order, so scalar reads never guess and no declaration repeats it. A `Space` can also describe an address plane with no bytes behind it, which is what you need when the image does not exist yet, or when its bytes are arriving from a running game. An `Entry` declares one mapped thing: an address, a codec, and how far it runs. Entries derive further entries, so `enemies.item(54).field("soul_rate")` addresses one field of one row through the compiled layout rather than a hand-counted `+0x12`. A `Patch` holds edits as a value. You can verify a patch against the bytes it was built from, invert it, compose it with another feature's edits, or export it as IPS. A write can state the value it expects to replace, record without mutating, or update the buffer and record at the same time. `space.coverage(...)` reports what a map claims, what it double-claims, and what it leaves unaccounted for. Typed `Ptr` fields provide `deref()`, and the audit checks where each pointer lands.
 - The legacy `@dataclass` aggregate API (`bytemaker.conversions.aggregate_types`: `to_bytes_aggregate`, `from_bytes_aggregate`, …) serializes dataclasses annotated with BitTypes, Python `ctypes` (`c_uint8`, `ctypes.Structure`, …), or native types (`int`, `float`, `str`), including nested ones. It predates `Struct` and remains supported.
 
 ## How do I install it?
@@ -79,7 +86,17 @@ The main goal of the project is to ease development of projects working with com
 - **Removed the bit-numbered named-width zoos**: all `StrN` (`Str1`–`Str512`) and all `BufferN` (`Buffer1`–`Buffer1024`) classes are gone. The non-whole-byte `StrN` were unusable by construction (UTF-8 output is whole bytes), and the rest were standing misreads — `Str16`/`Buffer16` read as 16 *bytes* (the C `char name[16]` / `uint8_t buf[16]` count) but meant 16 *bits*. Declare text/bytes fields with the byte-counted factories instead: `String.of(N)` / `UTF8String.of(N)` / `Buffer.of(N)`; sub-byte and odd-width Buffers stay available via the bit-counted `Buffer.specialize(num_bits)`.
 
 #### Major changes
-- **`bytemaker.rom` — mapping a binary, not just describing a record.** A `Struct` says what a record looks like and nothing about where it lives, so every project that maps a ROM, a save file or a firmware image rewrites the same three things: subtract the base address, slice, and decide how the table ends. That code now lives here. A `Space` is a buffer at a base address that owns the byte order, so scalar reads never guess and no declaration repeats it; pass `None` with `size=` instead of bytes and you get the same address plane with nothing behind it, which is what building writes for an image you do not have yet requires, and what describing a running game's memory requires. Extents are values rather than conventions — `count(n)`, `until(sentinel)`, `span(end)`, `unknown(note)` — so "how long is it" stops being a comment. An `Entry` is a declaration you can write with no buffer in hand, so a map module stays importable without the binary, and it derives further entries from itself: `table.item(54)` is a row and `.field("soul_rate")` is one field of it, addressed through the compiled layout so a magic offset cannot go stale. `Patch` turns edits into a value — verify against the bytes it was built from, invert, compose with `|` so two features that disagree about a byte say so instead of silently overwriting, and export as IPS. Writes come in three shapes because builds do: edit an image you have, build blind edits for one you do not (`old` is optional, and such a patch refuses to invert rather than guessing), or record alongside the mutation with `space.recording(patch)` so later steps read what earlier ones wrote. A write may also state `expect=`, the value it means to replace, checked immediately against bytes in hand or carried into the patch and checked at apply time. `space.coverage(...)` reports what a map claims, what it double-claims, what it leaves unaccounted for, and where its typed `Ptr` fields land, verifying record type and alignment wherever a pointer declares its pointee. For a live target the library never does I/O and never goes async: `entry.request()` hands the transport `(offset, nbytes)`, `entry.parse(data)` decodes the bytes it returns, and `patch.guards()` yields the `(offset, expected, new)` triples a compare-and-swap needs.
+- **`bytemaker.rom` — mapping a binary, not just describing a record.** A `Struct` says what a record looks like and nothing about where it lives. Every project that maps a ROM, a save file, or a firmware image therefore rewrites the same three things: subtract the base address, slice, and decide how the table ends. That code now lives here.
+
+  A `Space` is a buffer at a base address, and it owns the byte order so scalar reads never guess. Passing `None` with `size=` instead of bytes gives the same address plane with nothing behind it, which is what building writes for an image you do not have yet requires, and what describing a running game's memory requires. Extents are values rather than conventions — `count(n)`, `until(sentinel)`, `span(end)`, `unknown(note)` — so "how long is it" stops being a comment.
+
+  An `Entry` is a declaration you can write with no buffer in hand, which keeps a map module importable without the binary. Entries derive further entries: `table.item(54)` is a row, and `.field("soul_rate")` is one field of it, addressed through the compiled layout so a magic offset cannot go stale.
+
+  `Patch` turns edits into a value you can verify, invert, and export as IPS. Composing two patches with `|` raises `PatchConflict` when they disagree about a byte, instead of silently letting the later one win. Writes come in three shapes because builds do: edit an image you have; build blind edits for one you do not, where `old` is optional and the patch refuses to invert rather than guessing; or record alongside the mutation with `space.recording(patch)`, so later steps read what earlier ones wrote. A write may also state `expect=`, the value it means to replace, checked immediately against bytes in hand or carried into the patch and checked at apply time.
+
+  `space.coverage(...)` reports what a map claims, what it double-claims, what it leaves unaccounted for, and where its typed `Ptr` fields land, verifying record type and alignment wherever a pointer declares its pointee.
+
+  For a live target the library never performs I/O and never becomes async. `entry.request()` returns the `(offset, nbytes)` pair a transport needs, `entry.parse(data)` decodes the bytes it returns, and `patch.guards()` yields the `(offset, expected, new)` triples a compare-and-swap needs.
 - **`introspect.offset_of` / `span_of`** answer where a field sits inside its record and how far it runs, from the same compiled layout the codec uses, which is the typed replacement for a hand-counted `+0x0A`. The compiled `Plan` is deliberately not exported from the package root: it is the compiler's output, reachable as `cls.plan` when you want it, and `introspect` answers the questions callers actually have.
 - **Type-checker-friendly field declarations, two styles.** Every field kind can be spelled so a type checker (mypy/pyright) sees the plain value type it reads as. *Annotation-carried:* `hp: u8` (→ `int`), bare `child: RGB` for nested Structs, `colors: Annotated[list[int], UInt16 * 8]` for arrays, `name: Annotated[str, String.of(...)]` for text. *Field-specifier* (new, pydantic/msgspec-style, via `dataclass_transform`): the annotation is the plain type and the bytemaker type rides the RHS — `hp: int = field(UInt8)`, `name: str = field(String.of(nbytes=4, encoding=MON_TABLE))`, `data: bytes = field(Buffer.of(nbytes=8))`, `colors: list[int] = array(UInt16, 8)`, with defaults via `field(..., default=…)`. Both produce identical runtime and identical checker types, and coexist in one record. A field-specifier's plain annotation is checked against its wire type at class definition (`hp: str = field(UInt8)` is a `PlanCompileError`, not a silent checker lie; `Any` opts out). The terse runtime shortcuts (`name: MonName`, `colors: UInt16 * 8`) still work but aren't valid *types* to a checker — an expression or a call in annotation position can't be, by language design. `test/_typing_repro.py` is the durable mypy contract.
 - **Top-level public API.** `from bytemaker import Struct, String, u8, BitVector, …` — the package root was previously empty. It now exports the curated `Struct`-first surface (records, the standard-width boxes, the text machinery, `BitVector`/`FixedLengthBitVector`, `NarrowingConfig`/`NarrowingWarning`, `PlanCompileError`), resolves any-width `uN`/`sN` field aliases lazily (`from bytemaker import u31`), and carries `__version__`. Submodule imports are unchanged; the legacy aggregate API stays at `bytemaker.conversions.aggregate_types`.
