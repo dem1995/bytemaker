@@ -140,9 +140,18 @@ class unknown(Extent):
         self.note = note
 
 
-#: Distinguishes "no extent passed" from ``0``/``count(0)``, both of which
-#: are legitimate and would be swallowed by a falsiness test.
-_INHERIT = object()
+class _Inherit:
+    """Distinguishes "no extent passed" from ``0``/``count(0)``, both of
+    which are legitimate and would be swallowed by a falsiness test. A named
+    class rather than a bare sentinel so it reads as itself in a signature."""
+
+    __slots__ = ()
+
+    def __repr__(self):
+        return "<the declared extent>"
+
+
+_INHERIT = _Inherit()
 
 
 def _as_extent(extent) -> Extent:
@@ -1088,19 +1097,29 @@ class Entry:
             name=f"{self.name}[{index}]" if self.name else "",
         )
 
-    def field(self, name: str, index: int = 0) -> "Entry":
+    def field(self, name: str) -> "Entry":
         """One field of this entry's record, as an entry of its own.
 
         The address comes from the compiled layout, so ``+0x0A`` stops being
         a constant somebody has to maintain, and the codec comes with the
-        field's own adapter and byte order attached. ``index`` picks the
-        record first, for a table.
+        field's own adapter and byte order attached.
+
+        This entry must hold ONE record: which field of a 113-row table is
+        not a question with an answer, so pick the row first —
+        ``enemies.item(54).field("soul_rate")``.
 
         Top-level fields only: a field of a nested record is reached by
         mapping that record as its own entry, the same boundary the pointer
         audit draws.
         """
-        base = self.item(index) if (index or self.item_count != 1) else self
+        n = self.item_count
+        if n is not None and n != 1:
+            raise ValueError(
+                f"{self._name()}: field({name!r}) needs one record, but this"
+                f" entry holds {n}; pick the row first, e.g."
+                f" .item(0).field({name!r})"
+            )
+        base = self
         codec = self.codec
         if not isinstance(codec, StructMeta):
             raise TypeError(

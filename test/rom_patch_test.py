@@ -326,7 +326,7 @@ def test_invert_and_guards_refuse_a_blind_patch_by_offset():
     with pytest.raises(PatchUnverifiable, match=r"invert\(\).*0x4, 0x9"):
         p.invert()
     with pytest.raises(PatchUnverifiable, match=r"guards\(\)"):
-        list(p.guards())
+        p.guards()  # refuses when asked, not when iterated
 
 
 def test_guards_hand_back_the_compare_and_swap_triples():

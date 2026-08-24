@@ -602,7 +602,7 @@ def test_item_addresses_a_row_without_hand_arithmetic():
 def test_field_addresses_one_field_of_one_row():
     s, _ = enemy_space()
     table = s.entry(BASE, Enemy, count(3), name="enemies")
-    rate = table.field("soul_rate", index=1)
+    rate = table.item(1).field("soul_rate")
     assert rate.addr == BASE + 6 + 2  # +0x02, from the compiled layout
     assert rate.read() == 16
     assert rate.name == "enemies[1].soul_rate"
@@ -612,7 +612,7 @@ def test_field_writes_claim_only_that_fields_bytes():
     s, buf = enemy_space()
     table = s.entry(BASE, Enemy, count(3), name="enemies")
     p = Patch()
-    table.field("soul_rate", index=2).write(5, expect=8, patch=p)
+    table.item(2).field("soul_rate").write(5, expect=8, patch=p)
     assert p.byte_count == 1 and p.edits == (Edit(14, b"\x05", b"\x08"),)
     assert bytes(buf) == bytes(buf)  # patch recorded, buffer untouched
 
@@ -627,6 +627,16 @@ def test_a_field_keeps_the_byte_order_its_record_declared():
     e.field("ident").write(0x1234)
     assert e.read().ident == 0x1234
     assert e.field("hp").endian == "little"
+
+
+def test_field_needs_one_record_so_a_row_is_named_first():
+    """"Which field of a 113-row table" has no answer; the row comes first,
+    and .item(i) is the one way to say it."""
+    s, _ = enemy_space()
+    table = s.entry(BASE, Enemy, count(3), name="enemies")
+    with pytest.raises(ValueError, match=r"needs one record.*\.item\(0\)"):
+        table.field("hp")
+    assert table.item(0).field("hp").read() == 100
 
 
 def test_field_rejects_an_unknown_name_and_a_non_struct_codec():

@@ -55,7 +55,7 @@ record still compose::
     rom = Space(data, base=0x08000000, endian="little")
     p = Patch(name="drop rates")
     enemies = rom.entry(0x080E9644, EnemyDNA, count(113), name="enemies")
-    enemies.field("soul_rate", index=54).write(5, expect=32, patch=p)
+    enemies.item(54).field("soul_rate").write(5, expect=32, patch=p)
     combined = p | other_feature_patch      # PatchConflict if they disagree
     ips = combined.to_ips()                 # or combined.save_ips(path)
 

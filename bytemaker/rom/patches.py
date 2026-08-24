@@ -294,19 +294,21 @@ class Patch:
         out._new = dict(self._old)
         return out
 
-    def guards(self):
-        """Yield ``(offset, expected, new)`` per coalesced run: write ``new``
-        at ``offset``, but only while the bytes there still equal
-        ``expected``.
+    def guards(self) -> tuple:
+        """``(offset, expected, new)`` per coalesced run: write ``new`` at
+        ``offset``, but only while the bytes there still equal ``expected``.
 
         The compare-and-swap triple a live target wants — a running game's
         memory can change under a read, so a guarded write is the difference
         between a correct update and a lost one. Refuses a blind patch, which
         has nothing to compare against.
+
+        A tuple rather than a generator, so the refusal happens when you ask
+        rather than when you get around to iterating, and so the result can
+        be counted and reused.
         """
         self._require_verifiable("guards()")
-        for e in self.edits:
-            yield (e.offset, e.old, e.new)
+        return tuple((e.offset, e.old, e.new) for e in self.edits)
 
     def __or__(self, other: "Patch") -> "Patch":
         """Compose two independent patches; disagreement is a
