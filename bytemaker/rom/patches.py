@@ -126,6 +126,12 @@ class Patch:
         assert p.invert().apply(patched) == rom.buf
         open("fix.ips", "wb").write(p.to_ips())
 
+    Two exports are one-liners over :attr:`edits`, deliberately not methods —
+    the container a caller wants differs by caller::
+
+        tokens = {e.offset: e.new for e in p.edits}   # offset -> bytes
+        pins = {e.name: e.addr for e in ROM_MAP}      # the map's own digest
+
     Internally a patch is a sparse byte map, not a list of edits, which is
     what makes the algebra total: overlapping writes have no ambiguity.
 

@@ -45,6 +45,50 @@ Two layers build on that base:
   double-claims, and where its pointers land — verified for record type and
   alignment where a pointer declares its pointee.
 
+Writing comes in three shapes, and picking the wrong one is the mistake
+this layer exists to prevent.
+
+**1. Edit an image you have.** Read, change, record. The patch claims only
+the bytes that differ, so two features editing different fields of one
+record still compose::
+
+    rom = Space(data, base=0x08000000, endian="little")
+    p = Patch(name="drop rates")
+    enemies = rom.entry(0x080E9644, EnemyDNA, count(113), name="enemies")
+    enemies.field("soul_rate", index=54).write(5, expect=32, patch=p)
+    combined = p | other_feature_patch      # PatchConflict if they disagree
+    ips = combined.to_ips()                 # or combined.save_ips(path)
+
+**2. Build writes for an image you do not have.** The generation half of a
+randomizer: addresses are known, bytes are not. A geometry-only space
+gives the address math with nothing behind it, and the edits are *blind* —
+they apply to whatever the player supplies, and refuse to be inverted::
+
+    gba = Space(None, size=0x800000, base=0x08000000, endian="little")
+    p = Patch(name="item placement")
+    for loc in locations:
+        gba.entry(loc.addr, Pickup).set(p, kind=4, subtype=2, item=loc.item)
+    tokens = {e.offset: e.new for e in p.edits}      # offset -> bytes
+
+**3. Run a pipeline of features over a working copy.** When each step must
+see what the previous ones did, mutate a ``bytearray`` space and diff the
+ends — recording as you go cannot work, because reads never see a patch's
+pending edits::
+
+    work = Space(bytearray(original), base=0x08000000, endian="little")
+    for feature in features:
+        feature.apply(work)                 # each reads the current state
+    p = Patch.diff(original, work.buf, name="all features")
+
+For a live target, the bytes come from a transport the caller owns::
+
+    ewram = Space(None, size=0x40000, base=0x02000000, endian="little")
+    vitals = ewram.entry(0x0201327A, PlayerVitals, name="vitals")
+    off, size = vitals.request()                     # (0x1327A, 8)
+    v = vitals.parse(await conn.read_many([(off, size, "EWRAM")]))
+    for at, expected, new in one_field_patch.guards():
+        await conn.guarded_write(at, list(new), list(expected), "EWRAM")
+
 The layer is four modules, re-exported here — import from
 ``bytemaker.rom`` and the split stays an implementation detail:
 
