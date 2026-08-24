@@ -199,7 +199,7 @@ class Space:
     time.
     """
 
-    __slots__ = ("_buf", "_size", "_base", "_endian", "_name")
+    __slots__ = ("_buf", "_size", "_base", "_endian", "_name", "_record")
 
     def __init__(
         self,
@@ -235,6 +235,7 @@ class Space:
         self._base = base
         self._endian = validate_endianness(endian, name="Space endian")
         self._name = name
+        self._record = None  # set only by recording(); see its docstring
 
     # -- identity ----------------------------------------------------------
     @property
@@ -256,13 +257,63 @@ class Space:
         """
         if endian is None or endian == self._endian:
             return self
-        return Space(
+        out = Space(
             self._buf,
             size=self._size,
             base=self._base,
             endian=cast('Literal["big", "little"]', endian),
             name=self._name,
         )
+        out._record = self._record  # a field write must still be recorded
+        return out
+
+    def recording(self, patch: Any) -> "Space":
+        """The same bytes, where every write both LANDS and is recorded.
+
+        The two other write modes each give up something a build pipeline
+        needs. A plain write mutates and remembers nothing. A ``patch=``
+        write remembers and mutates nothing — so a later step cannot read
+        what an earlier one did, and reconstructing the record afterwards
+        with :meth:`Patch.diff` both costs a scan of the whole image and
+        *drops every byte written back to the value it already held*, which
+        for a table relocated into zero-filled free space can be most of it.
+        Such a patch then applies cleanly to an image that differs exactly
+        there and silently produces the wrong bytes.
+
+        Recording writes claim **the whole span written**, not just the
+        bytes that changed. The changed-bytes-only rule exists because a
+        ``patch=`` write leaves the buffer alone, so a later whole-record
+        write would otherwise stamp an earlier edit back to what it read
+        (see :meth:`write`). Here the buffer *is* updated and reads see it,
+        so that rationale is gone and fidelity is what is left to want::
+
+            work = Space(bytearray(rom), base=0x08000000, endian="little")
+            p = Patch(name="all features")
+            rec = work.recording(p)
+            for feature in features:
+                feature(rec)          # reads see what earlier features did
+            assert p.apply(rom) == work.buf   # and p is pristine-relative
+
+        The patch stays a transition from the *pristine* image even though
+        each write records the intermediate state it replaced, because
+        :meth:`Patch.write` keeps the earliest known original per byte.
+        """
+        if self._buf is None:
+            raise ValueError(
+                f"{self._label()}: a geometry-only space has nothing to"
+                f" mutate, so there is no recording to do alongside it;"
+                f" pass patch= to Space.write to collect blind edits"
+            )
+        if patch is None:
+            raise ValueError(f"{self._label()}: recording() needs a Patch")
+        out = Space(
+            self._buf,
+            base=self._base,
+            endian=self._endian,
+            name=self._name,
+        )
+        out._record = patch
+        return out
 
     def _bytes(self, what: str) -> BytesLike:
         """The buffer, or a refusal naming what needed it."""
@@ -449,6 +500,18 @@ class Space:
             return
         if expected is not None:
             self._check_expectation(off, expected, addr)
+        if self._record is not None:
+            if patch is not None:
+                raise ValueError(
+                    f"{self._label()}: this space already records into"
+                    f" {self._record!r}; drop patch= here, or write through"
+                    f" the plain space to record somewhere else"
+                )
+            old = bytes(memoryview(self._buf)[off : off + len(data)])
+            self._buf[off : off + len(data)] = data  # type: ignore[index]
+            # The whole span, deliberately: see recording().
+            self._record.write(off, data, old)
+            return
         if patch is not None:
             if expected is not None:
                 # Same rule as the unbacked branch: an explicit guard is

@@ -71,14 +71,24 @@ they apply to whatever the player supplies, and refuse to be inverted::
     tokens = {e.offset: e.new for e in p.edits}      # offset -> bytes
 
 **3. Run a pipeline of features over a working copy.** When each step must
-see what the previous ones did, mutate a ``bytearray`` space and diff the
-ends — recording as you go cannot work, because reads never see a patch's
-pending edits::
+see what the previous ones did, record *alongside* the mutation: writes land
+in the buffer, so later features read them, and each one is captured as it
+happens::
 
     work = Space(bytearray(original), base=0x08000000, endian="little")
+    p = Patch(name="all features")
+    rec = work.recording(p)
     for feature in features:
-        feature.apply(work)                 # each reads the current state
-    p = Patch.diff(original, work.buf, name="all features")
+        feature.apply(rec)                  # each reads the current state
+    assert p.apply(original) == work.buf    # p is still pristine-relative
+
+Rebuilding the patch afterwards with ``Patch.diff(original, work.buf)`` also
+works, and is the only option when a feature mutates the buffer by other
+means -- but it is strictly weaker. It costs a scan of the whole image, and
+it **drops every byte written back to the value it already held**, which for
+a table relocated into zero-filled free space can be most of it; the result
+then applies without complaint to an image that differs exactly there.
+:meth:`Space.recording` claims the whole span written, so prefer it.
 
 For a live target, the bytes come from a transport the caller owns::
 

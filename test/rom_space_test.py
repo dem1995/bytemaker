@@ -980,3 +980,91 @@ def test_a_buffer_codec_is_the_blob_reservation_spelling():
     with pytest.raises(ValueError, match="do not fit"):
         hook.write(b"\x00" * 0x11)
     assert hook.end == BASE + 0x20
+
+
+# ------------------------------------ the mutating recorder (rom-25)
+def relocation_fixture():
+    """A vanilla table and a zero-filled destination -- the shape that
+    exposed the diff hole, since a verbatim copy re-writes many zeros."""
+    rom = bytearray(0x400)
+    rom[0x100:0x110] = bytes([0, 0, 3, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 9])
+    return bytes(rom)
+
+
+def test_a_recording_write_lands_and_is_recorded():
+    pristine = relocation_fixture()
+    work = bytearray(pristine)
+    s = Space(work, base=BASE, endian="little")
+    p = Patch(name="chain")
+    rec = s.recording(p)
+    rec.write(BASE + 0x200, bytes(work[0x100:0x110]))  # relocate the table
+    assert bytes(work[0x200:0x210]) == pristine[0x100:0x110]  # landed
+    assert p.apply(pristine) == bytes(work)                   # and recorded
+
+
+def test_a_recording_write_claims_every_byte_it_wrote():
+    """The bug this exists for: Patch.diff drops bytes written back to the
+    value they already held, so a table relocated into zero-filled space
+    loses its zeros -- and the patch then applies cleanly to an image that
+    differs exactly there and produces the wrong bytes, silently."""
+    pristine = relocation_fixture()
+    table = pristine[0x100:0x110]
+    work = bytearray(pristine)
+    p = Patch(name="relocate")
+    Space(work, base=BASE, endian="little").recording(p).write(BASE + 0x200, table)
+
+    claimed = {e.offset + i for e in p.edits for i in range(e.size)}
+    assert claimed == set(range(0x200, 0x210))  # all 16, zeros included
+    assert Patch.diff(pristine, bytes(work)).byte_count < 16  # what diff loses
+
+    # ...so it still lands correctly on an image whose free space is not zero
+    variant = bytearray(pristine)
+    variant[0x200:0x210] = b"\xff" * 16
+    with pytest.raises(PatchVerifyError):
+        p.apply(bytes(variant))  # loudly refuses rather than half-applying
+    assert p.apply(pristine)[0x200:0x210] == table
+
+
+def test_a_recorded_chain_stays_a_transition_from_the_pristine_image():
+    """Each write records the intermediate state it replaced, but the
+    earliest-known-original rule keeps the accumulation pristine-relative."""
+    pristine = relocation_fixture()
+    work = bytearray(pristine)
+    p = Patch(name="two features")
+    rec = Space(work, base=BASE, endian="little").recording(p)
+    rec.write(BASE + 0x300, b"\x01\x02")   # feature 1
+    rec.write(BASE + 0x300, b"\x03\x04")   # feature 2 overwrites it
+    assert p.apply(pristine) == bytes(work)
+    assert p.invert().apply(bytes(work)) == pristine  # undo goes all the way
+    assert p.verifiable
+
+
+def test_a_recording_space_lets_later_reads_see_earlier_writes():
+    pristine = relocation_fixture()
+    s = Space(bytearray(pristine), base=BASE, endian="little")
+    rec = s.recording(Patch())
+    rec.write(BASE + 0x300, 0x1234, UInt16)
+    assert rec.read(BASE + 0x300, UInt16) == 0x1234  # the chain's whole need
+    assert s.read(BASE + 0x300, UInt16) == 0x1234    # same bytes underneath
+
+
+def test_recording_carries_through_entries_and_field_writes():
+    """Feature bodies are written once: the pipeline decides by handing them
+    a plain space or a recording one."""
+    pristine = bytearray(0x40)
+    Reward(max_frames=1, pad=0, item_id=2).pack_into(pristine, 0)
+    work = bytearray(pristine)
+    p = Patch()
+    rec = Space(work, base=BASE, endian="little").recording(p)
+    rec.entry(BASE, Reward, count(1), name="r").set(item_id=9)
+    assert Reward.parse_at(work, 0).item_id == 9
+    assert p.apply(bytes(pristine)) == bytes(work)
+
+
+def test_recording_refuses_a_second_destination_and_an_unbacked_space():
+    s = Space(bytearray(16), base=BASE, endian="little")
+    rec = s.recording(Patch(name="mine"))
+    with pytest.raises(ValueError, match="already records into"):
+        rec.write(BASE, 1, UInt8, patch=Patch(name="other"))
+    with pytest.raises(ValueError, match="nothing to mutate"):
+        Space(None, size=16, base=BASE, endian="little").recording(Patch())
