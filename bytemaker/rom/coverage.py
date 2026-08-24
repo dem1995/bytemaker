@@ -154,6 +154,9 @@ class CoverageReport:
     regions: tuple
     overlaps: tuple
     pointers: tuple
+    #: False when no pointer audit ran, so an empty :attr:`pointers` is not
+    #: mistaken for "every pointer checked out".
+    pointers_audited: bool = True
 
     @cached_property
     def _merged_spans(self) -> "Tuple[tuple, ...]":
@@ -293,4 +296,8 @@ class CoverageReport:
                     f"    ... and {len(interesting) - max_pointers} more"
                     f" non-claimed pointers (raise max_pointers to see them)"
                 )
+        elif not self.pointers_audited:
+            # Saying nothing here would read as "no pointer lands anywhere
+            # odd", which is a different claim from "nobody looked".
+            lines.append("  pointers: not audited")
         return "\n".join(lines)

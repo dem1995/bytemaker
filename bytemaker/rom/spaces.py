@@ -6,6 +6,8 @@ an :class:`Entry` is one mapped thing, declarable with no buffer in hand.
 See :mod:`bytemaker.rom` for the layer's overview.
 """
 
+from typing import cast
+
 from bytemaker.adapters import Adapted
 from bytemaker.introspect import bitsizeof, fields_of, sizeof
 from bytemaker.structs import (
@@ -33,6 +35,7 @@ from .coverage import (
 )
 from .patches import PatchVerifyError, _changed_runs
 from .pointers import _checkable_target, _ptr_adapter_of
+
 
 class AddressError(ValueError):
     """An address (or a span) falls outside the space it was read from.
@@ -126,7 +129,8 @@ class span(Extent):
 
 class unknown(Extent):
     """The length is not known. Reads refuse; the entry still documents the
-    address and record shape, and a coverage report still counts one item.
+    address and record shape, and a coverage report lists it as unresolved
+    (claiming nothing) with ``note`` as the reason.
     """
 
     __slots__ = ("note",)
@@ -165,26 +169,58 @@ class Space:
     Args:
         buf: the bytes. A ``bytearray`` (or writable ``memoryview``) is
             required for in-place :meth:`write`; ``bytes`` is fine for
-            reading and for patch-recording writes.
+            reading and for patch-recording writes. Pass ``None`` with
+            ``size=`` for a **geometry-only** space (see below).
+        size: how many bytes the space spans. Required when ``buf`` is
+            ``None``, and rejected otherwise — a buffer already knows.
         base: the address the first byte lives at (``0x08000000`` for GBA
             ROM, 0 for a plain file).
         endian: byte order for SCALAR reads/writes — required, because
             guessing it is the single most expensive mistake in this layer.
             Struct and Array codecs carry their own.
         name: shown in error messages and coverage reports.
+
+    A **geometry-only** space is the same address plane with no bytes behind
+    it: ``Space(None, size=0x800000, base=0x08000000, endian="little")``.
+    Address math, entries, declaration-level :meth:`coverage` and
+    patch-recording writes all work; anything that would read bytes refuses
+    and says why. Two situations need it and neither has an image to hand:
+    building writes *before* the target file exists, and describing a live
+    machine's memory, where the bytes arrive from a transport one fetch at a
+    time.
     """
 
-    __slots__ = ("_buf", "_base", "_endian", "_name")
+    __slots__ = ("_buf", "_size", "_base", "_endian", "_name")
 
     def __init__(
         self,
-        buf: BytesLike,
+        buf: Optional[BytesLike],
         *,
+        size: Optional[int] = None,
         base: int = 0,
         endian: Literal["big", "little"],
         name: str = "",
     ):
+        if buf is None:
+            if not isinstance(size, int) or isinstance(size, bool) or size < 0:
+                raise ValueError(
+                    "Space(None, ...) is geometry only and needs size= (how"
+                    " many bytes the address plane spans); pass the bytes"
+                    " instead if you have them"
+                )
+        else:
+            if not isinstance(buf, (bytes, bytearray, memoryview)):
+                raise TypeError(
+                    f"Space buf must be bytes-like or None, got"
+                    f" {type(buf).__name__}"
+                )
+            if size is not None:
+                raise ValueError(
+                    "Space size= describes a geometry-only space; a buffer"
+                    " already knows its own length"
+                )
         self._buf = buf
+        self._size = size
         if not isinstance(base, int) or base < 0:
             raise ValueError(f"Space base must be a non-negative int, got {base!r}")
         self._base = base
@@ -193,7 +229,24 @@ class Space:
 
     # -- identity ----------------------------------------------------------
     @property
-    def buf(self) -> BytesLike:
+    def buf(self) -> Optional[BytesLike]:
+        """The bytes, or None for a geometry-only space."""
+        return self._buf
+
+    @property
+    def backed(self) -> bool:
+        """True when this space has bytes behind it."""
+        return self._buf is not None
+
+    def _bytes(self, what: str) -> BytesLike:
+        """The buffer, or a refusal naming what needed it."""
+        if self._buf is None:
+            raise ValueError(
+                f"{self._label()}: {what} needs bytes, but this space is"
+                f" geometry only (built with size=, no buffer). Build a Space"
+                f" over the bytes once you have them — for a live target,"
+                f" fetch the bytes yourself and decode them."
+            )
         return self._buf
 
     @property
@@ -210,6 +263,8 @@ class Space:
 
     def __len__(self) -> int:
         buf = self._buf
+        if buf is None:
+            return cast(int, self._size)
         return buf.nbytes if isinstance(buf, memoryview) else len(buf)
 
     @property
@@ -307,7 +362,7 @@ class Space:
                 f"{self._label()}: {nbytes} bytes at 0x{addr:08X} run past the"
                 f" end of the space (0x{self.end - 1:08X})"
             )
-        return memoryview(self._buf)[off : off + nbytes]
+        return memoryview(self._bytes("slice()"))[off : off + nbytes]
 
     # -- writing -----------------------------------------------------------
     def write(
@@ -356,6 +411,21 @@ class Space:
                 f" the end of the space (0x{self.end - 1:08X})"
             )
         expected = self._expected_bytes(expect, codec, len(data), addr)
+        if self._buf is None:
+            if patch is None:
+                raise ValueError(
+                    f"{self._label()}: nothing to mutate — this space is"
+                    f" geometry only, so a write has to be recorded; pass"
+                    f" patch= to collect the edit"
+                )
+            # No bytes to compare against: expect= becomes what the edit
+            # claims was there, so applying the patch checks it later.
+            if expected is None:
+                patch.write(off, None, data)
+            else:
+                for i, was, now in _changed_runs(expected, data):
+                    patch.write(off + i, was, now)
+            return
         if expected is not None:
             self._check_expectation(off, expected, addr)
         if patch is not None:
@@ -482,8 +552,11 @@ class Space:
         bound = [e if e.space is not None else e.bind(self) for e in entries]
         regions = tuple(self._resolve_region(e) for e in bound)
         overlaps = _overlaps(regions)
+        # Following a pointer means reading the address it holds, so a
+        # geometry-only space audits declarations and says it did no more.
+        audited = audit_pointers and self._buf is not None
         pointers: list = []
-        if audit_pointers:
+        if audited:
             for region in regions:
                 pointers.extend(self._audit_pointers(region, regions))
         return CoverageReport(
@@ -493,6 +566,7 @@ class Space:
             regions=regions,
             overlaps=overlaps,
             pointers=tuple(pointers),
+            pointers_audited=audited,
         )
 
     def _resolve_region(self, entry: "Entry"):
@@ -664,9 +738,9 @@ class Space:
                 f" past the end of the space (0x{self.end - 1:08X})"
             )
         if isinstance(codec, StructMeta):
-            records = list(codec.iter_records(self._buf, off, n))
+            records = list(codec.iter_records(self._bytes("read()"), off, n))
             return records[0] if single else records
-        view = memoryview(self._buf)
+        view = memoryview(self._bytes("read()"))
         if isinstance(codec, Array):
             resolved = self._in_space_endian(codec)
             items = [
@@ -710,7 +784,7 @@ class Space:
     def _scan(self, addr, codec, extent: until, stride: int) -> list:
         off = self.offset(addr)
         target = self._sentinel_wire(codec, extent.sentinel, stride)
-        view = memoryview(self._buf)
+        view = memoryview(self._bytes("read()"))
         n = 0
         while n < extent.max_count:
             start = off + n * stride
@@ -748,7 +822,7 @@ class Space:
         return expected
 
     def _check_expectation(self, off: int, expected: bytes, addr: int) -> None:
-        current = bytes(memoryview(self._buf)[off : off + len(expected)])
+        current = bytes(memoryview(self._bytes("expect="))[off : off + len(expected)])
         if current != expected:
             raise PatchVerifyError(
                 f"{self._label()}: bytes at 0x{addr:08X} are"

@@ -324,8 +324,10 @@ def test_coverage_classifies_a_null_pointer_separately():
 
 def test_coverage_can_skip_the_pointer_audit():
     report = space().coverage(rom_map(), audit_pointers=False)
-    assert report.pointers == ()
-    assert "pointers" not in report.render()
+    assert report.pointers == () and not report.pointers_audited
+    # ...and the report says so: an empty pointer list otherwise reads as
+    # "every pointer checked out", which is a different claim.
+    assert "pointers: not audited" in report.render()
 
 
 def test_coverage_binds_unbound_entries():

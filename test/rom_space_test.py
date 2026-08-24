@@ -11,6 +11,7 @@ from bytemaker.adapters import THUMB_PTR, fixed
 from bytemaker.bittypes import UInt8, UInt16, UInt32
 from bytemaker.rom import (
     AddressError,
+    Edit,
     Entry,
     Patch,
     PatchVerifyError,
@@ -571,6 +572,91 @@ def test_space_write_splices_raw_bytes_with_no_codec():
     s = Space(buf, base=BASE, endian="little")
     s.write(BASE + 2, b"\x01\x02\x03")
     assert bytes(buf) == b"\x00\x00\x01\x02\x03\x00\x00\x00"
+
+
+# --------------------------------------------- geometry-only Space (rom-14)
+def gba():
+    """The GBA cart address plane, with no cart in hand."""
+    return Space(None, size=0x800000, base=BASE, endian="little", name="GBA")
+
+
+def test_a_geometry_only_space_needs_a_size_and_refuses_a_buffer_with_one():
+    with pytest.raises(ValueError, match="needs size="):
+        Space(None, base=BASE, endian="little")
+    with pytest.raises(ValueError, match="already knows its own length"):
+        Space(BUF, size=8, base=BASE, endian="little")
+    with pytest.raises(TypeError, match="bytes-like or None"):
+        Space("not bytes", base=BASE, endian="little")
+
+
+def test_geometry_only_address_math_works_without_bytes():
+    s = gba()
+    assert not s.backed and s.buf is None
+    assert len(s) == 0x800000 and s.end == BASE + 0x800000
+    assert s.offset(BASE + 0x521B8C) == 0x521B8C  # the whole point
+    assert s.contains(BASE + 0x100) and not s.contains(BASE + 0x800000)
+    with pytest.raises(AddressError, match="outside the space"):
+        s.offset(BASE - 1)
+
+
+def test_geometry_only_reads_refuse_and_say_why():
+    s = gba()
+    for call in (
+        lambda: s.read(BASE, UInt16),
+        lambda: s.slice(BASE, 4),
+        lambda: s.read(BASE, Reward),
+    ):
+        with pytest.raises(ValueError, match="geometry only"):
+            call()
+
+
+def test_geometry_only_writes_record_blind_edits():
+    """The generation-time flow: emit writes for an image that does not
+    exist yet, then apply them to whatever the player supplies."""
+    s = gba()
+    p = Patch(name="tokens")
+    s.write(BASE + 0x10, 0xBBAA, UInt16, patch=p)
+    assert not p.verifiable
+    assert p.edits == (Edit(0x10, None, b"\xaa\xbb"),)
+    real = bytearray(0x20)
+    assert p.apply(bytes(real))[0x10:0x12] == b"\xaa\xbb"
+
+
+def test_a_geometry_only_write_needs_a_patch_to_land_in():
+    with pytest.raises(ValueError, match="nothing to mutate"):
+        gba().write(BASE, 1, UInt16)
+
+
+def test_expect_without_bytes_is_carried_into_the_patch():
+    """Nothing to compare against now, so the claim rides into the patch and
+    is checked when it is applied."""
+    s = gba()
+    p = Patch()
+    s.write(BASE + 4, 5, UInt8, patch=p, expect=32)
+    assert p.verifiable and p.edits == (Edit(4, b"\x20", b"\x05"),)
+    wrong = bytearray(8)  # holds 0, not 32
+    with pytest.raises(PatchVerifyError, match="offset 4"):
+        p.apply(bytes(wrong))
+    right = bytearray(8)
+    right[4] = 32
+    assert p.apply(bytes(right))[4] == 5
+
+
+def test_geometry_only_coverage_audits_declarations_and_says_it_read_nothing():
+    s = gba()
+    report = s.coverage([
+        Entry(BASE + 0x100, Reward, count(3), name="rewards"),
+        Entry(BASE + 0x108, Reward, count(2), name="overlapping"),
+        Entry(BASE + 0x400, Reward, unknown("length TBD"), name="mystery"),
+    ])
+    # claimed bytes are a union, so the overlapping entry adds none of its own
+    assert report.claimed_bytes == 24
+    assert [(o.a, o.b, o.size) for o in report.overlaps] == [
+        ("rewards", "overlapping", 16)
+    ]
+    assert [r.name for r in report.unresolved] == ["mystery"]
+    assert not report.pointers_audited
+    assert "pointers: not audited" in report.render()
 
 
 def test_space_write_uses_the_in_place_path_for_records():
