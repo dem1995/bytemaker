@@ -19,7 +19,6 @@ from bytemaker.structs import (
 )
 from bytemaker.typing_redirect import (
     Any,
-    List,
     Literal,
     Optional,
     Tuple,
@@ -478,10 +477,6 @@ class Space:
             reserve=reserve,
         )
 
-    def bind(self, entries) -> "List[Entry]":
-        """Bind a space-free map (a list of :class:`Entry`) to this space."""
-        return [e.bind(self) for e in entries]
-
     # -- pointers ----------------------------------------------------------
     def deref(
         self,
@@ -937,8 +932,12 @@ class Entry:
         ]
 
         rom = Space(data, base=0x08000000, endian="little")
-        for e in rom.bind(ROM_MAP):
-            print(e.name, e.read())
+        by_name = {e.name: e.bind(rom) for e in ROM_MAP}
+        by_name["boss_rush"].read()
+
+    :meth:`bind` is how a declaration meets bytes, and it is per entry:
+    binding a whole map is the comprehension above, which lands in the shape
+    a caller wants anyway rather than a list they must re-key.
 
     Frozen: rebind with :meth:`bind` rather than mutating.
     """

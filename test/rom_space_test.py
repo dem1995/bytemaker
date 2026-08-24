@@ -381,17 +381,6 @@ def test_entry_declares_without_a_space_and_binds_later():
     assert e.space is None  # bind returns a copy; the declaration is reusable
 
 
-def test_space_bind_binds_a_whole_map():
-    rom_map = [
-        Entry(BASE, UInt8, count(4), name="palette"),
-        Entry(BASE + 0x030, Reward, count(3), name="rewards"),
-    ]
-    bound = space().bind(rom_map)
-    assert [e.name for e in bound] == ["palette", "rewards"]
-    assert bound[0].read() == [7, 6, 8, 9]
-    assert len(bound[1].read()) == 3
-
-
 def test_space_entry_builds_a_bound_entry():
     e = space().entry(BASE, UInt8, 4, name="palette")
     assert e.space is not None and e.read() == [7, 6, 8, 9]
