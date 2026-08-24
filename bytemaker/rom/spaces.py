@@ -31,7 +31,7 @@ from .coverage import (
     _enumerate_values,
     _overlaps,
 )
-from .patches import _changed_runs
+from .patches import PatchVerifyError, _changed_runs
 from .pointers import _checkable_target, _ptr_adapter_of
 
 class AddressError(ValueError):
@@ -317,11 +317,20 @@ class Space:
         codec: Any = None,
         *,
         patch: Any = None,
+        expect: Any = None,
     ) -> None:
         """Encode ``value`` at ``addr``.
 
         ``codec`` may be omitted when ``value`` is a Struct instance (or a
         non-empty list of them) — the record's own class is the codec.
+
+        ``expect`` is what the target must currently hold, as a *value* in
+        the same codec rather than bytes: ``write(addr, 5, expect=32)`` says
+        "this was 32, make it 5". It is one idea at two moments — against
+        bytes in hand it is checked now, and against a patch it becomes the
+        edit's recorded original, so applying the patch checks it later.
+        Either way the write refuses to land somewhere it does not recognise,
+        which is what catches a wrong build or a moved table.
 
         With ``patch=``, nothing is mutated: the old bytes are read and an
         edit is recorded on the patch, so the same call works on a read-only
@@ -346,6 +355,9 @@ class Space:
                 f"{self._label()}: {len(data)} bytes at 0x{addr:08X} run past"
                 f" the end of the space (0x{self.end - 1:08X})"
             )
+        expected = self._expected_bytes(expect, codec, len(data), addr)
+        if expected is not None:
+            self._check_expectation(off, expected, addr)
         if patch is not None:
             old = bytes(memoryview(self._buf)[off : off + len(data)])
             for i, was, now in _changed_runs(old, data):
@@ -722,6 +734,28 @@ class Space:
             return []
         return self._decode(addr, codec, n, stride, single=False)
 
+    def _expected_bytes(self, expect, codec, nbytes: int, addr: int):
+        """``expect`` encoded through ``codec``, or None when not given."""
+        if expect is None:
+            return None
+        expected = self._encode(expect, codec)
+        if len(expected) != nbytes:
+            raise ValueError(
+                f"{self._label()}: expect= encodes to {len(expected)} bytes at"
+                f" 0x{addr:08X} but the value being written is {nbytes} — the"
+                f" two must describe the same bytes"
+            )
+        return expected
+
+    def _check_expectation(self, off: int, expected: bytes, addr: int) -> None:
+        current = bytes(memoryview(self._buf)[off : off + len(expected)])
+        if current != expected:
+            raise PatchVerifyError(
+                f"{self._label()}: bytes at 0x{addr:08X} are"
+                f" {current.hex()}, but the write expected {expected.hex()}"
+                f" — wrong build, moved table, or already applied"
+            )
+
     def _infer_codec(self, value):
         if isinstance(value, Struct):
             return type(value)
@@ -888,8 +922,12 @@ class Entry:
             extent = self.extent
         return space.read(self.addr, self.codec, extent)
 
-    def write(self, value: Any, *, patch: Any = None) -> None:
+    def write(self, value: Any, *, patch: Any = None, expect: Any = None) -> None:
         """Write ``value`` at this entry's address (see :meth:`Space.write`).
+
+        ``expect`` is what this entry must currently hold, as a value in its
+        own codec — the guard for "change the drop rate from 32 to 5, and
+        say so if it was not 32".
 
         The encoding must fit what this entry declares: a table of
         ``count(3)`` holds three records, and a blob may not outgrow the
@@ -907,7 +945,10 @@ class Entry:
                 f" not fit the {limit} declared by {self.extent!r}; widen the"
                 f" extent or write less"
             )
-        space.write(self.addr, data, bytes, patch=patch)
+        # expect rides the ENTRY's codec, so the guard is stated in the same
+        # terms as the value; from here down both are already bytes.
+        expected = None if expect is None else space._encode(expect, self.codec)
+        space.write(self.addr, data, bytes, patch=patch, expect=expected)
 
     def describe(self) -> str:
         """One line: name, address range, codec and extent."""

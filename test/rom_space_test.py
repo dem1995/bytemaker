@@ -12,6 +12,8 @@ from bytemaker.bittypes import UInt8, UInt16, UInt32
 from bytemaker.rom import (
     AddressError,
     Entry,
+    Patch,
+    PatchVerifyError,
     Space,
     count,
     span,
@@ -521,6 +523,47 @@ def test_entry_write_without_a_known_size_only_meets_the_space_bounds():
     assert bytes(buf[:4]) == b"\xde\xad\xbe\xef"
     with pytest.raises(AddressError, match="past the end"):
         blob.write(b"\x00" * 0x21)
+
+
+def test_write_with_expect_guards_against_the_wrong_bytes():
+    """`expect=` is a value in the same codec, not bytes: 'this was 32, make
+    it 5' -- and say so loudly if it was not 32."""
+    buf = bytearray(8)
+    s = Space(buf, base=BASE, endian="little")
+    s.write(BASE, 0x1234, UInt16)
+    s.write(BASE, 0x5678, UInt16, expect=0x1234)  # matches: lands
+    assert s.read(BASE, UInt16) == 0x5678
+    with pytest.raises(PatchVerifyError, match="but the write expected"):
+        s.write(BASE, 0x9ABC, UInt16, expect=0x1234)  # stale expectation
+    assert s.read(BASE, UInt16) == 0x5678  # refused, nothing written
+
+
+def test_expect_is_checked_before_a_patch_records_anything():
+    buf = bytearray(8)
+    s = Space(buf, base=BASE, endian="little")
+    p = Patch()
+    with pytest.raises(PatchVerifyError):
+        s.write(BASE, 0x9ABC, UInt16, patch=p, expect=0x1234)
+    assert not p  # the patch stays empty
+
+
+def test_expect_must_describe_the_same_bytes_as_the_value():
+    s = Space(bytearray(16), base=BASE, endian="little")
+    e = s.entry(BASE, Reward, count(2), name="two")
+    with pytest.raises(ValueError, match="the same bytes"):
+        e.write([Reward(max_frames=1, pad=0, item_id=1)] * 2,
+                expect=Reward(max_frames=0, pad=0, item_id=0))
+
+
+def test_entry_write_with_expect_states_the_guard_in_its_own_codec():
+    buf = bytearray(16)
+    s = Space(buf, base=BASE, endian="little")
+    e = s.entry(BASE, Reward, count(1), name="reward")
+    before = Reward(max_frames=0, pad=0, item_id=0)
+    e.write(Reward(max_frames=7, pad=0, item_id=9), expect=before)
+    assert e.read() == Reward(max_frames=7, pad=0, item_id=9)
+    with pytest.raises(PatchVerifyError):
+        e.write(Reward(max_frames=8, pad=0, item_id=9), expect=before)
 
 
 def test_space_write_splices_raw_bytes_with_no_codec():

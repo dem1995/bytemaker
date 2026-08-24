@@ -12,8 +12,12 @@ from bytemaker.structs import BytesLike
 from bytemaker.typing_redirect import List, Optional
 
 class PatchVerifyError(ValueError):
-    """A patch was applied to a buffer whose bytes are not what the patch
-    recorded as the original. Almost always the wrong ROM build."""
+    """Bytes are not what they were said to be.
+
+    Raised when a patch is applied to a buffer that does not hold the
+    originals it recorded, and when a write with ``expect=`` finds something
+    else already there. Both are the same mistake caught at different
+    moments — almost always the wrong build, or a table that moved."""
 
 
 class PatchConflict(ValueError):
