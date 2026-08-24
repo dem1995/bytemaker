@@ -445,6 +445,21 @@ class Plan:
             raise ValueError(f"field {name!r} is not byte-aligned (bit {f.bit_offset})")
         return f.bit_offset // 8
 
+    def byte_span(self, name: str) -> Tuple[int, int]:
+        """``(byte offset, byte width)`` of a byte-aligned field.
+
+        The pair is what it takes to address a field's bytes on their own —
+        the offset says where, and without the width there is no way to know
+        how far the field runs.
+        """
+        f = self._find(name)
+        if f.bit_offset % 8 or f.bit_width % 8:
+            raise ValueError(
+                f"field {name!r} does not occupy whole bytes"
+                f" (bit {f.bit_offset}, {f.bit_width} bits wide)"
+            )
+        return f.bit_offset // 8, f.bit_width // 8
+
     def __repr__(self):
         return (
             f"Plan(num_bits={self.num_bits}, tier={self.tier!r},"

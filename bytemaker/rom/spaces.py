@@ -34,7 +34,7 @@ from .coverage import (
     _overlaps,
 )
 from .patches import PatchVerifyError, _changed_runs
-from .pointers import _checkable_target, _ptr_adapter_of
+from .pointers import _checkable_target, _codec_name, _ptr_adapter_of
 
 
 class AddressError(ValueError):
@@ -237,6 +237,23 @@ class Space:
     def backed(self) -> bool:
         """True when this space has bytes behind it."""
         return self._buf is not None
+
+    def _as_endian(self, endian: Optional[str]) -> "Space":
+        """This space, or a view of the same bytes in another byte order.
+
+        A record can declare a field's order (``field(UInt16, endian="big")``
+        inside a little-endian image), and a scalar read takes its order from
+        the space — so reading that field needs a space that agrees with it.
+        """
+        if endian is None or endian == self._endian:
+            return self
+        return Space(
+            self._buf,
+            size=self._size,
+            base=self._base,
+            endian=cast('Literal["big", "little"]', endian),
+            name=self._name,
+        )
 
     def _bytes(self, what: str) -> BytesLike:
         """The buffer, or a refusal naming what needed it."""
@@ -451,9 +468,18 @@ class Space:
         *,
         name: str = "",
         note: str = "",
+        reserve: Optional[int] = None,
     ) -> "Entry":
         """An :class:`Entry` at ``addr`` already bound to this space."""
-        return Entry(addr, codec, extent, name=name, note=note, space=self)
+        return Entry(
+            addr,
+            codec,
+            extent,
+            name=name,
+            note=note,
+            space=self,
+            reserve=reserve,
+        )
 
     def bind(self, entries) -> "List[Entry]":
         """Bind a space-free map (a list of :class:`Entry`) to this space."""
@@ -570,7 +596,9 @@ class Space:
         )
 
     def _resolve_region(self, entry: "Entry"):
-        declared = entry.size
+        # capacity, not size: a reservation claims its whole extent even
+        # when what currently lives there is shorter or not yet known.
+        declared = entry.capacity
         if declared is not None:
             end = entry.addr + declared
             if not (self.contains(entry.addr) and end <= self.end):
@@ -881,6 +909,17 @@ class Space:
 # --------------------------------------------------------------------------
 
 
+def _field_info(codec: StructMeta, name: str, where: str):
+    """The named top-level field of ``codec``, or a listing of what it has."""
+    for info in fields_of(codec):
+        if info.name == name:
+            return info
+    known = ", ".join(i.name for i in fields_of(codec))
+    raise ValueError(
+        f"{where}: {codec.__name__} has no field {name!r}; it has {known}"
+    )
+
+
 class Entry:
     """One mapped thing: an address, a codec, and how far it runs.
 
@@ -899,7 +938,9 @@ class Entry:
     Frozen: rebind with :meth:`bind` rather than mutating.
     """
 
-    __slots__ = ("addr", "codec", "extent", "name", "note", "space")
+    __slots__ = (
+        "addr", "codec", "extent", "name", "note", "space", "reserve", "endian",
+    )
 
     addr: int
     codec: Any
@@ -907,6 +948,14 @@ class Entry:
     name: str
     note: str
     space: Optional[Space]
+    #: Bytes set aside here, when that differs from what the extent
+    #: describes: "0x200 bytes are mine, and I may not yet know how many of
+    #: them I use". Bounds writes and is what coverage counts as claimed.
+    reserve: Optional[int]
+    #: Byte order for this entry's codec, overriding the space's. Normally
+    #: None; :meth:`field` sets it when a record declares an order its space
+    #: does not share.
+    endian: Optional[str]
 
     def __init__(
         self,
@@ -917,16 +966,30 @@ class Entry:
         name: str = "",
         note: str = "",
         space: Optional[Space] = None,
+        reserve: Optional[int] = None,
+        endian: Optional[str] = None,
     ):
         extent = _as_extent(extent)
         if not isinstance(addr, int) or addr < 0:
             raise ValueError(f"Entry addr must be a non-negative int, got {addr!r}")
+        if reserve is not None and (not isinstance(reserve, int) or reserve < 0):
+            raise ValueError(
+                f"Entry reserve must be a non-negative int, got {reserve!r}"
+            )
         object.__setattr__(self, "addr", addr)
         object.__setattr__(self, "codec", codec)
         object.__setattr__(self, "extent", extent)
         object.__setattr__(self, "name", name)
         object.__setattr__(self, "note", note)
         object.__setattr__(self, "space", space)
+        object.__setattr__(self, "reserve", reserve)
+        object.__setattr__(self, "endian", endian)
+        declared = self.size
+        if reserve is not None and declared is not None and reserve < declared:
+            raise ValueError(
+                f"Entry {name or hex(addr)}: reserve={reserve} is smaller than"
+                f" the {declared} bytes {extent!r} already declares"
+            )
 
     def __setattr__(self, key, value):
         raise AttributeError(
@@ -936,22 +999,37 @@ class Entry:
 
     def bind(self, space: Space) -> "Entry":
         """A copy of this entry bound to ``space``."""
-        return Entry(
-            self.addr,
-            self.codec,
-            self.extent,
+        return self._derive(space=space)
+
+    def _derive(self, **changes) -> "Entry":
+        """A copy with some fields replaced — the one place that knows the
+        full slot list, so a new slot cannot be forgotten by a rebind."""
+        kw = dict(
+            addr=self.addr,
+            codec=self.codec,
+            extent=self.extent,
             name=self.name,
             note=self.note,
-            space=space,
+            space=self.space,
+            reserve=self.reserve,
+            endian=self.endian,
         )
+        kw.update(changes)
+        addr, codec, extent = kw.pop("addr"), kw.pop("codec"), kw.pop("extent")
+        return Entry(addr, codec, extent, **kw)
+
+    def _name(self) -> str:
+        return f"Entry {self.name or hex(self.addr)}"
 
     def _space(self) -> Space:
         if self.space is None:
             raise ValueError(
-                f"Entry {self.name or hex(self.addr)} is not bound to a Space;"
+                f"{self._name()} is not bound to a Space;"
                 f" call e.bind(space) (or space.bind(entries)) first"
             )
-        return self.space
+        # A field's record may declare a byte order its space does not
+        # share; the entry carries that, and reads through a matching view.
+        return self.space._as_endian(self.endian)
 
     # -- derived -----------------------------------------------------------
     @property
@@ -973,17 +1051,101 @@ class Entry:
 
     @property
     def size(self) -> Optional[int]:
-        """Total bytes claimed, or None when :attr:`item_count` is unknown."""
+        """Total bytes the extent describes, or None when
+        :attr:`item_count` is unknown."""
         n = self.item_count
         return None if n is None else n * self.stride
 
     @property
+    def capacity(self) -> Optional[int]:
+        """Bytes this entry may occupy: its :attr:`reserve` when it declares
+        one, else what its extent describes. What a write may not outgrow,
+        and what coverage counts as claimed."""
+        return self.reserve if self.reserve is not None else self.size
+
+    @property
     def byte_span(self):
         """``(first_addr, last_addr)`` inclusive, or None when unknown."""
-        size = self.size
+        size = self.capacity
         if size is None or size == 0:
             return None
         return (self.addr, self.addr + size - 1)
+
+    # -- derived addresses -------------------------------------------------
+    def item(self, index: int) -> "Entry":
+        """Item ``index`` of this table, as an entry of its own.
+
+        ``rewards.item(3)`` is the record at ``addr + 3 * stride``, which is
+        the arithmetic every caller of a table would otherwise write out by
+        hand — and get subtly wrong the day the record grows a field.
+        """
+        if not isinstance(index, int) or isinstance(index, bool):
+            raise TypeError(f"{self._name()}: item index must be an int")
+        n = self.item_count
+        if index < 0 or (n is not None and index >= n):
+            where = f"0..{n - 1}" if n is not None else "unknown length"
+            raise IndexError(
+                f"{self._name()}: item {index} is outside this entry ({where})"
+            )
+        return self._derive(
+            addr=self.addr + index * self.stride, extent=count(1), reserve=None,
+            name=f"{self.name}[{index}]" if self.name else "",
+        )
+
+    def field(self, name: str, index: int = 0) -> "Entry":
+        """One field of this entry's record, as an entry of its own.
+
+        The address comes from the compiled layout, so ``+0x0A`` stops being
+        a constant somebody has to maintain, and the codec comes with the
+        field's own adapter and byte order attached. ``index`` picks the
+        record first, for a table.
+
+        Top-level fields only: a field of a nested record is reached by
+        mapping that record as its own entry, the same boundary the pointer
+        audit draws.
+        """
+        base = self.item(index) if (index or self.item_count != 1) else self
+        codec = self.codec
+        if not isinstance(codec, StructMeta):
+            raise TypeError(
+                f"{self._name()}: field() needs a Struct codec to look a name"
+                f" up in, but this entry holds {_codec_name(codec)}"
+            )
+        info = _field_info(codec, name, self._name())
+        # byte_span rather than byte_offset: it also refuses a field that
+        # does not occupy whole bytes, which has no address of its own.
+        offset, _ = codec.plan.byte_span(name)
+        field_codec = info.type
+        if info.adapter is not None and not isinstance(
+            field_codec, (Array, StructMeta)
+        ):
+            field_codec = Adapted(field_codec, info.adapter)
+        return Entry(
+            base.addr + offset,
+            field_codec,
+            count(1),
+            name=f"{base.name}.{name}" if base.name else name,
+            space=base.space,
+            # The record decides the field's byte order; the space only
+            # decides it for codecs that never declared one.
+            endian=info.endian,
+        )
+
+    def set(self, patch: Any = None, /, **fields: Any) -> None:
+        """Write named fields of this entry's record, and nothing else.
+
+        ``pickup.set(p, kind=4, subtype=2)`` claims those fields' bytes and
+        leaves the rest of the record alone — which is what lets two
+        features edit one record and still compose, and what lets a write
+        land on an image this code has never read.
+
+        ``patch`` is positional so that a field may be named ``patch``.
+        Without one, the fields are written in place.
+        """
+        if not fields:
+            raise TypeError(f"{self._name()}: set() needs at least one field=value")
+        for name, value in fields.items():
+            self.field(name).write(value, patch=patch)
 
     # -- access ------------------------------------------------------------
     def read(self, extent: Any = _INHERIT) -> Any:
@@ -1012,12 +1174,15 @@ class Entry:
         """
         space = self._space()
         data = space._encode(value, self.codec)
-        limit = self.size
+        limit = self.capacity
         if limit is not None and len(data) > limit:
+            declared = (
+                f"reserve={self.reserve}" if self.reserve is not None
+                else repr(self.extent)
+            )
             raise ValueError(
-                f"Entry {self.name or hex(self.addr)}: {len(data)} bytes do"
-                f" not fit the {limit} declared by {self.extent!r}; widen the"
-                f" extent or write less"
+                f"{self._name()}: {len(data)} bytes do not fit the {limit}"
+                f" from {declared}; reserve more room or write less"
             )
         # expect rides the ENTRY's codec, so the guard is stated in the same
         # terms as the value; from here down both are already bytes.

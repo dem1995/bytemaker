@@ -104,7 +104,9 @@ from bytemaker.introspect import (
     bitsizeof,
     fields_of,
     layout,
+    offset_of,
     sizeof,
+    span_of,
 )
 from bytemaker.plans import Plan, PlanCompileError
 from bytemaker.structs import (
@@ -125,6 +127,8 @@ __all__ = [
     "bitsizeof",
     "fields_of",
     "layout",
+    "offset_of",
+    "span_of",
     "FieldInfo",
     "Adapter",
     "Adapted",

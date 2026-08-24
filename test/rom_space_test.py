@@ -509,7 +509,7 @@ def test_entry_write_refuses_to_outgrow_its_extent():
     buf = bytearray(0x40)
     s = Space(buf, base=BASE, endian="little")
     e = s.entry(BASE, Reward, count(3), name="rewards")
-    with pytest.raises(ValueError, match="do not fit the 24 declared"):
+    with pytest.raises(ValueError, match="do not fit the 24 from count"):
         e.write([Reward(max_frames=i, pad=0, item_id=i) for i in range(5)])
     assert bytes(buf) == bytes(0x40)  # nothing was spliced
     e.write([Reward(max_frames=7, pad=0, item_id=9)])  # fewer rows is fine
@@ -572,6 +572,119 @@ def test_space_write_splices_raw_bytes_with_no_codec():
     s = Space(buf, base=BASE, endian="little")
     s.write(BASE + 2, b"\x01\x02\x03")
     assert bytes(buf) == b"\x00\x00\x01\x02\x03\x00\x00\x00"
+
+
+# ------------------------------------------- item / field / set (rom-15)
+class Enemy(Struct, endian="little"):
+    hp: int = field(UInt16)
+    soul_rate: int = field(UInt8)
+    flags: int = field(UInt8)
+    ident: int = field(UInt16, endian="big")  # a field with its own order
+
+
+def enemy_space():
+    buf = bytearray(0x40)
+    for i, (hp, rate) in enumerate(((100, 32), (200, 16), (300, 8))):
+        Enemy(hp=hp, soul_rate=rate, flags=0, ident=0xAABB).pack_into(buf, i * 6)
+    return Space(buf, base=BASE, endian="little", name="E"), buf
+
+
+def test_item_addresses_a_row_without_hand_arithmetic():
+    s, _ = enemy_space()
+    table = s.entry(BASE, Enemy, count(3), name="enemies")
+    assert [table.item(i).addr for i in range(3)] == [BASE, BASE + 6, BASE + 12]
+    assert table.item(1).read() == Enemy(hp=200, soul_rate=16, flags=0, ident=0xAABB)
+    assert table.item(2).name == "enemies[2]"
+    with pytest.raises(IndexError, match="outside this entry"):
+        table.item(3)
+
+
+def test_field_addresses_one_field_of_one_row():
+    s, _ = enemy_space()
+    table = s.entry(BASE, Enemy, count(3), name="enemies")
+    rate = table.field("soul_rate", index=1)
+    assert rate.addr == BASE + 6 + 2  # +0x02, from the compiled layout
+    assert rate.read() == 16
+    assert rate.name == "enemies[1].soul_rate"
+
+
+def test_field_writes_claim_only_that_fields_bytes():
+    s, buf = enemy_space()
+    table = s.entry(BASE, Enemy, count(3), name="enemies")
+    p = Patch()
+    table.field("soul_rate", index=2).write(5, expect=8, patch=p)
+    assert p.byte_count == 1 and p.edits == (Edit(14, b"\x08", b"\x05"),)
+    assert bytes(buf) == bytes(buf)  # patch recorded, buffer untouched
+
+
+def test_a_field_keeps_the_byte_order_its_record_declared():
+    """`ident` is big-endian inside a little-endian record in a
+    little-endian space; reading it as a field has to honour the record."""
+    s, _ = enemy_space()
+    e = s.entry(BASE, Enemy, count(1), name="e")
+    assert e.field("ident").endian == "big"
+    assert e.field("ident").read() == 0xAABB  # not 0xBBAA
+    e.field("ident").write(0x1234)
+    assert e.read().ident == 0x1234
+    assert e.field("hp").endian == "little"
+
+
+def test_field_rejects_an_unknown_name_and_a_non_struct_codec():
+    s, _ = enemy_space()
+    e = s.entry(BASE, Enemy, count(1), name="e")
+    with pytest.raises(ValueError, match="no field 'hpp'; it has hp"):
+        e.field("hpp")
+    with pytest.raises(TypeError, match="needs a Struct codec"):
+        s.entry(BASE, UInt16, count(1)).field("hp")
+
+
+def test_field_refuses_a_field_that_is_not_whole_bytes():
+    s = Space(bytearray(8), base=BASE, endian="little")
+    e = s.entry(BASE, Nibbles, count(1), name="n")
+    with pytest.raises(ValueError, match="does not occupy whole bytes"):
+        e.field("hi")
+
+
+def test_set_writes_several_fields_and_leaves_the_rest_alone():
+    s, buf = enemy_space()
+    before = bytes(buf)
+    e = s.entry(BASE, Enemy, count(1), name="e")
+    p = Patch()
+    e.set(p, soul_rate=9, flags=3)
+    assert p.byte_count == 2  # two adjacent bytes, one coalesced edit
+    assert len(p.edits) == 1
+    after = Space(p.apply(before), base=BASE, endian="little").read(BASE, Enemy)
+    assert after == Enemy(hp=100, soul_rate=9, flags=3, ident=0xAABB)
+
+
+def test_set_without_a_patch_writes_in_place():
+    s, buf = enemy_space()
+    s.entry(BASE, Enemy, count(1), name="e").set(soul_rate=9)
+    assert buf[2] == 9
+
+
+def test_set_needs_at_least_one_field():
+    s, _ = enemy_space()
+    with pytest.raises(TypeError, match="at least one field"):
+        s.entry(BASE, Enemy, count(1)).set()
+
+
+# ------------------------------------------------------ reserve (rom-15)
+def test_reserve_bounds_a_write_and_claims_its_room():
+    s = Space(bytearray(0x100), base=BASE, endian="little")
+    hook = s.entry(BASE, UInt8, unknown("hook blob"), reserve=0x20, name="hook")
+    assert hook.capacity == 0x20 and hook.size is None
+    hook.write(b"\xde\xad" * 8)  # 16 <= 0x20
+    with pytest.raises(ValueError, match="do not fit the 32 from reserve"):
+        hook.write(b"\x00" * 0x21)
+    # an unknown() extent claims nothing; a reservation claims its room
+    report = s.coverage([hook])
+    assert report.claimed_bytes == 0x20 and not report.unresolved
+
+
+def test_reserve_may_not_be_smaller_than_the_extent_declares():
+    with pytest.raises(ValueError, match="smaller than the 24 bytes"):
+        Entry(BASE, Reward, count(3), reserve=8, name="rewards")
 
 
 # --------------------------------------------- geometry-only Space (rom-14)

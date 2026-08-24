@@ -15,9 +15,13 @@ from bytemaker import (
     field,
     fields_of,
     layout,
+    offset_of,
     sizeof,
+    span_of,
+    u4,
     u8,
     u16,
+    u32,
 )
 from bytemaker.adapters import biased
 from bytemaker.bittypes import Buffer, UInt4, UInt8, UInt16, UInt32, UTF8String
@@ -277,6 +281,43 @@ def test_layout_header_states_the_bit_order():
     assert Lsb(a=1, b=2).pack() != Msb(a=1, b=2).pack()
     assert layout(Lsb).splitlines()[1:] == layout(Msb).splitlines()[1:]
     assert layout(Lsb) != layout(Msb)  # ... the header is the only difference
+
+
+def test_offset_of_and_span_of_locate_a_field_in_its_record():
+    """The typed replacement for a hand-counted `+0x0A`."""
+
+    class Row(Struct, endian="little"):
+        a: u8
+        b: u16
+        c: u32
+
+    assert [offset_of(Row, n) for n in "abc"] == [0, 1, 3]
+    assert [span_of(Row, n) for n in "abc"] == [(0, 1), (1, 2), (3, 4)]
+    assert offset_of(Row(a=1, b=2, c=3), "c") == 3  # an instance works too
+
+
+def test_offset_of_reaches_a_nested_field_by_dotted_name():
+    class Leaf(Struct, endian="little"):
+        x: u8
+        y: u16
+
+    class Holder(Struct, endian="little"):
+        head: u8
+        leaf: Leaf
+
+    assert offset_of(Holder, "leaf.y") == 2
+    assert span_of(Holder, "leaf.y") == (2, 2)
+
+
+def test_offset_of_refuses_a_field_that_is_not_byte_aligned():
+    class Packed(Struct, endian="little", bit_order="lsb"):
+        lo: u4
+        hi: u4
+
+    with pytest.raises(ValueError, match="not byte-aligned"):
+        offset_of(Packed, "hi")
+    with pytest.raises(ValueError, match="does not occupy whole bytes"):
+        span_of(Packed, "hi")
 
 
 def test_endian_is_none_for_an_array_of_internally_mixed_records():

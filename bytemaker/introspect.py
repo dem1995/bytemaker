@@ -29,7 +29,15 @@ from bytemaker.typing_redirect import (
     get_origin,
 )
 
-__all__ = ["FieldInfo", "bitsizeof", "fields_of", "layout", "sizeof"]
+__all__ = [
+    "FieldInfo",
+    "bitsizeof",
+    "fields_of",
+    "layout",
+    "offset_of",
+    "sizeof",
+    "span_of",
+]
 
 
 def _unwrap(obj):
@@ -122,6 +130,29 @@ def fields_of(struct) -> Tuple[FieldInfo, ...]:
         )
         for n in cls._bm_fields
     )
+
+
+def offset_of(struct, field: str) -> int:
+    """Byte offset of ``field`` within its record.
+
+    The typed replacement for a hand-counted ``+0x0A``: the number comes
+    from the same compiled layout the codec uses, so renaming or resizing a
+    field moves it automatically. ``field`` may be dotted
+    (``"header.count"``). Raises ``ValueError`` for a field that does not
+    start on a byte boundary — a byte address cannot name half a byte.
+    """
+    cls = _record_class(struct, "offset_of")
+    return cls.plan.byte_offset(field)
+
+
+def span_of(struct, field: str) -> Tuple[int, int]:
+    """``(byte offset, byte width)`` of ``field`` within its record.
+
+    :func:`offset_of` says where the field starts; this says how far it
+    runs, which is what it takes to address the field's bytes on their own.
+    """
+    cls = _record_class(struct, "span_of")
+    return cls.plan.byte_span(field)
 
 
 def _sole(values):
