@@ -50,8 +50,8 @@ class Edit:
     """
 
     offset: int
-    old: Optional[bytes]
     new: bytes
+    old: Optional[bytes] = None
 
     def __post_init__(self):
         if self.old is not None and len(self.old) != len(self.new):
@@ -154,23 +154,24 @@ class Patch:
         self._new: dict = {}
         self.name = name
         for e in edits:
-            self.write(e.offset, e.old, e.new)
+            self.write(e.offset, e.new, e.old)
 
     # -- building ----------------------------------------------------------
     def write(
-        self, offset: int, old: Optional[BytesLike], new: BytesLike
+        self, offset: int, new: BytesLike, old: Optional[BytesLike] = None
     ) -> None:
-        """Record that the bytes ``old`` at ``offset`` become ``new``.
+        """Record that ``offset`` becomes ``new``, replacing ``old``.
 
         Later writes win per byte; the earliest ``old`` is kept, so the patch
         always describes a transition from the pristine buffer.
 
-        ``old=None`` records a **blind** write — the original bytes are not
-        known, because the patch is being built before the target image is in
-        hand. The edit applies and composes like any other, but the patch
-        stops being :attr:`verifiable` (see :meth:`invert`, :meth:`guards`).
-        A byte later written with a known original upgrades: more information
-        wins over less.
+        Omitting ``old`` records a **blind** write — the original bytes are
+        not known, because the patch is being built before the target image
+        is in hand, which is the normal case at generation time. The edit
+        applies and composes like any other, but the patch stops being
+        :attr:`verifiable` (see :meth:`invert`, :meth:`guards`). A byte later
+        written with a known original upgrades: more information wins over
+        less.
         """
         new_b = bytes(new)
         old_b = None if old is None else bytes(old)
@@ -210,7 +211,7 @@ class Patch:
             )
         out = cls(name=name)
         for at, was, now in _changed_runs(base_b, edited_b):
-            out.write(at, was, now)
+            out.write(at, now, was)
         return out
 
     @property
@@ -236,8 +237,8 @@ class Patch:
         blind = self._old[start] is None
         return Edit(
             start,
-            None if blind else bytes(self._old[i] for i in rng),
             bytes(self._new[i] for i in rng),
+            old=None if blind else bytes(self._old[i] for i in rng),
         )
 
     @property

@@ -439,17 +439,17 @@ class Space:
             # No bytes to compare against: expect= becomes what the edit
             # claims was there, so applying the patch checks it later.
             if expected is None:
-                patch.write(off, None, data)
+                patch.write(off, data)
             else:
                 for i, was, now in _changed_runs(expected, data):
-                    patch.write(off + i, was, now)
+                    patch.write(off + i, now, was)
             return
         if expected is not None:
             self._check_expectation(off, expected, addr)
         if patch is not None:
             old = bytes(memoryview(self._buf)[off : off + len(data)])
             for i, was, now in _changed_runs(old, data):
-                patch.write(off + i, was, now)
+                patch.write(off + i, now, was)
             return
         try:
             self._buf[off : off + len(data)] = data  # type: ignore[index]

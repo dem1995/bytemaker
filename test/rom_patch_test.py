@@ -26,25 +26,25 @@ class Reward(Struct, endian="little"):
 
 def tiny():
     p = Patch(name="tiny")
-    p.write(4, b"\x04\x05", b"\xaa\xbb")
+    p.write(4, b"\xaa\xbb", b"\x04\x05")
     return p
 
 
 # -------------------------------------------------------------------- Edit
 def test_edit_requires_equal_lengths_and_content():
-    e = Edit(4, b"\x01\x02", b"\xaa\xbb")
+    e = Edit(4, b"\xaa\xbb", b"\x01\x02")
     assert e.size == 2 and e.end == 6 and not e.is_noop
     assert Edit(0, b"\x01", b"\x01").is_noop
     with pytest.raises(ValueError, match="replaces bytes in place"):
-        Edit(0, b"\x01", b"\xaa\xbb")
+        Edit(0, b"\xaa\xbb", b"\x01")
     with pytest.raises(ValueError, match="empty"):
         Edit(0, b"", b"")
     with pytest.raises(ValueError, match="non-negative"):
-        Edit(-1, b"\x01", b"\x02")
+        Edit(-1, b"\x02", b"\x01")
 
 
 def test_edit_is_frozen():
-    e = Edit(4, b"\x01", b"\x02")
+    e = Edit(4, b"\x02", b"\x01")
     with pytest.raises(Exception):  # FrozenInstanceError subclasses AttributeError
         e.offset = 8
 
@@ -98,7 +98,7 @@ def test_verify_can_be_turned_off_and_says_so_in_the_signature():
 
 def test_apply_bounds_are_checked_even_without_verify():
     p = Patch()
-    p.write(100, b"\x01", b"\x02")
+    p.write(100, b"\x02", b"\x01")
     with pytest.raises(PatchVerifyError, match="past the end"):
         p.apply(ORIGINAL)
     with pytest.raises(PatchVerifyError, match="past the end"):
@@ -117,16 +117,16 @@ def test_invert_of_a_resaved_patch_restores_the_pristine_bytes():
     """Later writes win, but the EARLIEST old is kept -- so undo goes all
     the way back, not one step."""
     p = Patch()
-    p.write(4, b"\x04", b"\xaa")
-    p.write(4, b"\xaa", b"\xbb")  # a second tweak of the same byte
-    assert p.edits == (Edit(4, b"\x04", b"\xbb"),)
+    p.write(4, b"\xaa", b"\x04")
+    p.write(4, b"\xbb", b"\xaa")  # a second tweak of the same byte
+    assert p.edits == (Edit(4, b"\xbb", b"\x04"),)
     assert p.invert().apply(p.apply(ORIGINAL)) == ORIGINAL
 
 
 # ------------------------------------------------------------------ compose
 def test_compose_merges_disjoint_patches():
     a, b = tiny(), Patch(name="other")
-    b.write(8, b"\x08", b"\x99")
+    b.write(8, b"\x99", b"\x08")
     both = a | b
     assert len(both) == 2 and both.name == "tiny | other"
     out = both.apply(ORIGINAL)
@@ -137,10 +137,10 @@ def test_compose_merges_disjoint_patches():
 def test_compose_allows_agreement_and_rejects_disagreement():
     a = tiny()
     same = Patch()
-    same.write(4, b"\x04\x05", b"\xaa\xbb")  # identical claim
+    same.write(4, b"\xaa\xbb", b"\x04\x05")  # identical claim
     assert (a | same).edits == a.edits
     clash = Patch()
-    clash.write(5, b"\x05", b"\x01")
+    clash.write(5, b"\x01", b"\x05")
     with pytest.raises(PatchConflict, match=r"offset 5 \(0x5\): 0xbb vs 0x01"):
         a | clash
 
@@ -148,7 +148,7 @@ def test_compose_allows_agreement_and_rejects_disagreement():
 def test_compose_reports_how_many_bytes_conflict():
     a = tiny()
     clash = Patch()
-    clash.write(4, b"\x04\x05", b"\x01\x02")
+    clash.write(4, b"\x01\x02", b"\x04\x05")
     with pytest.raises(PatchConflict, match="2 bytes conflict"):
         a | clash
 
@@ -161,17 +161,17 @@ def test_compose_with_a_non_patch_is_a_type_error():
 # ------------------------------------------------------------ the byte map
 def test_adjacent_writes_coalesce_into_one_edit():
     p = Patch()
-    p.write(4, b"\x04", b"\xaa")
-    p.write(5, b"\x05", b"\xbb")
-    p.write(6, b"\x06", b"\xcc")
-    assert p.edits == (Edit(4, b"\x04\x05\x06", b"\xaa\xbb\xcc"),)
-    p.write(8, b"\x08", b"\xdd")  # a gap -> a second run
+    p.write(4, b"\xaa", b"\x04")
+    p.write(5, b"\xbb", b"\x05")
+    p.write(6, b"\xcc", b"\x06")
+    assert p.edits == (Edit(4, b"\xaa\xbb\xcc", b"\x04\x05\x06"),)
+    p.write(8, b"\xdd", b"\x08")  # a gap -> a second run
     assert len(p.edits) == 2
 
 
 def test_counts_and_predicates():
     p = Patch()
-    p.write(4, b"\x04\x05", b"\xaa\x05")  # second byte is a no-op
+    p.write(4, b"\xaa\x05", b"\x04\x05")  # second byte is a no-op
     assert p.byte_count == 2 and p.changed_byte_count == 1
     assert p.touches(4) and p.touches(5) and not p.touches(6)
     assert bool(p) and not bool(Patch())
@@ -182,19 +182,19 @@ def test_counts_and_predicates():
 def test_write_validates_its_arguments():
     p = Patch()
     with pytest.raises(ValueError, match="replaces bytes in place"):
-        p.write(0, b"\x01", b"\x02\x03")
+        p.write(0, b"\x02\x03", b"\x01")
     with pytest.raises(ValueError, match="non-negative"):
-        p.write(-1, b"\x01", b"\x02")
+        p.write(-1, b"\x02", b"\x01")
 
 
 def test_patch_can_be_built_from_edits():
-    p = Patch([Edit(4, b"\x04\x05", b"\xaa\xbb")], name="tiny")
+    p = Patch([Edit(4, b"\xaa\xbb", b"\x04\x05")], name="tiny")
     assert p == tiny()
 
 
 def test_summary_lists_edits_and_marks_noops():
     p = Patch(name="s")
-    p.write(4, b"\x04\x05", b"\xaa\x05")
+    p.write(4, b"\xaa\x05", b"\x04\x05")
     text = p.summary()
     assert "1 edit(s), 1/2 bytes changed" in text
     assert "0x000004+2" in text and "0405 -> aa05" in text
@@ -218,7 +218,7 @@ def test_ips_empty_patch_is_header_plus_terminator():
 def test_ips_splits_records_larger_than_65535_bytes():
     size = 0x1_0000 + 5
     p = Patch()
-    p.write(0, bytes(size), b"\xaa" * size)
+    p.write(0, b"\xaa" * size, bytes(size))
     ips = p.to_ips()
     assert len(p.edits) == 1  # one logical edit...
     body = ips[5:-3]
@@ -232,7 +232,7 @@ def test_ips_splits_records_larger_than_65535_bytes():
 
 def test_ips_rejects_offsets_past_16_mib():
     p = Patch()
-    p.write(0x100_0000, b"\x01", b"\x02")
+    p.write(0x100_0000, b"\x02", b"\x01")
     with pytest.raises(ValueError, match="24-bit"):
         p.to_ips()
 
@@ -242,7 +242,7 @@ def test_ips_rejects_a_split_record_that_crosses_16_mib():
     start + 0xFFFF, does not. The check has to be inside the split loop."""
     start = 0xFF0001  # start + 0xFFFF == 0x1000000, one past the ceiling
     p = Patch()
-    p.write(start, bytes(0x1_0010), b"\xaa" * 0x1_0010)
+    p.write(start, b"\xaa" * 0x1_0010, bytes(0x1_0010))
     with pytest.raises(ValueError, match=r"offset 0x1000000 exceeds"):
         p.to_ips()
 
@@ -251,7 +251,7 @@ def test_ips_eof_offset_quirk_needs_the_buffer():
     """A record at offset 0x454F46 encodes as the ASCII bytes 'EOF', which
     naive readers treat as end-of-file."""
     p = Patch(name="q")
-    p.write(IPS_EOF_OFFSET, b"\x00\x00", b"\xaa\xbb")
+    p.write(IPS_EOF_OFFSET, b"\xaa\xbb", b"\x00\x00")
     assert IPS_EOF_OFFSET.to_bytes(3, "big") == b"EOF"
     with pytest.raises(ValueError, match="'EOF'"):
         p.to_ips()
@@ -272,7 +272,7 @@ def test_ips_split_boundary_never_lands_on_the_eof_offset():
     buffer, since the byte it borrows belongs to the same edit."""
     start = IPS_EOF_OFFSET - 0xFFFF  # the second record starts on the quirk
     p = Patch(name="split")
-    p.write(start, bytes(0x1_0005), b"\xaa" * 0x1_0005)
+    p.write(start, b"\xaa" * 0x1_0005, bytes(0x1_0005))
     ips = p.to_ips()  # no buf needed
     body = ips[5:-3]
     assert b"EOF" not in body
@@ -297,11 +297,11 @@ def _ips_applied(ips: bytes, buf: bytes) -> bytes:
 
 def test_ips_offset_next_to_the_eof_quirk_is_untouched():
     p = Patch()
-    p.write(IPS_EOF_OFFSET - 1, b"\x00", b"\xaa")
+    p.write(IPS_EOF_OFFSET - 1, b"\xaa", b"\x00")
     body = p.to_ips()[5:-3]
     assert body[0:3] == (IPS_EOF_OFFSET - 1).to_bytes(3, "big")
     p2 = Patch()
-    p2.write(IPS_EOF_OFFSET + 1, b"\x00", b"\xaa")
+    p2.write(IPS_EOF_OFFSET + 1, b"\xaa", b"\x00")
     body2 = p2.to_ips()[5:-3]
     assert body2[0:3] == (IPS_EOF_OFFSET + 1).to_bytes(3, "big")
 
@@ -311,9 +311,9 @@ def test_a_blind_write_applies_but_is_not_verifiable():
     """Writes built before the target image exists have no original bytes to
     record -- the generation-time half of a randomizer pipeline."""
     p = Patch(name="tokens")
-    p.write(4, None, b"\xaa\xbb")
+    p.write(4, b"\xaa\xbb")
     assert not p.verifiable
-    assert p.edits == (Edit(4, None, b"\xaa\xbb"),)
+    assert p.edits == (Edit(4, b"\xaa\xbb"),)
     assert p.edits[0].is_blind and not p.edits[0].is_noop
     assert p.apply(ORIGINAL)[4:6] == b"\xaa\xbb"  # applies to anything
     assert p.to_ips().startswith(b"PATCH")
@@ -321,8 +321,8 @@ def test_a_blind_write_applies_but_is_not_verifiable():
 
 def test_invert_and_guards_refuse_a_blind_patch_by_offset():
     p = Patch(name="tokens")
-    p.write(4, None, b"\xaa")
-    p.write(9, None, b"\xcc")
+    p.write(4, b"\xaa")
+    p.write(9, b"\xcc")
     with pytest.raises(PatchUnverifiable, match=r"invert\(\).*0x4, 0x9"):
         p.invert()
     with pytest.raises(PatchUnverifiable, match=r"guards\(\)"):
@@ -331,29 +331,29 @@ def test_invert_and_guards_refuse_a_blind_patch_by_offset():
 
 def test_guards_hand_back_the_compare_and_swap_triples():
     p = Patch()
-    p.write(4, b"\x04\x05", b"\xaa\xbb")
-    p.write(9, b"\x09", b"\xcc")
+    p.write(4, b"\xaa\xbb", b"\x04\x05")
+    p.write(9, b"\xcc", b"\x09")
     assert list(p.guards()) == [(4, b"\x04\x05", b"\xaa\xbb"), (9, b"\x09", b"\xcc")]
 
 
 def test_a_known_original_upgrades_a_blind_byte():
     p = Patch()
-    p.write(4, None, b"\xaa")
+    p.write(4, b"\xaa")
     assert not p.verifiable
-    p.write(4, b"\x04", b"\xbb")
-    assert p.verifiable and p.edits == (Edit(4, b"\x04", b"\xbb"),)
+    p.write(4, b"\xbb", b"\x04")
+    assert p.verifiable and p.edits == (Edit(4, b"\xbb", b"\x04"),)
 
 
 def test_edits_never_mix_known_and_blind_bytes():
     p = Patch()
-    p.write(4, b"\x04", b"\xaa")
-    p.write(5, None, b"\xbb")  # contiguous, but nothing known about it
-    assert p.edits == (Edit(4, b"\x04", b"\xaa"), Edit(5, None, b"\xbb"))
+    p.write(4, b"\xaa", b"\x04")
+    p.write(5, b"\xbb")  # contiguous, but nothing known about it
+    assert p.edits == (Edit(4, b"\xaa", b"\x04"), Edit(5, b"\xbb"))
 
 
 def test_summary_marks_the_blind_bytes():
     p = Patch(name="tokens")
-    p.write(4, None, b"\xaa\xbb")
+    p.write(4, b"\xaa\xbb")
     head, line = p.summary().splitlines()
     assert "2 blind" in head
     assert "???? -> aabb" in line  # two bytes of unknown original
@@ -361,8 +361,8 @@ def test_summary_marks_the_blind_bytes():
 
 def test_verify_skips_blind_bytes_but_still_checks_the_known_ones():
     p = Patch()
-    p.write(4, None, b"\xaa")
-    p.write(9, b"\x09", b"\xcc")
+    p.write(4, b"\xaa")
+    p.write(9, b"\xcc", b"\x09")
     assert p.apply(ORIGINAL)[4] == 0xAA
     wrong = bytearray(ORIGINAL)
     wrong[9] = 0x77
@@ -379,7 +379,7 @@ def test_diff_recovers_a_patch_from_a_mutated_working_copy():
     work[9] = 0xCC
     p = Patch.diff(ORIGINAL, work, name="all features")
     assert p.verifiable and p.byte_count == 3
-    assert p.edits == (Edit(4, b"\x04\x05", b"\xaa\xbb"), Edit(9, b"\x09", b"\xcc"))
+    assert p.edits == (Edit(4, b"\xaa\xbb", b"\x04\x05"), Edit(9, b"\xcc", b"\x09"))
     assert p.apply(ORIGINAL) == bytes(work)
     assert p.invert().apply(bytes(work)) == ORIGINAL
 
@@ -406,7 +406,7 @@ def test_space_write_with_a_patch_records_and_does_not_mutate():
     p = Patch(name="via space")
     s.write(BASE + 4, 0xBBAA, UInt16, patch=p)
     assert bytes(buf) == ORIGINAL  # untouched
-    assert p.edits == (Edit(4, b"\x04\x05", b"\xaa\xbb"),)
+    assert p.edits == (Edit(4, b"\xaa\xbb", b"\x04\x05"),)
     assert p.apply(buf)[4:6] == b"\xaa\xbb"
 
 

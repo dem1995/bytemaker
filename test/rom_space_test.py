@@ -613,7 +613,7 @@ def test_field_writes_claim_only_that_fields_bytes():
     table = s.entry(BASE, Enemy, count(3), name="enemies")
     p = Patch()
     table.field("soul_rate", index=2).write(5, expect=8, patch=p)
-    assert p.byte_count == 1 and p.edits == (Edit(14, b"\x08", b"\x05"),)
+    assert p.byte_count == 1 and p.edits == (Edit(14, b"\x05", b"\x08"),)
     assert bytes(buf) == bytes(buf)  # patch recorded, buffer untouched
 
 
@@ -730,7 +730,7 @@ def test_geometry_only_writes_record_blind_edits():
     p = Patch(name="tokens")
     s.write(BASE + 0x10, 0xBBAA, UInt16, patch=p)
     assert not p.verifiable
-    assert p.edits == (Edit(0x10, None, b"\xaa\xbb"),)
+    assert p.edits == (Edit(0x10, b"\xaa\xbb"),)
     real = bytearray(0x20)
     assert p.apply(bytes(real))[0x10:0x12] == b"\xaa\xbb"
 
@@ -746,7 +746,7 @@ def test_expect_without_bytes_is_carried_into_the_patch():
     s = gba()
     p = Patch()
     s.write(BASE + 4, 5, UInt8, patch=p, expect=32)
-    assert p.verifiable and p.edits == (Edit(4, b"\x20", b"\x05"),)
+    assert p.verifiable and p.edits == (Edit(4, b"\x05", b"\x20"),)
     wrong = bytearray(8)  # holds 0, not 32
     with pytest.raises(PatchVerifyError, match="offset 4"):
         p.apply(bytes(wrong))
@@ -882,7 +882,7 @@ def test_the_module_docstrings_three_write_flows_actually_run():
     rate_at = 0xE9644 + 54 * 4 + 2  # enemies[54].soul_rate
     data[rate_at] = 32
     other = Patch(name="other")
-    other.write(0x10, bytes(1), b"\x07")
+    other.write(0x10, b"\x07", bytes(1))
     original = bytes(range(256))
 
     ns = {
