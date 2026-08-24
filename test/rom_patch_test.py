@@ -350,6 +350,60 @@ def test_patch_a_record_field_end_to_end():
     assert p.to_ips().startswith(b"PATCH") and p.to_ips().endswith(b"EOF")
 
 
+def _one_reward(frames=14400, item=90):
+    buf = bytearray(16)
+    Reward(frames=frames, pad=0, item=item).pack_into(buf, 0)
+    return bytes(buf)
+
+
+def test_two_patches_on_one_record_but_different_fields_compose():
+    """A whole-record write used to claim the fields it did not touch, so two
+    features editing one record 'disagreed' about bytes neither changed."""
+    frozen = _one_reward()
+    s = Space(frozen, base=BASE, endian="little")
+
+    faster, richer = Patch(name="faster"), Patch(name="richer")
+    r = s.read(BASE, Reward)
+    r.frames = 7200
+    s.write(BASE, r, patch=faster)
+    r = s.read(BASE, Reward)
+    r.item = 91
+    s.write(BASE, r, patch=richer)
+
+    assert (faster.byte_count, richer.byte_count) == (2, 1)  # not 8 and 8
+    out = Space((faster | richer).apply(frozen), base=BASE, endian="little")
+    assert out.read(BASE, Reward) == Reward(frames=7200, pad=0, item=91)
+
+
+def test_read_modify_write_through_a_patch_keeps_the_earlier_edit():
+    """Reads never see pending edits, so the second read returns pristine
+    bytes. Claiming only what changed is what stops the second write from
+    stamping the first edit back to that pristine value."""
+    frozen = _one_reward()
+    s = Space(frozen, base=BASE, endian="little")
+
+    p = Patch(name="rmw")
+    r = s.read(BASE, Reward)
+    r.frames = 1
+    s.write(BASE, r, patch=p)
+
+    again = s.read(BASE, Reward)
+    assert again.frames == 14400  # pristine: the buffer was never touched
+    again.item = 9
+    s.write(BASE, again, patch=p)
+
+    out = Space(p.apply(frozen), base=BASE, endian="little")
+    assert out.read(BASE, Reward) == Reward(frames=1, pad=0, item=9)
+
+
+def test_a_recorded_write_that_changes_nothing_claims_nothing():
+    frozen = _one_reward()
+    s = Space(frozen, base=BASE, endian="little")
+    p = Patch()
+    s.write(BASE, s.read(BASE, Reward), patch=p)
+    assert not p and p.byte_count == 0 and p.edits == ()
+
+
 def test_two_independent_field_patches_compose():
     original = bytearray(32)
     Reward(frames=1, pad=0, item=2).pack_into(original, 0)

@@ -31,6 +31,7 @@ from .coverage import (
     _enumerate_values,
     _overlaps,
 )
+from .patches import _changed_runs
 from .pointers import _checkable_target, _ptr_adapter_of
 
 class AddressError(ValueError):
@@ -325,6 +326,16 @@ class Space:
         With ``patch=``, nothing is mutated: the old bytes are read and an
         edit is recorded on the patch, so the same call works on a read-only
         ``bytes`` buffer. Without it, the buffer must be writable.
+
+        Only the bytes a recorded write actually *changes* are claimed —
+        writing a whole record to tweak one field claims that field, not the
+        record — so two patches touching different fields of one record still
+        compose under ``|``. Reads never see pending edits (the buffer is
+        untouched by definition), which is exactly why recording claims
+        changes only: a later whole-record write can no longer stamp an
+        earlier edit back to the value it read. A flow that must read its own
+        intermediate state should mutate a ``bytearray`` space and take
+        :meth:`Patch.diff` of the result.
         """
         if codec is None:
             codec = self._infer_codec(value)
@@ -337,7 +348,8 @@ class Space:
             )
         if patch is not None:
             old = bytes(memoryview(self._buf)[off : off + len(data)])
-            patch.write(off, old, data)
+            for i, was, now in _changed_runs(old, data):
+                patch.write(off + i, was, now)
             return
         try:
             self._buf[off : off + len(data)] = data  # type: ignore[index]

@@ -65,6 +65,27 @@ IPS_MAX_OFFSET = 0xFFFFFF
 IPS_MAX_RECORD = 0xFFFF
 
 
+def _changed_runs(old: BytesLike, new: BytesLike):
+    """Yield ``(index, old_run, new_run)`` per maximal run where the two byte
+    strings differ.
+
+    What a write *actually changed*, as opposed to the span it happened to
+    cover. Recording a whole encoded record would claim the bytes it left
+    alone too, which then reads as a disagreement when two independent
+    patches touch different fields of one record.
+    """
+    old_b, new_b = bytes(old), bytes(new)
+    i, n = 0, len(old_b)
+    while i < n:
+        if old_b[i] == new_b[i]:
+            i += 1
+            continue
+        start = i
+        while i < n and old_b[i] != new_b[i]:
+            i += 1
+        yield start, old_b[start:i], new_b[start:i]
+
+
 class Patch:
     """A set of byte edits, as a value you can verify, invert and compose.
 
