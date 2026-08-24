@@ -38,11 +38,11 @@ from .pointers import _checkable_target, _codec_name, _ptr_adapter_of
 
 
 class AddressError(ValueError):
-    """An address (or a span) falls outside the space it was read from.
+    """An address (or a span) falls outside the space it addresses.
 
-    Its own class because a pointer audit *expects* some addresses to be
-    wild and wants to catch exactly that, not every ValueError a decode
-    might raise.
+    It gets its own class because a pointer audit *expects* some addresses
+    to be wild and wants to catch exactly those, rather than every
+    ValueError a decode might raise.
     """
 
 
@@ -89,10 +89,10 @@ class count(Extent):
 class until(Extent):
     """Items up to (not including) the first one equal to ``sentinel``.
 
-    The sentinel is matched on the **wire**, before any adapter: an adapter
-    must never change what terminates a table. ``max_count`` is the runaway
-    guard — a table with no terminator inside it raises rather than reading
-    to the end of the space.
+    The sentinel is matched on the **wire**, before any adapter, because an
+    adapter must never change what terminates a table. ``max_count`` is the
+    runaway guard, so a table with no terminator inside it raises rather
+    than reading on to the end of the space.
     """
 
     __slots__ = ("sentinel", "max_count")
@@ -107,11 +107,11 @@ class until(Extent):
 
 
 class span(Extent):
-    """Items from the entry's address through ``end`` (an **inclusive** end
-    address, the form a disassembly listing gives you).
+    """Items from the entry's address through ``end``.
 
-    The width must divide the region exactly, or the declaration is wrong
-    about one of the two.
+    The end address is **inclusive**, because that is the form a disassembly
+    listing gives you. The item width must divide the region exactly, so a
+    remainder means the address, the end, or the record shape is wrong.
     """
 
     __slots__ = ("end",)
@@ -128,9 +128,11 @@ class span(Extent):
 
 
 class unknown(Extent):
-    """The length is not known. Reads refuse; the entry still documents the
-    address and record shape, and a coverage report lists it as unresolved
-    (claiming nothing) with ``note`` as the reason.
+    """The length is not known, so reads refuse.
+
+    The entry still documents the address and the record shape, and a
+    coverage report lists it as unresolved — claiming nothing — with
+    ``note`` as the reason.
     """
 
     __slots__ = ("note",)
@@ -140,9 +142,12 @@ class unknown(Extent):
 
 
 class _Inherit:
-    """Distinguishes "no extent passed" from ``0``/``count(0)``, both of
-    which are legitimate and would be swallowed by a falsiness test. A named
-    class rather than a bare sentinel so it reads as itself in a signature."""
+    """Tells "no extent passed" apart from ``0`` or ``count(0)``.
+
+    Both of those are legitimate extents that a falsiness test would
+    swallow. It is a named class rather than a bare sentinel so that it
+    reads as itself in a signature.
+    """
 
     __slots__ = ()
 
@@ -154,7 +159,11 @@ _INHERIT = _Inherit()
 
 
 def _as_extent(extent) -> Extent:
-    """``4`` -> ``count(4)``, ``None`` -> ``count(1)``, Extent -> itself."""
+    """Normalize an extent argument.
+
+    ``4`` becomes ``count(4)``, ``None`` becomes ``count(1)``, and an
+    :class:`Extent` is already one.
+    """
     if extent is None:
         return count(1)
     if isinstance(extent, Extent):
@@ -181,7 +190,8 @@ class Space:
             reading and for patch-recording writes. Pass ``None`` with
             ``size=`` for a **geometry-only** space (see below).
         size: how many bytes the space spans. Required when ``buf`` is
-            ``None``, and rejected otherwise — a buffer already knows.
+            ``None``, and rejected otherwise, because a buffer already
+            knows its own length.
         base: the address the first byte lives at (``0x08000000`` for GBA
             ROM, 0 for a plain file).
         endian: byte order for SCALAR reads/writes — required, because
@@ -192,11 +202,11 @@ class Space:
     A **geometry-only** space is the same address plane with no bytes behind
     it: ``Space(None, size=0x800000, base=0x08000000, endian="little")``.
     Address math, entries, declaration-level :meth:`coverage` and
-    patch-recording writes all work; anything that would read bytes refuses
-    and says why. Two situations need it and neither has an image to hand:
-    building writes *before* the target file exists, and describing a live
-    machine's memory, where the bytes arrive from a transport one fetch at a
-    time.
+    patch-recording writes all work, while anything that would read bytes
+    refuses and says why. Two situations need it, and neither has an image
+    to hand: building writes *before* the target file exists, and describing
+    a live machine's memory, where the bytes arrive from a transport one
+    fetch at a time.
     """
 
     __slots__ = ("_buf", "_size", "_base", "_endian", "_name", "_record")
@@ -272,20 +282,20 @@ class Space:
 
         The two other write modes each give up something a build pipeline
         needs. A plain write mutates and remembers nothing. A ``patch=``
-        write remembers and mutates nothing — so a later step cannot read
-        what an earlier one did, and reconstructing the record afterwards
-        with :meth:`Patch.diff` both costs a scan of the whole image and
-        *drops every byte written back to the value it already held*, which
-        for a table relocated into zero-filled free space can be most of it.
-        Such a patch then applies cleanly to an image that differs exactly
-        there and silently produces the wrong bytes.
+        write remembers but mutates nothing, so a later step cannot read
+        what an earlier one did. Reconstructing the record afterwards with
+        :meth:`Patch.diff` costs a scan of the whole image and *drops every
+        byte written back to the value it already held*, which for a table
+        relocated into zero-filled free space can be most of it; such a
+        patch then applies cleanly to an image that differs exactly there
+        and silently produces the wrong bytes.
 
         Recording writes claim **the whole span written**, not just the
         bytes that changed. The changed-bytes-only rule exists because a
         ``patch=`` write leaves the buffer alone, so a later whole-record
         write would otherwise stamp an earlier edit back to what it read
         (see :meth:`write`). Here the buffer *is* updated and reads see it,
-        so that rationale is gone and fidelity is what is left to want::
+        so that reason is gone and what is left to want is fidelity::
 
             work = Space(bytearray(rom), base=0x08000000, endian="little")
             p = Patch(name="all features")
@@ -358,7 +368,7 @@ class Space:
 
     # -- address math ------------------------------------------------------
     def offset(self, addr: int) -> int:
-        """Buffer offset of ``addr``, or :class:`AddressError`."""
+        """Return the buffer offset of ``addr``, or raise :class:`AddressError`."""
         if not isinstance(addr, int):
             raise TypeError(f"{self._label()}: address must be an int, got {addr!r}")
         off = addr - self._base
@@ -370,7 +380,7 @@ class Space:
         return off
 
     def addr_of(self, offset: int) -> int:
-        """The inverse of :meth:`offset`."""
+        """Return the address at ``offset`` — the inverse of :meth:`offset`."""
         if not isinstance(offset, int) or offset < 0 or offset > len(self):
             raise AddressError(
                 f"{self._label()}: offset {offset!r} is outside the space"
@@ -379,8 +389,11 @@ class Space:
         return self._base + offset
 
     def contains(self, addr: int) -> bool:
-        """True if ``addr`` is mapped. The non-raising :meth:`offset`, for
-        classifying pointers."""
+        """True when ``addr`` is mapped.
+
+        The non-raising counterpart to :meth:`offset`, for classifying
+        pointers.
+        """
         return isinstance(addr, int) and self._base <= addr < self.end
 
     def _label(self) -> str:
@@ -398,10 +411,10 @@ class Space:
         ``extent`` is an :class:`Extent` or a plain item count (the two are
         interchangeable; ``4`` means ``count(4)``).
 
-        Shape rule: ``count(1)`` — the default — returns ONE decoded item;
+        The return shape is a property of the *declaration*, never of the
+        data: ``count(1)`` — the default — returns ONE decoded item, while
         every other extent returns a list, including a ``span`` or ``until``
-        that happens to resolve to one item. So the return shape is a
-        property of the *declaration*, never of the data.
+        that happens to resolve to a single item.
         """
         codec = unwrap_alias(codec)
         stride = self._stride(codec)
@@ -441,21 +454,23 @@ class Space:
     ) -> None:
         """Encode ``value`` at ``addr``.
 
-        ``codec`` may be omitted when ``value`` is a Struct instance (or a
-        non-empty list of them) — the record's own class is the codec.
+        ``codec`` may be omitted for a Struct instance (or a non-empty list
+        of them), because the record's own class is the codec, and for raw
+        bytes, which go down verbatim.
 
         ``expect`` is what the target must currently hold, as a *value* in
         the same codec rather than bytes: ``write(addr, 5, expect=32)`` says
         "this was 32, make it 5". It is one idea at two moments — against
-        bytes in hand it is checked now, and against a patch it becomes the
-        edit's recorded original, so applying the patch checks it later.
-        Either way the write refuses to land somewhere it does not recognise,
-        which is what catches a wrong build or a moved table.
+        bytes in hand it is checked now, while against a patch it becomes
+        the edit's recorded original, so applying the patch checks it later.
+        Either way the write refuses to land somewhere it does not
+        recognise, which is what catches a wrong build or a moved table.
 
-        A recorded ``expect`` claims the **full stated span**, exempt from the
-        changed-bytes-only rule below — the guard you state is the guard you
-        get, so ``guards()`` covers the whole value and writing the expected
-        value back still records a verifying (no-op) edit rather than nothing.
+        A recorded ``expect`` claims the **full stated span** and is exempt
+        from the changed-bytes-only rule below, because the guard you state
+        is the guard you get: ``guards()`` covers the whole value, and
+        writing the expected value back still records a verifying (no-op)
+        edit rather than nothing.
 
         A value too large for its codec **wraps**, silently, because that is
         what C does: converting to an unsigned type is defined as reduction
@@ -470,22 +485,23 @@ class Space:
         That knob reports a *type* overflowing its width. A limit the target
         imposes — an opcode whose immediate field only encodes 0..255, a
         table whose consumer rejects an index past its length — is not a
-        narrowing question and no codec knows it; state it where you know it,
-        the way ``expect=`` states what the bytes must already be.
+        narrowing question, and no codec knows it, so state it where you do
+        know it, the way ``expect=`` states what the bytes must already be.
 
         With ``patch=``, nothing is mutated: the old bytes are read and an
         edit is recorded on the patch, so the same call works on a read-only
         ``bytes`` buffer. Without it, the buffer must be writable.
 
-        Only the bytes a recorded write actually *changes* are claimed —
-        writing a whole record to tweak one field claims that field, not the
-        record — so two patches touching different fields of one record still
-        compose under ``|``. Reads never see pending edits (the buffer is
-        untouched by definition), which is exactly why recording claims
-        changes only: a later whole-record write can no longer stamp an
-        earlier edit back to the value it read. A flow that must read its own
-        intermediate state should mutate a ``bytearray`` space and take
-        :meth:`Patch.diff` of the result.
+        When there are bytes to compare against, a ``patch=`` write claims
+        only what it actually *changes* — writing a whole record to tweak
+        one field claims that field, not the record — so two patches
+        touching different fields of one record still compose under ``|``.
+        The buffer is untouched by definition, so reads never see pending
+        edits, and that is exactly why only the changed bytes are claimed: a
+        later whole-record write can no longer stamp an earlier edit back to
+        the value it read. A flow whose later steps must see what the
+        earlier ones wrote should write through :meth:`recording` instead,
+        which updates the buffer and records the whole span of every write.
         """
         codec = unwrap_alias(codec) if codec is not None else self._infer_codec(value)
         data = self._encode(value, codec)
@@ -580,12 +596,13 @@ class Space:
     ) -> Any:
         """Follow a :class:`Ptr` field of ``record``.
 
-        ``field`` is the field's name — as a string, or refactor-safely as
-        the CLASS attribute itself (``rom.deref(warp, WarpPoint.room_ptr)``;
-        class-level access returns the field descriptor, which knows its
-        name). The field must have been declared with a ``Ptr``, so the
-        pointee's codec is in the schema, not at the call site. An adapted
-        array of pointers dereferences element-wise and returns a list.
+        ``field`` is the field's name as a string, or, refactor-safely, the
+        CLASS attribute itself: ``rom.deref(warp, WarpPoint.room_ptr)`` works
+        because class-level access returns the field descriptor, which knows
+        its name. The field must have been declared with a ``Ptr``, so the
+        pointee's codec lives in the schema rather than at the call site. An
+        adapted array of pointers dereferences element-wise and returns a
+        list.
 
         (For a pointer you already read, ``value.deref(space)`` on the
         :class:`PtrValue` itself is the shortest spelling.)
@@ -625,8 +642,11 @@ class Space:
         ptr: Any,
         extent: Union[int, "Extent", None] = 1,
     ) -> Any:
-        """Follow one address through ``ptr`` (a :class:`Ptr` codec or its
-        adapter) — the form for elements of a pointer list."""
+        """Follow one address through ``ptr``.
+
+        ``ptr`` is a :class:`Ptr` codec or its adapter. This is the form for
+        elements of a pointer list.
+        """
         adapter = _ptr_adapter_of(ptr)
         if adapter is None:
             raise TypeError(
@@ -642,8 +662,8 @@ class Space:
 
     # -- coverage ----------------------------------------------------------
     def coverage(self, entries, *, audit_pointers: bool = True):
-        """What a map accounts for: per-entry footprints, double-claims, and
-        where every declared pointer lands.
+        """Report what a map accounts for: per-entry footprints,
+        double-claims, and where every declared pointer lands.
 
         Returns a :class:`CoverageReport`. ``until`` extents are resolved by
         scanning (the terminator counts as claimed); ``unknown`` extents and
@@ -652,8 +672,8 @@ class Space:
 
         The pointer audit covers an entry whose codec is a ``Ptr`` (alone or
         as an array element) and the top-level ``Ptr`` fields of a Struct
-        codec. Pointers nested inside a nested Struct are not followed —
-        map the inner record as its own entry if you need them.
+        codec. Pointers nested inside a nested Struct are not followed, so
+        map the inner record as its own entry when you need them.
 
         Where a pointer declares a record target AND lands in a region
         mapped as records, the audit also verifies it: a hit in a region of
@@ -766,18 +786,19 @@ class Space:
         return ("unclaimed", None)
 
     def _verify_target(self, addr, region, adapter):
-        """``claimed`` — unless the pointer DECLARES a record type and the
-        claiming region disagrees.
+        """Return ``claimed``, unless the pointer DECLARES a record type
+        that the claiming region disagrees with.
 
-        Checkable only when the region's entry codec is a Struct class and
-        the pointer's target is (or resolves to) one: a raw-byte or scalar
-        region can legitimately contain records the map has not modelled at
-        that granularity, and ``Ptr(None)`` / an unresolvable name declares
-        nothing to check. Two defect verdicts come out of this:
-        ``mistargeted`` (lands in a region mapped as a DIFFERENT record
-        type) and ``misaligned`` (right record type, but not on a record
-        boundary — usually an off-by-one in the region's address or an
-        interior pointer worth knowing about).
+        The check only runs when the region's entry codec is a Struct class
+        and the pointer's target is (or resolves to) one, because a raw-byte
+        or scalar region can legitimately contain records the map has not
+        modelled at that granularity, and ``Ptr(None)`` or an unresolvable
+        name declares nothing to check. Two defect verdicts come out of it:
+        ``mistargeted``, when the address lands in a region mapped as a
+        DIFFERENT record type, and ``misaligned``, when the record type is
+        right but the address is not on a record boundary — usually an
+        off-by-one in the region's address, or an interior pointer worth
+        knowing about.
         """
         target = _checkable_target(adapter)
         codec = region.entry.codec
@@ -791,7 +812,7 @@ class Space:
 
     # -- internals ---------------------------------------------------------
     def _stride(self, codec) -> int:
-        """One item's size in bytes; refuses sub-byte codecs."""
+        """Return one item's size in bytes, refusing sub-byte codecs."""
         try:
             bits = bitsizeof(codec)
         except TypeError:
@@ -832,12 +853,12 @@ class Space:
         """An ``Array`` declared without a byte order, resolved against this
         space's.
 
-        A standalone unset array would otherwise resolve to the historical
-        big default and raise the explicit-endian guard, even though the
-        space knows the answer — while ``UInt16`` at the same address reads
-        fine, because the scalar paths build their array from
+        Without this, a standalone unset array would resolve to the
+        historical big default and raise the explicit-endian guard even
+        though the space knows the answer, while ``UInt16`` at the same
+        address reads fine because the scalar paths build their array from
         ``self._endian``. An unset array inherits the space's byte order for
-        the same reason an unset array FIELD inherits its record's. An
+        the same reason an unset array FIELD inherits its record's, and an
         explicitly declared endian is always honored.
         """
         if codec.declared_endian is not None:
@@ -856,9 +877,11 @@ class Space:
         )
 
     def _decode_from(self, data, off, codec, n, stride, single):
-        """Decode from bytes in hand — this space supplies only the byte
-        order, so a caller that fetched the bytes itself can decode them
-        through the same declaration."""
+        """Decode from bytes already in hand.
+
+        This space supplies only the byte order, so a caller that fetched
+        the bytes itself can still decode them through the same declaration.
+        """
         if isinstance(codec, StructMeta):
             records = list(codec.iter_records(data, off, n))
             return records[0] if single else records
@@ -1004,7 +1027,10 @@ class Space:
 
 
 def _field_info(codec: StructMeta, name: str, where: str):
-    """The named top-level field of ``codec``, or a listing of what it has."""
+    """Return the named top-level field of ``codec``.
+
+    When there is no such field, the error lists the ones there are.
+    """
     for info in fields_of(codec):
         if info.name == name:
             return info
@@ -1033,7 +1059,7 @@ class Entry:
     binding a whole map is the comprehension above, which lands in the shape
     a caller wants anyway rather than a list they must re-key.
 
-    Frozen: rebind with :meth:`bind` rather than mutating.
+    An entry is frozen, so rebind with :meth:`bind` rather than mutating it.
     """
 
     __slots__ = (
@@ -1048,12 +1074,13 @@ class Entry:
     space: Optional[Space]
     #: Bytes set aside here, when that differs from what the extent
     #: describes: "0x200 bytes are mine, and I may not yet know how many of
-    #: them I use". Bounds writes and is what coverage counts as claimed.
-    #: A pure blob reservation is usually better spelled with a byte-payload
-    #: codec — ``Entry(addr, Buffer.of(nbytes=0x200), name=...)`` — which
-    #: reads back as ``bytes`` and bounds writes by its own size; ``reserve=``
-    #: is for when the CONTENT has a real shape (a growable table of records)
-    #: and the room is bigger than the rows currently in it.
+    #: them I use". It bounds writes, and it is what coverage counts as
+    #: claimed. A pure blob reservation is usually better spelled with a
+    #: byte-payload codec — ``Entry(addr, Buffer.of(nbytes=0x200), name=...)``
+    #: — which reads back as ``bytes`` and bounds writes by its own size,
+    #: while ``reserve=`` is for when the CONTENT has a real shape (a
+    #: growable table of records) and the room is bigger than the rows
+    #: currently in it.
     reserve: Optional[int]
     #: Byte order for this entry's codec, overriding the space's. Normally
     #: None; :meth:`field` sets it when a record declares an order its space
@@ -1106,8 +1133,11 @@ class Entry:
         return self._derive(space=space)
 
     def _derive(self, **changes) -> "Entry":
-        """A copy with some fields replaced — the one place that knows the
-        full slot list, so a new slot cannot be forgotten by a rebind."""
+        """A copy with some fields replaced.
+
+        The one place that knows the full slot list, so a rebind cannot
+        forget a slot added later.
+        """
         kw = dict(
             addr=self.addr,
             codec=self.codec,
@@ -1162,16 +1192,22 @@ class Entry:
 
     @property
     def capacity(self) -> Optional[int]:
-        """Bytes this entry may occupy: its :attr:`reserve` when it declares
-        one, else what its extent describes. What a write may not outgrow,
-        and what coverage counts as claimed."""
+        """Bytes this entry may occupy: its :attr:`reserve` when it
+        declares one, otherwise what its extent describes.
+
+        This is what a write may not outgrow, and what coverage counts as
+        claimed.
+        """
         return self.reserve if self.reserve is not None else self.size
 
     @property
     def end(self) -> Optional[int]:
-        """One past the last byte this entry may occupy, or None when
-        unknown — so two entries abut exactly when ``a.end == b.addr``,
-        the adjacency every table-cluster check wants to state."""
+        """One past the last byte this entry may occupy, or None when that
+        is unknown.
+
+        Two entries abut exactly when ``a.end == b.addr``, which is the
+        adjacency every table-cluster check wants to state.
+        """
         size = self.capacity
         return None if size is None else self.addr + size
 
@@ -1211,12 +1247,12 @@ class Entry:
         a constant somebody has to maintain, and the codec comes with the
         field's own adapter and byte order attached.
 
-        This entry must hold ONE record: which field of a 113-row table is
-        not a question with an answer, so pick the row first —
+        This entry must hold ONE record, because "which field of a 113-row
+        table?" is not a question with an answer. Pick the row first:
         ``enemies.item(54).field("soul_rate")``.
 
-        Top-level fields only: a field of a nested record is reached by
-        mapping that record as its own entry, the same boundary the pointer
+        Top-level fields only. Reach a field of a nested record by mapping
+        that record as its own entry, which is the same boundary the pointer
         audit draws.
         """
         n = self.item_count
@@ -1271,13 +1307,15 @@ class Entry:
 
     # -- access ------------------------------------------------------------
     def read(self, extent: Any = _INHERIT) -> Any:
-        """Read this entry. ``extent`` overrides the declared one — the way
-        an ``unknown()`` entry is read once its length is known. (Passing
-        ``0`` or ``count(0)`` means zero items, not "use the declared one".)
+        """Read this entry.
 
-        Reading a declaration against some other bytes is
-        ``entry.bind(space).read()`` — one verb for that, and it serves every
-        method here rather than only this one.
+        ``extent`` overrides the declared one, which is how an ``unknown()``
+        entry is read once its length turns out to be known. Passing ``0``
+        or ``count(0)`` means zero items rather than "use the declared one".
+
+        To read this declaration against some other bytes, bind it first:
+        ``entry.bind(space).read()``. One verb covers that, and it serves
+        every method here rather than only this one.
         """
         space = self._space()
         if extent is _INHERIT:
@@ -1288,9 +1326,9 @@ class Entry:
     def request(self) -> "Tuple[int, int]":
         """``(offset, nbytes)`` — where this entry's bytes are, and how many.
 
-        What a transport is asked for. The offset is relative to the space's
-        base, which is what a memory-domain read wants, and the size comes
-        from the declaration rather than a hand-kept constant.
+        This is what a transport is asked for. The offset is relative to
+        the space's base, which is what a memory-domain read wants, and the
+        size comes from the declaration rather than a hand-kept constant.
         """
         size = self.capacity
         if size is None:
@@ -1303,8 +1341,9 @@ class Entry:
     def parse(self, data: BytesLike) -> Any:
         """Decode this entry out of ``data`` — bytes someone else fetched.
 
-        The half of a read that does not need the bytes to be sitting in a
-        buffer at the right address: fetch by :meth:`request`, decode here.
+        This is the half of a read that does not need the bytes to be
+        sitting in a buffer at the right address: fetch them with
+        :meth:`request`, then decode them here.
         Nothing about the transport (async, batched, guarded) reaches the
         library, and the same declaration serves a file and a live machine.
         """
@@ -1327,8 +1366,11 @@ class Entry:
 
     def pack(self, value: Any) -> bytes:
         """Encode ``value`` as this entry's bytes, ready to hand to a
-        transport — the mirror of :meth:`parse`, and what a guarded write
-        needs for both its new bytes and its expected ones."""
+        transport.
+
+        The mirror of :meth:`parse`, and what a guarded write needs for both
+        its new bytes and its expected ones.
+        """
         space = self._space()
         data = space._encode(value, self.codec)
         limit = self.capacity
@@ -1354,8 +1396,8 @@ class Entry:
         ``count(3)`` holds three records, and a blob may not outgrow the
         space reserved for it. Writing *fewer* bytes stays legal, so a
         partial table update writes the rows it has. An entry whose extent
-        needs the buffer (``until``) or is unknown declares no size, so
-        only the space's own bounds apply.
+        needs the buffer (``until``) or is unknown declares no size at all,
+        so only the space's own bounds apply.
         """
         space = self._space()
         data = space._encode(value, self.codec)

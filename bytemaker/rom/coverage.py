@@ -1,9 +1,9 @@
 """What a map accounts for: :class:`CoverageReport` and its parts.
 
-The value types a coverage audit produces — resolved :class:`Region`
-footprints, :class:`Overlap` pairs, unclaimed :class:`Gap` runs, and
-:class:`PointerRef` classifications. :meth:`Space.coverage` builds them; they
-hold no buffer and no space themselves.
+These are the value types a coverage audit produces: resolved
+:class:`Region` footprints, :class:`Overlap` pairs, unclaimed :class:`Gap`
+runs, and :class:`PointerRef` classifications. :meth:`Space.coverage` builds
+them, and they hold no buffer and no space of their own.
 """
 
 from dataclasses import dataclass
@@ -43,7 +43,8 @@ class Region:
 
 @dataclass(frozen=True)
 class Overlap:
-    """Two entries claiming the same bytes — usually a wrong count."""
+    """Two entries claiming the same bytes, which usually means a wrong
+    count."""
 
     a: str
     b: str
@@ -55,9 +56,9 @@ class Overlap:
 class Gap:
     """A run of bytes no resolved entry claims.
 
-    The complement of a coverage report, and the question a mapping session
-    actually runs on: not "how much have I got" but "what is left, and where
-    is the big one".
+    Gaps are the complement of a coverage report, and they are the question
+    a mapping session actually runs on: not "how much have I got" but "what
+    is left, and where is the big one".
     """
 
     start: int
@@ -73,8 +74,8 @@ class Gap:
 
 
 def _enumerate_values(value):
-    """``(index, one)`` pairs for a scalar, a list, or None: normalizes the
-    three shapes a Ptr-carrying read can produce."""
+    """Return ``(index, one)`` pairs for a scalar, a list, or None,
+    normalizing the three shapes a Ptr-carrying read can produce."""
     if value is None:
         return ()
     if isinstance(value, (list, tuple)):
@@ -83,10 +84,10 @@ def _enumerate_values(value):
 
 
 def _overlaps(regions) -> tuple:
-    """Pairs of resolved regions that claim the same bytes.
+    """Return every pair of resolved regions that claims the same bytes.
 
-    Sweeps in start order, so an entry overlapping three others reports
-    three pairs rather than one vague complaint.
+    The sweep runs in start order, so an entry overlapping three others
+    reports three pairs rather than one vague complaint.
     """
     live = sorted(
         (r for r in regions if r.resolved and r.size),
@@ -113,17 +114,19 @@ class PointerRef:
     #: ``(record, element)`` for a pointer array field inside a record.
     index: Any
     value: int
-    #: "claimed" | "unclaimed" | "outside" | "null" — plus, when the pointer
-    #: declares a record target, the two verified-defect verdicts
-    #: "mistargeted" (lands in a region mapped as a different record type)
-    #: and "misaligned" (right type, off a record boundary).
+    #: One of "claimed", "unclaimed", "outside", or "null". A pointer that
+    #: declares a record target can also earn one of two verified-defect
+    #: verdicts: "mistargeted", when it lands in a region mapped as a
+    #: different record type, or "misaligned", when the type is right but
+    #: the address is off a record boundary.
     verdict: str
     claimed_by: Optional[str] = None
 
     @property
     def is_dangling(self) -> bool:
-        """Points outside the space entirely — the one that is always a bug
-        (or a pointer into RAM, which a ROM map should say so about)."""
+        """True when the pointer lands outside the space entirely, which is
+        the verdict that is always a bug — unless it points into RAM, and
+        then the map should say so."""
         return self.verdict == "outside"
 
     def describe(self) -> str:
@@ -171,8 +174,8 @@ class CoverageReport:
         bounds — but without it a stray region would inflate the claim and
         stretch a gap past the end of the space it describes.
 
-        Cached: the report is frozen and one ``render()`` reads this several
-        times over what can be thousands of regions.
+        Cached because the report is frozen, and a single ``render()``
+        reads this several times over what can be thousands of regions.
         """
         low = self.space_base
         high = low + self.space_size
@@ -197,18 +200,19 @@ class CoverageReport:
         return sum(end - start for start, end in self._merged_spans)
 
     def gaps(self, min_size: int = 1) -> tuple:
-        """Runs of at least ``min_size`` bytes that no resolved entry
-        claims, as :class:`Gap` values in address order.
+        """Return the runs of at least ``min_size`` bytes that no resolved
+        entry claims, as :class:`Gap` values in address order.
 
-        The complement of :attr:`claimed_bytes`, and the direction a map
-        actually grows in: percentages say how far along you are, gaps say
-        where to look next — especially paired with the ``unclaimed``
-        pointer verdicts, which name addresses something already points at.
+        Gaps are the complement of :attr:`claimed_bytes` and the direction a
+        map actually grows in: a percentage says how far along you are,
+        while a gap says where to look next — especially paired with the
+        ``unclaimed`` pointer verdicts, which name addresses something
+        already points at.
 
         An UNRESOLVED region claims nothing, so its bytes read as gap. That
-        is deliberate (the entry may be right about the address and wrong
-        about the length, and a report must not credit a length it could not
-        resolve); :attr:`unresolved` names those entries and why.
+        is deliberate, because the entry may be right about the address and
+        wrong about the length, and a report must not credit a length it
+        could not resolve; :attr:`unresolved` names those entries and why.
         """
         gaps = []
         cursor = self.space_base
@@ -223,12 +227,14 @@ class CoverageReport:
 
     @property
     def unclaimed_bytes(self) -> int:
-        """``space_size - claimed_bytes``, which is also the total bytes in
-        :meth:`gaps` — the two agree because both sides are read off
-        :attr:`_merged_spans`, whose spans are clipped to the space. The
-        equality is pinned by a test against the gap sum, so this can stay
-        the cheap arithmetic form (the sum allocates a Gap per run just to
-        add its sizes)."""
+        """``space_size - claimed_bytes``, which is also the total size of
+        the runs :meth:`gaps` returns.
+
+        The two agree because both are read off :attr:`_merged_spans`, whose
+        spans are clipped to the space. A test pins that equality against
+        the gap sum, so this can stay the cheap arithmetic form rather than
+        allocating a Gap per run just to add up its sizes.
+        """
         return self.space_size - self.claimed_bytes
 
     @property
@@ -246,8 +252,11 @@ class CoverageReport:
         return tuple(p for p in self.pointers if p.is_dangling)
 
     def render(self, max_pointers: int = 20, max_gaps: int = 10) -> str:
-        """A text report. Truncates the pointer and gap listings, and says by
-        how much — a silent cap would read as "all clear"."""
+        """Return the report as text.
+
+        The pointer and gap listings are truncated, and the report says by
+        how much, because a silent cap would read as "all clear".
+        """
         label = self.space_name or "space"
         lines = [
             f"coverage of {label}: {self.claimed_bytes}/{self.space_size} bytes"
@@ -266,10 +275,10 @@ class CoverageReport:
                 )
         gaps = self.gaps()
         if gaps:
-            # Listed LARGEST first, unlike gaps() itself: on a real map the
-            # first gaps by address are the least interesting (a ROM starts
-            # with code), and the question being asked is where the big
-            # unmapped region is.
+            # Listed LARGEST first, unlike gaps() itself, because on a real
+            # map the first gaps by address are the least interesting (a ROM
+            # starts with code) and the question being asked is where the
+            # big unmapped region is.
             lines.append(
                 f"  gaps ({len(gaps)}): {self.unclaimed_bytes} bytes"
                 f" unclaimed, largest first"

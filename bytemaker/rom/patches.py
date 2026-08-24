@@ -17,7 +17,9 @@ class PatchVerifyError(ValueError):
     Raised when a patch is applied to a buffer that does not hold the
     originals it recorded, and when a write with ``expect=`` finds something
     else already there. Both are the same mistake caught at different
-    moments — almost always the wrong build, or a table that moved."""
+    moments, and the cause is almost always the wrong build or a table that
+    moved.
+    """
 
 
 class PatchConflict(ValueError):
@@ -25,7 +27,7 @@ class PatchConflict(ValueError):
 
 
 class PatchUnverifiable(ValueError):
-    """An operation needs the original bytes, and this patch does not know
+    """An operation needs the original bytes, but this patch did not record
     them for every byte it claims.
 
     Raised by :meth:`Patch.invert` and :meth:`Patch.guards`, which cannot
@@ -38,14 +40,14 @@ class PatchUnverifiable(ValueError):
 class Edit:
     """One contiguous replacement: ``new`` goes where ``old`` was.
 
-    Equal lengths, always — an edit that changed a region's size would shift
-    everything after it, which is a different (and much larger) operation
-    than patching.
+    The two are always the same length, because an edit that changed a
+    region's size would shift everything after it, which is a different and
+    much larger operation than patching.
 
     ``old`` is ``None`` for a **blind** edit: bytes written without the
     original in hand, which is the normal case when a patch is built before
     the target exists (a randomizer emitting writes with no base image). Such
-    an edit still applies and still composes; it cannot be verified or
+    an edit still applies and still composes, but it cannot be verified or
     inverted.
     """
 
@@ -80,8 +82,11 @@ class Edit:
 
     @property
     def is_noop(self) -> bool:
-        """True when this edit provably changes nothing. A blind edit is
-        never a no-op: unknown is not the same as unchanged."""
+        """True when this edit provably changes nothing.
+
+        A blind edit is never a no-op, because unknown is not the same as
+        unchanged.
+        """
         return self.old == self.new
 
 
@@ -96,10 +101,10 @@ def _changed_runs(old: BytesLike, new: BytesLike):
     """Yield ``(index, old_run, new_run)`` per maximal run where the two byte
     strings differ.
 
-    What a write *actually changed*, as opposed to the span it happened to
-    cover. Recording a whole encoded record would claim the bytes it left
-    alone too, which then reads as a disagreement when two independent
-    patches touch different fields of one record.
+    The runs are what a write *actually changed*, rather than the span it
+    happened to cover. Recording a whole encoded record would claim the
+    bytes it left alone too, which then reads as a disagreement when two
+    independent patches touch different fields of one record.
     """
     old_b, new_b = bytes(old), bytes(new)
     i, n = 0, len(old_b)
@@ -126,8 +131,8 @@ class Patch:
         assert p.invert().apply(patched) == rom.buf
         open("fix.ips", "wb").write(p.to_ips())
 
-    Two exports are one-liners over :attr:`edits`, deliberately not methods —
-    the container a caller wants differs by caller::
+    Two useful exports are one-liners rather than methods, because the
+    container a caller wants differs by caller::
 
         tokens = {e.offset: e.new for e in p.edits}   # offset -> bytes
         pins = {e.name: e.addr for e in ROM_MAP}      # the map's own digest
@@ -162,16 +167,16 @@ class Patch:
     ) -> None:
         """Record that ``offset`` becomes ``new``, replacing ``old``.
 
-        Later writes win per byte; the earliest ``old`` is kept, so the patch
-        always describes a transition from the pristine buffer.
+        Later writes win per byte, while the earliest ``old`` is kept, so
+        the patch always describes a transition from the pristine buffer.
 
-        Omitting ``old`` records a **blind** write — the original bytes are
-        not known, because the patch is being built before the target image
-        is in hand, which is the normal case at generation time. The edit
-        applies and composes like any other, but the patch stops being
-        :attr:`verifiable` (see :meth:`invert`, :meth:`guards`). A byte later
-        written with a known original upgrades: more information wins over
-        less.
+        Omitting ``old`` records a **blind** write, meaning the original
+        bytes are not known because the patch is being built before the
+        target image is in hand, which is the normal case at generation
+        time. The edit applies and composes like any other, but the patch
+        stops being :attr:`verifiable` (see :meth:`invert`, :meth:`guards`).
+        Writing the same byte later with a known original upgrades it, since
+        more information wins over less.
         """
         new_b = bytes(new)
         old_b = None if old is None else bytes(old)
@@ -195,12 +200,12 @@ class Patch:
 
     @classmethod
     def diff(cls, base: BytesLike, edited: BytesLike, *, name: str = "") -> "Patch":
-        """The patch that turns ``base`` into ``edited``.
+        """Return the patch that turns ``base`` into ``edited``.
 
-        The honest artifact for a build that mutates a working copy in place
-        — where each step reads the state the previous ones left, so the
-        edits cannot be recorded as they happen. Diff the ends and you get a
-        verifiable, invertible, exportable value back.
+        This is the honest artifact for a build that mutates a working copy
+        in place, where each step reads the state the previous ones left, so
+        the edits cannot be recorded as they happen. Diff the two ends and
+        you get a verifiable, invertible, exportable value back.
         """
         base_b, edited_b = bytes(base), bytes(edited)
         if len(base_b) != len(edited_b):
@@ -283,10 +288,10 @@ class Patch:
 
     # -- algebra -----------------------------------------------------------
     def invert(self) -> "Patch":
-        """The patch that undoes this one.
+        """Return the patch that undoes this one.
 
-        Refuses a patch with blind edits: restoring bytes nobody recorded is
-        not something to guess at.
+        Refuses a patch with blind edits, because restoring bytes nobody
+        recorded is not something to guess at.
         """
         self._require_verifiable("invert()")
         out = Patch(name=f"undo({self.name})" if self.name else "")
@@ -295,24 +300,25 @@ class Patch:
         return out
 
     def guards(self) -> tuple:
-        """``(offset, expected, new)`` per coalesced run: write ``new`` at
-        ``offset``, but only while the bytes there still equal ``expected``.
+        """Return ``(offset, expected, new)`` per coalesced run: write
+        ``new`` at ``offset``, but only while the bytes there still equal
+        ``expected``.
 
-        The compare-and-swap triple a live target wants — a running game's
-        memory can change under a read, so a guarded write is the difference
-        between a correct update and a lost one. Refuses a blind patch, which
-        has nothing to compare against.
+        This is the compare-and-swap triple a live target wants, because a
+        running game's memory can change under a read, which makes a guarded
+        write the difference between a correct update and a lost one.
+        Refuses a blind patch, which has nothing to compare against.
 
-        A tuple rather than a generator, so the refusal happens when you ask
-        rather than when you get around to iterating, and so the result can
-        be counted and reused.
+        The result is a tuple rather than a generator, so the refusal
+        happens when you ask rather than when you get around to iterating,
+        and so the guards can be counted and reused.
         """
         self._require_verifiable("guards()")
         return tuple((e.offset, e.old, e.new) for e in self.edits)
 
     def __or__(self, other: "Patch") -> "Patch":
-        """Compose two independent patches; disagreement is a
-        :class:`PatchConflict`."""
+        """Compose two independent patches, raising :class:`PatchConflict`
+        when they disagree about a byte."""
         if not isinstance(other, Patch):
             return NotImplemented
         clash = sorted(
@@ -356,8 +362,9 @@ class Patch:
                 )
 
     def apply(self, buf: BytesLike, *, verify: bool = True) -> bytes:
-        """The patched bytes. ``verify`` checks the original bytes first —
-        leave it on; it is the whole point."""
+        """Return the patched bytes, checking the recorded originals first
+        unless ``verify`` is turned off. Leave it on, because that check is
+        the whole point of having recorded them."""
         out = bytearray(buf)
         self.apply_into(out, verify=verify)
         return bytes(out)
@@ -379,7 +386,7 @@ class Patch:
 
     # -- export ------------------------------------------------------------
     def to_ips(self, buf: Optional[BytesLike] = None) -> bytes:
-        """This patch as an IPS file.
+        """Return this patch as an IPS file.
 
         IPS records carry no original bytes, so the export is
         **verification-lossy**: keep the :class:`Patch` (or its edits) as the
@@ -389,10 +396,10 @@ class Patch:
         offset is exactly ``0x454F46`` encodes as the ASCII bytes ``EOF``,
         which naive readers treat as end-of-file. Given the buffer, such a
         record is extended one byte backwards (carrying the unchanged byte
-        along) so its offset lands elsewhere; without it, this raises.
-        A long edit whose *split boundary* lands there needs no buffer: the
-        preceding byte is part of that same edit, so the record simply
-        starts one byte earlier.
+        along) so that its offset lands elsewhere; without the buffer, this
+        raises. A long edit whose *split boundary* lands there needs no
+        buffer, because the preceding byte is part of that same edit, so the
+        record simply starts one byte earlier.
         """
         parts = [b"PATCH"]
         for edit in self.edits:
@@ -433,7 +440,8 @@ class Patch:
         return b"".join(parts)
 
     def save_ips(self, path, buf: Optional[BytesLike] = None) -> int:
-        """Write :meth:`to_ips` to ``path``; returns the byte count."""
+        """Write :meth:`to_ips` to ``path``, returning the number of bytes
+        written."""
         data = self.to_ips(buf)
         with open(path, "wb") as fh:
             fh.write(data)
@@ -441,7 +449,7 @@ class Patch:
 
     # -- reporting ---------------------------------------------------------
     def summary(self) -> str:
-        """A header line plus one line per coalesced edit."""
+        """Return a header line plus one line per coalesced edit."""
         edits = self.edits
         if not edits:
             return f"{self._label()}: empty"

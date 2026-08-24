@@ -13,6 +13,8 @@ helpers that plan-hopped between ``plan.num_bytes`` and
 * :func:`fields_of` — a Struct's top-level layout as
   ``(name, type, bit_offset, bit_width, adapter, endian)`` tuples, offsets
   and byte order from the compiled plan.
+* :func:`offset_of` / :func:`span_of` — where one named field starts, and
+  how far it runs, in whole bytes.
 * :func:`layout` — the same layout rendered for a human to read, so the
   offsets in a map's comments stop being counted by hand.
 """
@@ -135,11 +137,12 @@ def fields_of(struct) -> Tuple[FieldInfo, ...]:
 def offset_of(struct, field: str) -> int:
     """Byte offset of ``field`` within its record.
 
-    The typed replacement for a hand-counted ``+0x0A``: the number comes
-    from the same compiled layout the codec uses, so renaming or resizing a
-    field moves it automatically. ``field`` may be dotted
-    (``"header.count"``). Raises ``ValueError`` for a field that does not
-    start on a byte boundary — a byte address cannot name half a byte.
+    This is the typed replacement for a hand-counted ``+0x0A``: the number
+    comes from the same compiled layout the codec uses, so reordering or
+    resizing the fields ahead of it moves it automatically. ``field`` may be
+    dotted (``"header.count"``). Raises ``ValueError`` for a field that does
+    not start on a byte boundary, because a byte address cannot name half a
+    byte.
     """
     cls = _record_class(struct, "offset_of")
     return cls.plan.byte_offset(field)
@@ -148,8 +151,9 @@ def offset_of(struct, field: str) -> int:
 def span_of(struct, field: str) -> Tuple[int, int]:
     """``(byte offset, byte width)`` of ``field`` within its record.
 
-    :func:`offset_of` says where the field starts; this says how far it
-    runs, which is what it takes to address the field's bytes on their own.
+    :func:`offset_of` says where the field starts, while this also says how
+    far it runs, which is what it takes to address the field's bytes on
+    their own. Raises ``ValueError`` unless the field occupies whole bytes.
     """
     cls = _record_class(struct, "span_of")
     return cls.plan.byte_span(field)

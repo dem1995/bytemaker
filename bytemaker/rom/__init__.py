@@ -1,10 +1,10 @@
-"""Mapping a base-mapped address space: :class:`Space`, extents, :class:`Entry`.
+"""Map a binary image as an address space: :class:`Space`, extents, :class:`Entry`.
 
-A :class:`Struct` says what a record looks like. It says nothing about
-*where* records live, how many there are, or how to get at them — so every
-project that maps a binary (a GBA ROM, a save file, a firmware image)
-reinvents the same three things: subtract the base address, slice, and
-decide how the table ends. The reinvention is where the bugs are.
+A :class:`Struct` says what a record looks like, but nothing about *where*
+records live, how many there are, or how to get at them, so every project
+that maps a binary (a GBA ROM, a save file, a firmware image) reinvents the
+same three things: subtract the base address, slice, and decide how the
+table ends. The reinvention is where the bugs are.
 
 :class:`Space` is that layer, declared once::
 
@@ -20,30 +20,32 @@ decide how the table ends. The reinvention is where the bugs are.
 Three ideas carry the module:
 
 * **The space owns the byte order.** ``endian`` is a required keyword on
-  :class:`Space`, so scalar reads never guess and no declaration repeats it.
-  Composite codecs (:class:`~bytemaker.structs.Struct` classes,
+  :class:`Space`, so scalar reads never guess and no declaration repeats it,
+  while composite codecs (:class:`~bytemaker.structs.Struct` classes,
   :class:`~bytemaker.structs.Array` objects) always carry their own.
 * **Extents are values, not conventions.** ``count(n)``, ``until(sentinel)``,
   ``span(end_addr)`` and ``unknown()`` are the four things anyone actually
   knows about a table's length, so "how long is it" stops being a comment.
-* **An :class:`Entry` is a declaration, not a reader.** Entries can be
-  written with no buffer at all — a map module stays importable without the
-  ROM — and bound to a :class:`Space` later with :meth:`Entry.bind`.
+* **An :class:`Entry` is a declaration, not a reader.** An entry can be
+  written with no buffer at all and bound to a :class:`Space` later with
+  :meth:`Entry.bind`, so a map module stays importable without the ROM.
 
-Sub-byte codecs are refused: a byte address has no room for a 4-bit stride.
-Wrap those in a Struct (the plan engine packs them properly) and map that.
+Sub-byte codecs are refused, because a byte address has no room for a 4-bit
+stride. Wrap them in a Struct — the plan engine packs them properly — and
+map that.
 
 Two layers build on that base:
 
 * :class:`Patch` / :class:`Edit` — edits as a value. ``space.write(...,
   patch=p)`` records instead of mutating, so the edits can be verified
   against the original bytes, inverted, composed, and exported as IPS.
-* :class:`Ptr` and :meth:`Space.coverage` — a typed address (decoding to a
-  :class:`PtrValue`, an int that can ``.deref(space)`` itself) plus a report
-  of what a map accounts for, what it leaves unaccounted for
-  (:meth:`CoverageReport.gaps`, the direction a map grows in), what it
-  double-claims, and where its pointers land — verified for record type and
-  alignment where a pointer declares its pointee.
+* :class:`Ptr` and :meth:`Space.coverage` — a typed address plus a report on
+  the map as a whole. A ``Ptr`` decodes to a :class:`PtrValue`, an int that
+  can ``.deref(space)`` itself, while the report says what a map accounts
+  for, what it leaves unaccounted for (:meth:`CoverageReport.gaps`, the
+  direction a map grows in), what it double-claims, and where its pointers
+  land — verified for record type and alignment wherever a pointer declares
+  its pointee.
 
 Writing comes in three shapes, and picking the wrong one is the mistake
 this layer exists to prevent.
@@ -60,9 +62,9 @@ record still compose::
     ips = combined.to_ips()                 # or combined.save_ips(path)
 
 **2. Build writes for an image you do not have.** The generation half of a
-randomizer: addresses are known, bytes are not. A geometry-only space
-gives the address math with nothing behind it, and the edits are *blind* —
-they apply to whatever the player supplies, and refuse to be inverted::
+randomizer: addresses are known, bytes are not. A geometry-only space gives
+the address math with nothing behind it, so the edits are *blind* — they
+apply to whatever the player supplies, and they refuse to be inverted::
 
     gba = Space(None, size=0x800000, base=0x08000000, endian="little")
     p = Patch(name="item placement")
@@ -84,9 +86,9 @@ happens::
 
 Rebuilding the patch afterwards with ``Patch.diff(original, work.buf)`` also
 works, and is the only option when a feature mutates the buffer by other
-means -- but it is strictly weaker. It costs a scan of the whole image, and
-it **drops every byte written back to the value it already held**, which for
-a table relocated into zero-filled free space can be most of it; the result
+means, but it is strictly weaker. It costs a scan of the whole image, and it
+**drops every byte written back to the value it already held**, which for a
+table relocated into zero-filled free space can be most of it — the result
 then applies without complaint to an image that differs exactly there.
 :meth:`Space.recording` claims the whole span written, so prefer it.
 

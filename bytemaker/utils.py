@@ -22,14 +22,15 @@ from bytemaker.typing_redirect import (
 
 
 def unwrap_alias(obj):
-    """``Annotated[int, UInt16]`` (the ``u16``/``s5`` field alias) -> the
-    ``UInt16`` class; everything else passes through untouched.
+    """Unwrap a ``u16``/``s5`` field alias to the codec inside it, so that
+    ``Annotated[int, UInt16]`` becomes ``UInt16``; anything else passes
+    through untouched.
 
     The aliases exist so record declarations read like C, and people then
-    reach for the same name anywhere a codec is wanted — a natural move that
-    used to fail three layers down with a compile error about ``Annotated``.
-    Any codec-accepting boundary should run its argument through here first,
-    so both spellings of a scalar mean the scalar.
+    reach for the same name anywhere a codec is wanted. That is a natural
+    move, but it used to fail three layers down with a compile error about
+    ``Annotated``. Any codec-accepting boundary should run its argument
+    through here first, so that both spellings of a scalar mean the scalar.
     """
     if get_origin(obj) is Annotated:
         for meta in get_args(obj)[1:]:
