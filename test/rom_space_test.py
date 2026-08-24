@@ -155,6 +155,36 @@ def test_array_codec_brings_its_own_endian_and_adapter():
     assert two == [[0x0803EBA9], [0x0803EC35]]
 
 
+def test_an_unset_array_inherits_the_spaces_byte_order():
+    """``UInt16 * 2`` carries no byte order of its own, so a standalone
+    parse would hit the explicit-endian guard -- even though plain
+    ``UInt16`` at the same address reads fine, because the scalar path
+    builds its array from the space's order. Both spellings agree now."""
+    little, big = space(), space(endian="big")
+    assert little.read(BASE + 0x200, UInt16) == 0xABCD
+    assert little.read(BASE + 0x200, UInt16 * 1) == [0xABCD]
+    assert big.read(BASE + 0x200, UInt16) == 0xCDAB
+    assert big.read(BASE + 0x200, UInt16 * 1) == [0xCDAB]
+    assert little.read(BASE + 0x010, UInt32 * 2) == [0x0803EBA9, 0x0803EC35]
+
+
+def test_an_unset_array_writes_in_the_spaces_byte_order():
+    buf = bytearray(8)
+    s = Space(buf, base=BASE, endian="little")
+    s.write(BASE, [0x1234, 0x5678], UInt16 * 2)
+    assert bytes(buf[:4]) == b"\x34\x12\x78\x56"
+    assert s.read(BASE, UInt16 * 2) == [0x1234, 0x5678]
+
+
+def test_a_declared_array_endian_wins_over_the_spaces():
+    buf = bytearray(8)
+    s = Space(buf, base=BASE, endian="little")
+    be = Array.of(UInt16, 1, endian="big")
+    s.write(BASE, [0x1234], be)
+    assert bytes(buf[:2]) == b"\x12\x34"  # big, despite the little space
+    assert s.read(BASE, be) == [0x1234]
+
+
 def test_read_bounds_are_checked():
     s = space()
     with pytest.raises(AddressError, match="past the end"):

@@ -2120,6 +2120,13 @@ class Array(typing.Generic[V]):
         return self._endian
 
     @property
+    def adapter(self) -> Optional[Adapter]:
+        """The element adapter, or None. The fourth declarative field, next
+        to element/count/declared_endian: together they are what
+        ``__reduce__`` rebuilds an equivalent Array from."""
+        return self._adapter
+
+    @property
     def declared_endian(self) -> Optional[Literal["big", "little"]]:
         """The byte order this Array was DECLARED with, or None when unset.
 

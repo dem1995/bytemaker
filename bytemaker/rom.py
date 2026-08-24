@@ -680,6 +680,22 @@ class Space:
             return total // stride
         raise TypeError(f"{self._label()}: unsupported extent {extent!r}")
 
+    def _in_space_endian(self, codec: Array) -> Array:
+        """An ``Array`` declared without a byte order, resolved against this
+        space's.
+
+        A standalone unset array would otherwise resolve to the historical
+        big default and raise the explicit-endian guard, even though the
+        space knows the answer — while ``UInt16`` at the same address reads
+        fine, because the scalar paths build their array from
+        ``self._endian``. An unset array inherits the space's byte order for
+        the same reason an unset array FIELD inherits its record's. An
+        explicitly declared endian is always honored.
+        """
+        if codec.declared_endian is not None:
+            return codec
+        return Array(codec.element, codec.count, self._endian, codec.adapter)
+
     def _decode(self, addr, codec, n, stride, single):
         off = self.offset(addr)
         if n and off + n * stride > len(self):
@@ -692,8 +708,9 @@ class Space:
             return records[0] if single else records
         view = memoryview(self._buf)
         if isinstance(codec, Array):
+            resolved = self._in_space_endian(codec)
             items = [
-                codec.parse(view[i : i + stride])
+                resolved.parse(view[i : i + stride])
                 for i in range(off, off + n * stride, stride)
             ]
             return items[0] if single else items
@@ -785,9 +802,10 @@ class Space:
                 f" list of them), got {value!r}"
             )
         if isinstance(codec, Array):
+            resolved = self._in_space_endian(codec)
             if value and isinstance(value[0], (list, tuple)):
-                return b"".join(codec.pack(v) for v in value)
-            return codec.pack(value)
+                return b"".join(resolved.pack(v) for v in value)
+            return resolved.pack(value)
         if isinstance(value, (list, tuple)):
             if not value:
                 return b""
