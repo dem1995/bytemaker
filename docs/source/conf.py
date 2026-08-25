@@ -7,22 +7,21 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 import os
+import re
 import sys
 
-sys.path.insert(0, os.path.abspath("../"))
-sys.path.insert(0, os.path.abspath("../bytemaker"))
-sys.path.insert(0, os.path.abspath("../bytemaker/conversions"))
-
-# sys.path.insert(0, os.path.abspath("../bytemaker/bitvector"))
-# sys.path.insert(0, os.path.abspath("../bytemaker/bittypes"))
-
-# sys.path.insert(0, os.path.abspath("../bytemaker/native_types"))
+# conf.py lives in docs/source/; the package root is two levels up.
+sys.path.insert(0, os.path.abspath("../.."))
 
 
 project = "bytemaker"
-copyright = "2023, DEMcKnight"
+copyright = "2023-2026, DEMcKnight"
 author = "DEMcKnight"
-version = "0.9.2"
+# Single source of truth for the version: pyproject.toml.
+_pyproject = os.path.join(os.path.dirname(__file__), "..", "..", "pyproject.toml")
+with open(_pyproject, encoding="utf-8") as _f:
+    version = re.search(r'^version\s*=\s*"([^"]+)"', _f.read(), re.M).group(1)
+release = version
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -77,7 +76,6 @@ def setup(app):
 
 html_theme_options = {
     "source_url": "https://github.com/dem1995/bytemaker",
-    "github_url": "https://github.com/dem1995/bytemaker",
     # "collapse_navigation": True,
     # "switcher": {
     #     "version_match": version
