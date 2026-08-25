@@ -1,8 +1,8 @@
 .. _bytemaker_docs_mainpage:
 
-###################
+#########################
 Bytemaker documentation
-###################
+#########################
 
 
 .. toctree::
@@ -23,18 +23,46 @@ Bytemaker documentation
 What is it?
 -----------------------
 
-``bytemaker`` is a Python 3.8-compatible library for byte serialization/deserialization. It brings C bitfield functionality over to Python version 3.8+. To that end, it provides methods and types for converting ``@dataclass``-decorated classes.
+``bytemaker`` is a pure-Python library (3.8+) for C-style binary records
+and bit manipulation. You declare a record's layout as a class; parsing and
+packing are compiled once from that declaration, and fields hold plain
+Python values (``int``, ``float``, ``str``, ``bytes``)::
+
+   from bytemaker import Struct, u8, u16
+
+   class Monster(Struct, endian="little"):
+       species: u8
+       hp:      u16
+       attack:  u16
+
+   m = Monster.parse(rom[0x100:0x105])
+   m.hp = 999
+   rom[0x100:0x105] = m.pack()
 
 
 What can you do with it?
 ------------------------
 
-``bytemaker`` gives you the following:
-
-- A :py:class:`~bytemaker.bitvector.BitVector` class analogous to Python's ``bytes`` and ``bytearray`` classes, but for sub-byte bit quantities. :py:class:`~bytemaker.bitvector.BitVector` readily supports conversion between bit representations and various C customizable data types.
-- A set of :py:mod:`~bytemaker.bittypes` classes, including various-sized buffers, unsigned/signed ints, floats, and strings, that have underlying :py:class:`~bytemaker.bitvector.BitVector` representations.
-- Support for serializing/deserializing ``@dataclass``-decorated classes, where the annotations can be :py:mod:`~bytemaker.bittypes`\s, standard-library :py:data:`~bytemaker.conversions.ctypes\_.CType`\s (``c_uint8``, ``ctypes.STRUCTURE``, etc.), or Python-default :py:class:`~bytemaker.conversions.pytypes.PyType`\s (``int``, ``bool``, ``str`` (char), ``float``). Nested types? No problem!
-- Automagic support for handling any of the aforementioned objects via :py:meth:`bytemaker.conversions.aggregate_types.to_bits_aggregate` and :py:meth:`bytemaker.aggregate_types.from_bits_aggregate`.
+- Declare :py:class:`~bytemaker.structs.Struct` records with C-style fields
+  of any bit width (``u8``, ``s16``, ``u31``, …), nested records, arrays,
+  strings with custom encodings, and per-field endianness.
+- Work with whole address spaces via :py:mod:`bytemaker.rom`: a
+  :py:class:`~bytemaker.rom.Space` reads and writes records by address, a
+  :py:class:`~bytemaker.rom.Patch` records edits you can verify, invert and
+  export (including IPS), a :py:class:`~bytemaker.rom.Ptr` is a typed
+  address you can follow, and coverage reports show claims, overlaps and
+  gaps.
+- State encoding conventions once, in the schema, with
+  :py:mod:`bytemaker.adapters` (bias, fixed-point, scaling, enums, pointer
+  encodings) instead of at every call site.
+- Answer shape and size questions with :py:mod:`bytemaker.introspect`
+  (``sizeof``, ``layout``, ``offset_of``, ``span_of``).
+- Drop below the record layer when needed: :py:mod:`~bytemaker.bittypes`
+  boxes single C-like values (ints, floats, strings, buffers), and
+  :py:class:`~bytemaker.bitvector.BitVector` is a ``bytes``/``bytearray``
+  analogue for sub-byte bit quantities.
+- Keep using the original ``@dataclass`` aggregate API
+  (:py:mod:`bytemaker.conversions.aggregate_types`) — it remains supported.
 
 
 
