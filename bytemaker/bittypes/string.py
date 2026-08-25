@@ -38,27 +38,34 @@ def _table_bytes_per_char(table) -> "Tuple[Optional[int], Optional[str]]":
 class String(BitType[str]):
     """A ``BitType`` whose value is text (the C ``char name[N]`` field).
 
-    Concrete subclasses supply the codec as a classmethod pair —
-    :meth:`encoding` (``str -> BitVector``) and :meth:`decoding`
-    (``BitVector -> str``): :class:`StandardEncodingString` wraps a Python
-    codec name, :class:`TableString` a ``.tbl``-style byte table. Mint
-    fixed-size field types with :meth:`of`, which also selects the codec.
+    Concrete subclasses supply the codec as a classmethod pair:
+    :meth:`encoding` maps ``str -> BitVector``, and :meth:`decoding` maps
+    ``BitVector -> str``. :class:`StandardEncodingString` wraps a Python
+    codec name, and :class:`TableString` wraps a ``.tbl``-style byte table.
+    Mint fixed-size field types with :meth:`of`, which also selects the
+    codec.
 
     When ``num_bits`` is a whole number of bytes, the value round-trips
-    through the field-schema knobs below; sub-byte-width String classes
-    keep the historical exact-width behavior. ``pad`` is the fill byte
-    written after content on encode (None = exact width required);
-    ``terminator`` is written after the content on encode whenever it
-    fits (a max-length value fills the field with no terminator, the C
-    ``strncpy`` convention) and cuts the *decode* at its first
-    occurrence, so parse -> pack round-trips the wire bytes; ``strip``
-    drops trailing pad bytes on decode; ``truncate`` opts into
-    code-unit-safe truncation on overflow instead of raising; ``errors``
-    is the decode error policy (any registered codec error handler for
-    standard encodings; "strict", "replace", or "ignore" for tables).
-    Cut and strip happen at the BYTE layer, before decoding (a 0xFF pad
-    region is not valid UTF-8; garbage after a terminator is normal in
-    ROM data), in whole character units when ``bytes_per_char`` is known.
+    through the field-schema knobs below. A sub-byte-width String class
+    keeps the historical exact-width behavior instead.
+
+    ``pad`` is the fill byte written after the content on encode. Setting
+    it to None requires an exact width.
+
+    ``terminator`` is written after the content on encode whenever it fits.
+    A max-length value fills the field with no terminator, which is the C
+    ``strncpy`` convention. On decode the terminator cuts the text at its
+    first occurrence, so parse -> pack round-trips the wire bytes.
+
+    ``strip`` drops trailing pad bytes on decode. ``truncate`` opts into
+    code-unit-safe truncation on overflow instead of raising. ``errors`` is
+    the decode error policy: any registered codec error handler for
+    standard encodings, or "strict", "replace" or "ignore" for tables.
+
+    Cut and strip both happen at the byte layer, before decoding, because a
+    0xFF pad region is not valid UTF-8 and garbage after a terminator is
+    normal in ROM data. Both work in whole character units when
+    ``bytes_per_char`` is known.
 
     Optional :attr:`codepoint_changes` substitutions are applied to the
     text after decoding and reversed before encoding.
@@ -117,11 +124,12 @@ class String(BitType[str]):
     def _check_codepoint_changes(cls, mapping) -> None:
         """Reject zero-length substitution keys and values.
 
-        An empty string compiles to a zero-width regex alternative that
+        An empty key compiles to a zero-width regex alternative that
         matches between every pair of characters, so substitution would
-        silently insert text at every position; and a deletion rule
-        (``{"X": ""}``) cannot be reversed on encode. Neither direction
-        has well-defined semantics, so both are rejected here.
+        silently insert text at every position. An empty value makes the
+        rule a deletion, such as ``{"X": ""}``, which cannot be reversed on
+        encode. Neither direction has well-defined semantics, so both are
+        rejected here.
 
         Args:
             mapping (HashableMapping[str, str]): The str->str codepoint
@@ -142,10 +150,11 @@ class String(BitType[str]):
     @classmethod
     def codepoint_changes(cls) -> Optional[HashableMapping[str, str]]:
         """
-        A classproperty that gives this class's optional codepoint changes.
-        Set this with a str->str mapping or a BitVector -> BitVector mapping
-        to have substitutions applied when converting between the
-        underlying BitVector bits and str value representations of this class.
+        This class's optional codepoint changes, as a classproperty.
+
+        Set it to a str->str mapping or a BitVector -> BitVector mapping to
+        have substitutions applied when converting between this class's
+        underlying BitVector bits and its str value.
 
         Sub-byte codepoint changes are not supported.
 
@@ -312,10 +321,12 @@ class String(BitType[str]):
 
     @classmethod
     def _encode_padded(cls, value) -> bytes:
-        """Encode ``value`` to exactly ``num_bits // 8`` wire bytes:
-        substitute, encode, write the terminator (when set and it fits),
-        then pad — or, on overflow, truncate whole characters (if
-        ``truncate``) or raise."""
+        """Encode ``value`` to exactly ``num_bits // 8`` wire bytes.
+
+        The steps are substitute, encode, write the terminator when one is
+        set and it fits, then pad. On overflow, truncate whole characters
+        when ``truncate`` is set, and raise otherwise.
+        """
         nbytes = cls.num_bits // 8
         substituted = cls._substitute_reverse(value)
         raw = bytes(cls.encoding(substituted))
@@ -401,8 +412,8 @@ class String(BitType[str]):
         """
         Returns a subclass of String with the specified number of bits.
 
-        Unlike `of`, which sizes in whole ``bytes_per_char`` units for use
-            as a Struct field type, `specialize` takes a raw bit count.
+        `specialize` takes a raw bit count. `of` instead sizes in whole
+        ``bytes_per_char`` units, for use as a Struct field type.
 
         Args:
             num_bits_ (int): The number of bits in the subclass.
@@ -593,15 +604,17 @@ class StandardEncodingString(String):
 
 
 class TableString(String):
-    """A String whose codec *is* a character table (``.tbl``-style).
+    """A String whose codec is a ``.tbl``-style character table.
 
-    ``table`` maps wire units to text: keys are ints (single bytes) or
-    ``bytes`` (multi-byte sequences); values are strings (single characters
-    or control codes like ``"[PK]"``). Both directions match
-    **longest-first**. Decoding an unmapped byte follows ``errors``
-    ("strict" raises; "replace" yields U+FFFD and advances one byte;
-    "ignore" advances one byte and emits nothing); encoding an unmapped
-    character always raises (there is no meaningful replacement byte).
+    ``table`` maps wire units to text. Keys are ints for single bytes, or
+    ``bytes`` for multi-byte sequences. Values are strings, either single
+    characters or control codes such as ``"[PK]"``. Both directions match
+    longest-first.
+
+    Decoding an unmapped byte follows ``errors``. "strict" raises,
+    "replace" yields U+FFFD and advances one byte, and "ignore" advances
+    one byte and emits nothing. Encoding an unmapped character always
+    raises, because there is no meaningful replacement byte.
     """
 
     table: Mapping = {}

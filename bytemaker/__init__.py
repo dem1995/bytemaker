@@ -13,36 +13,38 @@ The headline API is :class:`Struct`::
 
     m = Monster.parse(rom[0x100:0x107])
 
-Fields hold plain Python values (``int``/``float``/``str``/``bytes``);
-stores narrow or validate C-style; ``pack()``/``parse()`` ride a layout
-plan compiled once at class definition. ``uN``/``sN`` field aliases exist
-for any width — ``from bytemaker import u31`` just works (resolved lazily
-via :mod:`bytemaker.fields`).
+Fields hold plain Python values: ``int``, ``float``, ``str`` and ``bytes``.
+Stores narrow or validate C-style. ``pack()`` and ``parse()`` run a layout
+plan compiled once at class definition.
 
-Two layers build on the record, both exported from here or one import away:
+``uN``/``sN`` field aliases exist for any width, so ``from bytemaker import
+u31`` just works. :mod:`bytemaker.fields` resolves those names lazily.
+
+Two layers build on the record. Both are exported from here or are one
+import away.
 
 * **Encoding conventions** — :mod:`bytemaker.adapters`. An
-  :class:`~bytemaker.adapters.Adapter` puts a wire↔user transform in the
-  schema instead of at every call site, either per field or fused onto a
-  wire type with ``@``::
+  :class:`~bytemaker.adapters.Adapter` states a wire↔user transform in the
+  schema rather than at every call site. Apply it per field, or fuse it
+  onto a wire type with ``@``::
 
       class SkillEntry(Struct, endian="little"):
           reward_id:  int   = field(UInt8, adapt=biased(1))  # wire = id + 1
           multiplier: float = field(UInt16, adapt=fixed(4))  # 0x10 == 1.0
 
-* **Where records live** — :mod:`bytemaker.rom` (imported separately, as
-  ``from bytemaker.rom import Space, Ptr``). A :class:`~bytemaker.rom.Space`
-  is a base-mapped address space, so reads are by address and the byte order
-  is stated once; :class:`~bytemaker.rom.Ptr` is a typed address that can be
-  followed and audited, and :class:`~bytemaker.rom.Patch` makes an edit a
-  value you can verify, invert and export::
+* **Where records live** — :mod:`bytemaker.rom`, imported separately as
+  ``from bytemaker.rom import Space, Ptr``. A :class:`~bytemaker.rom.Space`
+  is a base-mapped address space, so reads are by address and the byte
+  order is stated once. A :class:`~bytemaker.rom.Ptr` is a typed address
+  that can be followed and audited. A :class:`~bytemaker.rom.Patch` turns
+  an edit into a value you can verify, invert and export::
 
       rom  = Space(data, base=0x08000000, endian="little")
       recs = rom.read(0x08526390, BossRushReward, 3)
       print(rom.coverage(ROM_MAP).render())   # claims, overlaps, gaps
 
 :func:`layout`, :func:`fields_of` and :func:`sizeof` answer shape and size
-questions for any of it (:mod:`bytemaker.introspect`).
+questions for any of it; they live in :mod:`bytemaker.introspect`.
 
 The legacy ``@dataclass`` aggregate API lives in
 :mod:`bytemaker.conversions.aggregate_types`.

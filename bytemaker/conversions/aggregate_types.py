@@ -1,21 +1,23 @@
 """
-Aggregate conversions: dataclasses of BitTypes/ctypes/Python primitives
-to and from bits/bytes.
+Aggregate conversions: dataclasses of BitTypes, ctypes, and Python
+primitives, to and from bits and bytes.
 
-Public API is unchanged from bytemaker 0.11/0.12. Internally, the byte-level
-functions now route eligible dataclasses (every field a byte-aligned BitType
-class) through compiled per-class plans (:mod:`bytemaker.plans`): field types
-are resolved and offsets computed once per class instead of per call, and no
-whole-record BitVector is built. Everything else -- ctypes fields, PyType
-fields, nested dataclasses, sub-byte fields, and all bit-level calls --
-delegates to the reference implementation in
-:mod:`bytemaker.conversions._legacy_aggregate`, which is also the
-differential-test oracle the fast paths are validated against.
+The public API is unchanged from bytemaker 0.11/0.12. Internally, the
+byte-level functions now route eligible dataclasses through compiled
+per-class plans (:mod:`bytemaker.plans`). A dataclass is eligible when every
+one of its fields is a byte-aligned BitType class. For those, field types are
+resolved and offsets computed once per class instead of once per call, and no
+whole-record BitVector is built.
 
-One deliberate behavior fix vs 0.12: ``from_bytes_aggregate(...,
-is_array=True)`` now returns a ``list`` of decoded entries. (Previously it
-attempted ``aggregate_type(*entries)`` and ignored ``is_array`` entirely
-for scalar types.)
+Everything else delegates to the reference implementation in
+:mod:`bytemaker.conversions._legacy_aggregate`: ctypes fields, PyType fields,
+nested dataclasses, sub-byte fields, and all bit-level calls. That module is
+also the differential-test oracle the fast paths are validated against.
+
+There is one deliberate behavior fix against 0.12. Calling
+``from_bytes_aggregate`` with ``is_array=True`` now returns a ``list`` of
+decoded entries. It previously attempted ``aggregate_type(*entries)`` and
+ignored ``is_array`` entirely for scalar types.
 """
 
 import struct as _struct
@@ -72,8 +74,10 @@ __all__ = [
 ]
 
 def count_bits_in_aggregate_type(aggregate_type: type) -> int:
-    """Count the number of bits in an aggregate type — a Python type, ctype,
-    BitType (bytemaker type), or a dataclass annotated with those.
+    """Count the number of bits in an aggregate type.
+
+    An aggregate type is a Python type, a ctype, a BitType (a bytemaker
+    type), or a dataclass annotated with those.
 
     Returns:
         int: The number of bits the aggregate type occupies.
@@ -131,14 +135,13 @@ def to_bytes_aggregate(
     endianness: Literal["big", "little"] = "big",
 ) -> bytes:
     """
-    Function to convert a collection of Python primitives or ctypes objects into bytes.
+    Convert a collection of Python primitives or ctypes objects into bytes.
 
-    Essentially a bitfield serializer.
+    This is essentially a bitfield serializer.
 
     Args:
-        units (AggregateTypeByteConvertible): The objects to convert to bytes
-        endianness: The byte order of the output.
-            Defaults to "big".
+        units (AggregateTypeByteConvertible): The objects to convert to bytes.
+        endianness: The byte order of the output. Defaults to "big".
 
     Returns:
         bytes: The bytes representation of the objects

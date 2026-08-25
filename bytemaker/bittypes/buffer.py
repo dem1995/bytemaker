@@ -11,9 +11,9 @@ class Buffer(BitType[BitVector]):
     """
     A BitType that represents a buffer of bits.
 
-    Use the `of` classmethod to create a subclass sized in bytes
-        (the Struct-field entry point) or the `specialize` classmethod
-        to create one with an exact number of bits.
+    Two classmethods create sized subclasses. `of` sizes the buffer in
+    whole bytes and is the entry point Struct fields use. `specialize`
+    sizes it in an exact number of bits.
 
     Class Attributes:
     -----------------
@@ -27,11 +27,11 @@ class Buffer(BitType[BitVector]):
     Instance Attributes
     -------------------
     bits : BitVector
-       The underlying sequence of bits of this `Buffer` object.
-           The handout is live and width-locked (see `BitType.bits`).
+       The underlying sequence of bits of this `Buffer` object. The vector
+       returned is live and width-locked; see `BitType.bits`.
     value : BitVector
-       An independent, resizable snapshot of this `Buffer` object's bits.
-           Equal to `bits` by value; mutating it does not affect the buffer.
+       An independent, resizable snapshot of this `Buffer` object's bits. It
+       equals `bits` by value, but mutating it does not affect the buffer.
     """
 
     py_type = BitVector
@@ -41,10 +41,10 @@ class Buffer(BitType[BitVector]):
         """
         The `BitVector` value of this `Buffer`.
 
-        The getter hands out an independent, resizable snapshot — the safe
-        read every other BitType's `value` provides. Mutating the returned
-        vector does not touch this buffer; use the `bits` property for the
-        live, width-locked handle.
+        The getter returns an independent, resizable snapshot, which is the
+        safe read that every other BitType's `value` provides. Mutating the
+        returned vector does not affect this buffer. Use the `bits` property
+        instead when you want the live, width-locked handle.
 
         Returns:
             BitVector: A copy of this buffer's bits.
@@ -83,13 +83,17 @@ class Buffer(BitType[BitVector]):
     def of(
         cls: Type[BufferSelf], *, nbytes: int, name: Optional[str] = None
     ) -> Type[BufferSelf]:
-        """Mint a Buffer type sized in **bytes** — the C ``uint8_t buf[N]``
-        count. Struct byte fields hold plain ``bytes`` and need whole-byte
-        widths, so this is the constructor Struct fields use; ``specialize``
-        sizes in bits, and sub-byte Buffers stay legal standalone and in
-        legacy aggregates. ``nbytes`` is keyword-only so the declaration
-        names its unit — this class's history includes a ``Buffer16`` that
-        read as 16 bytes but meant 16 bits."""
+        """Create a Buffer subclass sized in bytes, like ``uint8_t buf[N]``.
+
+        Struct byte fields hold plain ``bytes`` and therefore need
+        whole-byte widths, so this is the constructor Struct fields use.
+        Use ``specialize`` when you need a size in bits. Sub-byte Buffers
+        remain legal both standalone and inside legacy aggregates.
+
+        ``nbytes`` is keyword-only so that every declaration names its unit.
+        This class's history includes a ``Buffer16`` that read as 16 bytes
+        but meant 16 bits.
+        """
         if not isinstance(nbytes, int) or nbytes < 1:
             raise ValueError(
                 f"{cls.__name__}.of(): nbytes must be a positive int,"

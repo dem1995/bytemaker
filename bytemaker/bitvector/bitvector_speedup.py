@@ -76,10 +76,10 @@ class BitsCastable(Protocol):
         """
         Returns a BitVector representation of the object.
 
-        The result may be a copy or a live view of the object's bits,
-            which is the implementor's ownership choice (see the
-            BitsCastable class docstring). Constructors copy-construct
-            from the result either way.
+        The result may be a copy or a live view of the object's bits. That
+        choice belongs to the implementor and is explained in the
+        BitsCastable class docstring. Constructors copy-construct from the
+        result either way.
 
         This method is prioritized when BitVectorSubtype(object) is called.
 
@@ -1271,10 +1271,13 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
         self, index: Optional[int] = None, default=_MISSING
     ) -> Union[int, T]:
         """Removes and returns the bit at the given index (zero-indexed).
-        If the provided index is None, the rightmost bit is popped.
-        Negative indices count from the end, as with __getitem__.
-        If a default is provided and the index is out of bounds,
-        the default is returned (including an explicit ``default=None``).
+
+        Every bit to the right of the index shifts one place left. If the
+        index is None, the rightmost bit is popped. Negative indices count
+        from the end, as with __getitem__.
+
+        If a default is provided and the index is out of bounds, the default
+        is returned. That includes an explicit ``default=None``.
 
         Args:
             index (Optional[int], optional): The position of the bit to pop.
@@ -1868,10 +1871,12 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
 
     def to_bytes(self, reverse_endianness=False) -> bytes:
         """
-        Converts the BitVector to bytes, RIGHT-aligned: the bits form a
-        big-endian integer, zero-padded on the left to a whole number of
-        bytes. Contrast tobytes()/bytes(), which LEFT-align (zero-pad on
-        the right) a trailing partial byte.
+        Converts the BitVector to bytes, right-aligned.
+
+        The bits form a big-endian integer, zero-padded on the left to a
+        whole number of bytes. Contrast ``tobytes()`` and ``bytes()``, which
+        left-align instead: they zero-pad a trailing partial byte on the
+        right.
         """
         nbytes = (self._len + 7) >> 3
         byte_arr = bytearray(self._as_int().to_bytes(nbytes, "big"))

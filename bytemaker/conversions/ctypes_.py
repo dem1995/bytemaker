@@ -20,11 +20,13 @@ def _reversed_ctype_bytes(ctype_type: type, raw: bytes, path: str) -> bytes:
     Computes the byte-order-reversed serialization of a ctypes value from
     its native-order bytes, without touching any ctypes instance.
 
-    Scalars are byte-reversed whole. Arrays are reversed element-by-element.
-    Structures are reversed field-by-field (padding bytes pass through
-    unchanged). A multi-byte Union raises ``NotImplementedError`` because its
-    active member is unknowable, so a byte-order swap would be silently wrong
-    (a single-byte Union is its own reverse and passes through).
+    Scalars are byte-reversed whole. Arrays are reversed element by element.
+    Structures are reversed field by field, and their padding bytes pass
+    through unchanged.
+
+    A multi-byte Union raises ``NotImplementedError``. Its active member is
+    unknowable, so a byte-order swap would be silently wrong. A single-byte
+    Union is its own reverse and passes through.
 
     Args:
         ctype_type (type): The ctypes type that describes ``raw``.
@@ -100,11 +102,13 @@ def reverse_ctype_endianness(ctype_instance: CType) -> CType:
     """
     Returns a copy of a ctypes object with the endianness reversed.
 
-    The input object is never modified: the reversal is computed on the
-    object's serialized bytes and materialized into a fresh instance with
-    ``from_buffer_copy``. Nested Structures, Arrays (including arrays of
-    multi-byte scalars), and combinations thereof are reversed
-    field-by-field / element-by-element; a multi-byte Union raises
+    The input object is never modified. The reversal is computed on the
+    object's serialized bytes, then materialized into a fresh instance with
+    ``from_buffer_copy``.
+
+    Nested Structures are reversed field by field, and Arrays element by
+    element, including arrays of multi-byte scalars. Combinations of the two
+    are reversed the same way. A multi-byte Union raises
     ``NotImplementedError`` because the active member is unknowable.
 
     Args:

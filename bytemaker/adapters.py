@@ -11,29 +11,31 @@ leaking it into every call site::
         multiplier: float = field(UInt16, adapt=fixed(4))    # 0x10 == 1.0
         reward_id:  int   = field(UInt8,  adapt=biased(1))   # stored id+1
 
-``load`` maps the wire value (what the plan engine stores in the slot) to
-the user value the field reads as; ``store`` is its inverse, applied on
-assignment BEFORE the usual C-style narrowing of the wire value. The
-serialized bytes always carry the wire value, so ``parse -> pack`` stays
-the identity even for values a lossy ``store`` would canonicalize.
+``load`` maps the wire value to the user value the field reads as. The wire
+value is whatever the plan engine stores in the slot. ``store`` is the
+inverse of ``load``, applied on assignment before the usual C-style
+narrowing of the wire value. The serialized bytes always carry the wire
+value, so ``parse -> pack`` stays the identity even for values a lossy
+``store`` would canonicalize.
 
-The two planes remain visible on a :class:`~bytemaker.structs.BoundField`
-handle: ``.value`` reads/writes the user plane; ``.bits`` and ``.boxed()``
-are the wire plane (the box is a serialization object).
+Both planes remain visible on a :class:`~bytemaker.structs.BoundField`
+handle. ``.value`` reads and writes the user plane. ``.bits`` and
+``.boxed()`` are the wire plane, and the box is a serialization object.
 
-Adapters also apply element-wise to an :class:`Array`, standalone
+Adapters also apply element-wise to an :class:`Array`, either standalone
 (``Array.of(UInt32, n, adapt=THUMB_PTR)``) or as a Struct field
-(``array(THUMB_PTR @ UInt32, n)``). The two differ in one way worth
-knowing: an array field's slot holds USER-plane elements, so its loads run
-eagerly when the record is built and its elements re-encode through
-``store`` on ``pack`` — wire the adapter cannot represent exactly is
-canonicalized. A SCALAR adapted field keeps the wire value in its slot, so
-its load is deferred to the read and ``parse -> pack`` is byte-exact
-either way (see :class:`~bytemaker.structs.Array` for the full note).
+(``array(THUMB_PTR @ UInt32, n)``). Arrays and scalars differ in one way
+worth knowing. An array field's slot holds user-plane elements, so its
+loads run eagerly when the record is built and its elements re-encode
+through ``store`` on ``pack``; a wire value the adapter cannot represent
+exactly is canonicalized. A scalar adapted field keeps the wire value in
+its slot instead, so its load is deferred to the read and ``parse -> pack``
+is byte-exact whether or not ``store`` is lossy. See
+:class:`~bytemaker.structs.Array` for the full note.
 
-An adapter can also be **fused onto** a wire type with ``@``, producing an
-:class:`Adapted` codec that is usable anywhere a scalar BitType class is —
-so the convention gets a name and is declared once::
+An adapter can also be fused onto a wire type with ``@``. The result is an
+:class:`Adapted` codec, usable anywhere a scalar BitType class is, which
+gives the convention a name and declares it once::
 
     ThumbPtr = THUMB_PTR @ UInt32
     Mult     = fixed(4)  @ UInt16
@@ -43,19 +45,20 @@ so the convention gets a name and is declared once::
         multiplier: float = field(Mult)         # checker-visible
         table:      list  = array(ThumbPtr, 8)  # as an Array element
 
-One rule decides between this module and :class:`bytemaker.rom.Ptr`, which
-also fuses an adapter onto a wire integer: **if the value is an address,
-use** ``Ptr`` — it additionally records what the address points at, so
-``space.deref`` can follow it and ``space.coverage`` can audit it.
-``adapter @ base`` is for value conventions (fixed-point, bias, enums);
-``Ptr(target, adapt=...)`` composes a convention onto an address (e.g. a
-THUMB function pointer). An address fused with plain ``@`` still decodes
-correctly but is invisible to the pointer audit.
+:class:`bytemaker.rom.Ptr` also fuses an adapter onto a wire integer, and
+one rule decides between it and this module: **if the value is an address,
+use** ``Ptr``. ``Ptr`` additionally records what the address points at, so
+``space.deref`` can follow it and ``space.coverage`` can audit it. Use
+``adapter @ base`` for value conventions such as fixed-point, bias and
+enums. Use ``Ptr(target, adapt=...)`` to compose a convention onto an
+address, for instance a THUMB function pointer. An address fused with
+plain ``@`` still decodes correctly, but it is invisible to the pointer
+audit.
 
-Ship functions, not lambdas: schema objects travel through
-copy/pickle (``Array.__reduce__`` carries its adapter), so ``load``/
-``store`` should be module-level callables or ``functools.partial`` of
-one, as the factories here do.
+Ship functions, not lambdas. Schema objects travel through copy and pickle,
+and ``Array.__reduce__`` carries its adapter, so ``load`` and ``store``
+should be module-level callables or a ``functools.partial`` of one. The
+factories in this module are written that way.
 """
 
 import typing
@@ -87,16 +90,17 @@ __all__ = [
 class Adapter(Generic[U]):
     """A frozen pair of inverse value transforms.
 
-    The type parameter is the USER-plane value type (``Adapter[float]`` for
-    ``fixed(4)``), which is what a fused :class:`Adapted` and an adapted
-    :class:`~bytemaker.structs.Array` report to a type checker.
+    The type parameter is the user-plane value type, so ``fixed(4)`` is an
+    ``Adapter[float]``. That is the type a fused :class:`Adapted` and an
+    adapted :class:`~bytemaker.structs.Array` report to a type checker.
 
     Args:
-        load: wire value -> user value (applied on read/parse).
-        store: user value -> wire value (applied on write/pack, before
-            the field's normal wire narrowing).
-        py_type: the user-plane type the field reads as, used to check a
-            ``field()`` declaration's plain annotation (None skips it).
+        load: wire value -> user value, applied on read and parse.
+        store: user value -> wire value, applied on write and pack,
+            before the field's normal wire narrowing.
+        py_type: the user-plane type the field reads as. It is used to
+            check the plain annotation on a ``field()`` declaration, and
+            None skips that check.
         name: display name for reprs.
     """
 
@@ -136,10 +140,10 @@ class Adapted(Generic[U]):
     """A scalar wire type with an :class:`Adapter` fused on.
 
     Built with ``adapter @ BitTypeClass``. The result names the convention
-    once and is then usable everywhere a scalar BitType class is — as a
-    field annotation, inside ``Annotated[...]``, as ``field()``'s wire type,
-    as an :class:`~bytemaker.structs.Array` element, and as an argument to
-    ``sizeof``/``bitsizeof``::
+    once and is then usable everywhere a scalar BitType class is: as a
+    field annotation, inside ``Annotated[...]``, as ``field()``'s wire
+    type, as an :class:`~bytemaker.structs.Array` element, and as an
+    argument to ``sizeof``/``bitsizeof``::
 
         ThumbPtr = THUMB_PTR @ UInt32
 
@@ -147,26 +151,27 @@ class Adapted(Generic[U]):
             update_fn: Annotated[int, ThumbPtr]   # the real (even) address
             frames:    list = array(ThumbPtr, 4)
 
-    This is pure sugar over ``adapt=``: ``field(THUMB_PTR @ UInt32)`` and
+    This is pure sugar over ``adapt=``. ``field(THUMB_PTR @ UInt32)`` and
     ``field(UInt32, adapt=THUMB_PTR)`` compile to the identical layout,
     descriptors and bytes. The engine unwraps an ``Adapted`` at class
     definition time, so the plan layer never sees one.
 
-    **Type-checking a fused field.** A fused codec is a *value*, not a
-    class, so the terse ``update_fn: ThumbPtr`` spelling works at runtime
-    but is not a valid *type* to a checker — the same trade-off as
-    ``Elem * N`` for arrays. (Nor would a subscript hook help:
+    **Type-checking a fused field.** A fused codec is a value, not a class.
+    The terse ``update_fn: ThumbPtr`` spelling therefore works at runtime
+    but is not a valid type to a checker. Arrays make the same trade-off
+    with ``Elem * N``. A subscript hook would not help either:
     ``ThumbPtr[int]`` could be made to work at runtime, but a checker never
     evaluates a variable in a type position, so the field would silently go
-    untyped. bytemaker deliberately does not offer that spelling.) The two
-    checked forms are ``Annotated[<plain type>, ThumbPtr]`` and
-    ``field(ThumbPtr)`` with the plain annotation; the plain type is the
-    ADAPTER's user-plane type (``int`` for ``THUMB_PTR``, ``float`` for
-    ``fixed(4)``), which ``field()`` also verifies.
+    untyped. bytemaker deliberately does not offer that spelling.
 
-    For a convention used more than once, bind the ANNOTATION to a
-    module-level alias — the array analog of ``Colors8``. This is both the
-    terse form and the checked one::
+    The two checked forms are ``Annotated[<plain type>, ThumbPtr]`` and
+    ``field(ThumbPtr)`` with the plain annotation. The plain type is the
+    adapter's user-plane type, which is ``int`` for ``THUMB_PTR`` and
+    ``float`` for ``fixed(4)``. ``field()`` verifies it as well.
+
+    For a convention used more than once, bind the annotation to a
+    module-level alias, the array analog of ``Colors8``. That spelling is
+    both the terse form and the checked one::
 
         ThumbPtr = THUMB_PTR @ UInt32          # the codec
         FnAddr   = Annotated[int, ThumbPtr]    # the field annotation
@@ -177,10 +182,11 @@ class Adapted(Generic[U]):
 
     See ``test/_typing_repro.py`` for the mypy contract.
 
-    Equality and hashing are by IDENTITY (an :class:`Adapter` is too, since
-    two ``fixed(4)`` calls build distinct transform pairs). Bind the fused
-    codec to a module-level name and reuse it: ``Array.of``'s cache then
-    shares one Array object across every declaration that uses it.
+    Equality and hashing are by identity. An :class:`Adapter` compares by
+    identity too, because two ``fixed(4)`` calls build distinct transform
+    pairs. Bind the fused codec to a module-level name and reuse it, so
+    that ``Array.of``'s cache shares one Array object across every
+    declaration that uses it.
     """
 
     __slots__ = ("base", "adapter")
@@ -223,7 +229,8 @@ class Adapted(Generic[U]):
 
     @property
     def py_type(self):
-        """The user-plane value type: the adapter's, else the base's."""
+        """The user-plane value type: the adapter's if it declares one, else the
+        base's."""
         return self.adapter.py_type or getattr(self.base, "py_type", None)
 
     def __repr__(self):
@@ -266,9 +273,9 @@ def _fixed_store(user, scale):
 
 
 def fixed(frac_bits: int) -> "Adapter[float]":
-    """Unsigned/two's-complement fixed-point with ``frac_bits`` fractional
-    bits: wire ``0x10`` with ``fixed(4)`` reads as ``1.0``. Stores round
-    to the nearest representable step."""
+    """Fixed-point with ``frac_bits`` fractional bits, unsigned or two's
+    complement. With ``fixed(4)``, wire ``0x10`` reads as ``1.0``. Stores
+    round to the nearest representable step."""
     if not isinstance(frac_bits, int) or frac_bits < 1:
         raise ValueError(f"frac_bits must be a positive int, got {frac_bits!r}")
     scale = 1 << frac_bits
@@ -289,8 +296,8 @@ def _biased_store(user, bias):
 
 
 def biased(bias: int) -> "Adapter[int]":
-    """The wire carries ``user + bias`` (e.g. ``biased(1)`` for tables
-    that store ``global_id + 1`` so 0 can mean "none")."""
+    """The wire carries ``user + bias``. Use ``biased(1)`` for a table that
+    stores ``global_id + 1`` so that 0 can mean "none"."""
     return Adapter(
         partial(_biased_load, bias=bias),
         partial(_biased_store, bias=bias),
@@ -314,9 +321,9 @@ def _scaled_store(user, step):
 
 
 def scaled(step) -> "Adapter[Any]":
-    """The wire counts in units of ``step``: user = wire * step. Stores
-    require an exact multiple (raising beats silently landing on a
-    different wire value)."""
+    """The wire counts in units of ``step``, so user = wire * step. A store
+    requires an exact multiple, because raising is better than silently
+    landing on a different wire value."""
     if step == 0:
         raise ValueError("step must be nonzero")
     return Adapter(
@@ -334,8 +341,8 @@ def _enum_store(value, enum_cls):
 
 
 def enum_(enum_cls: "type[_E]") -> "Adapter[_E]":
-    """Read wire values as members of ``enum_cls``; store members (or
-    valid plain values, validated through the enum)."""
+    """Read wire values as members of ``enum_cls``. A store accepts a member,
+    or a plain value validated by constructing the member from it."""
     return Adapter(
         enum_cls,  # E(wire) -> member; classes pickle by reference
         partial(_enum_store, enum_cls=enum_cls),

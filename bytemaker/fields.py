@@ -1,27 +1,28 @@
 """Checker-friendly Struct field aliases, for any width.
 
 ``u8``/``s16``-style names are ``Annotated[int, UInt8]`` (etc.) at runtime,
-and ``f16``/``f32``/``f64`` are ``Annotated[float, Float16]`` (etc.): the
-annotation tells a type checker the field holds a plain ``int`` or ``float``
-— which is what ``Struct`` fields hold — while the metadata carries the
-BitType for the plan compiler.
+and ``f16``/``f32``/``f64`` are ``Annotated[float, Float16]`` (etc.). The
+annotation tells a type checker that the field holds a plain ``int`` or
+``float``, which is what ``Struct`` fields hold, while the metadata carries
+the BitType for the plan compiler.
 
-Any integer width works, not just the pre-declared ones: this module
-resolves ``uN``/``sN`` lazily (PEP 562 module ``__getattr__``), so ::
+Any integer width works, not just the pre-declared ones. This module
+resolves ``uN``/``sN`` lazily through a PEP 562 module ``__getattr__``, so
+an import like this one just works::
 
     from bytemaker.fields import u31, s5
 
-just works — canonical named classes (``UInt4``, ``SInt5``, …) are reused
-when they exist; other widths are minted via ``specialize`` and cached so
-repeated lookups agree. ``dir()``/autocomplete advertise the common 1–64
-widths as a sample; the lazy namespace itself is unbounded. Float aliases
-are the fixed IEEE set (``f16`` / ``f32`` / ``f64``): an arbitrary float
-width does not determine an exponent/mantissa split.
+Canonical named classes (``UInt4``, ``SInt5``, ...) are reused when they
+exist. Other widths are minted via ``specialize`` and cached, so repeated
+lookups agree. ``dir()`` and autocomplete advertise the common widths from
+1 to 64 as a sample, but the lazy namespace itself is unbounded. Float
+aliases are the fixed IEEE set (``f16`` / ``f32`` / ``f64``), because an
+arbitrary float width does not determine an exponent/mantissa split.
 
 The paired ``fields.pyi`` presents these to type checkers as descriptor
-types — reads are ``int``/``float``, writes (and the synthesized
-``__init__`` parameters, per dataclass_transform) accept anything the
-narrowing store accepts, including BitType boxes via ``__index__``.
+types. Reads are ``int``/``float``. Writes accept anything the narrowing
+store accepts, including BitType boxes via ``__index__``, and so do the
+synthesized ``__init__`` parameters (per dataclass_transform).
 """
 
 import re

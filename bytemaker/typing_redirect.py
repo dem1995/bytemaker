@@ -1,14 +1,15 @@
 """
 typing_redirect.py
 
-This module allows for Python version-agnostic typing and collections.abc imports.
-    It uses Python standard library batteries where possible.
-    For older versions, this module will export from typing_extensions.
+Version-agnostic imports for ``typing`` and ``collections.abc``. Names come
+from the Python standard library wherever the running version provides
+them, and from ``typing_extensions`` otherwise.
 
-``typing_extensions`` is a DECLARED dependency below 3.13 (see pyproject), so
-every pre-3.13 branch here imports it unconditionally: a missing name is an
-ImportError naming the missing distribution, not a silently degraded shim that
-turns a type into ``Any`` and takes the checker's guarantees with it.
+``typing_extensions`` is a declared dependency below 3.13 (see pyproject),
+so every pre-3.13 branch here imports it unconditionally. A missing name is
+then an ImportError naming the missing distribution. The alternative would
+be a shim that silently degrades the type to ``Any``, which would also
+discard the checker's guarantees.
 """
 
 import sys

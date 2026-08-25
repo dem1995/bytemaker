@@ -71,10 +71,13 @@ def _warn_narrowing(original, stored, target):
 
 
 def _narrow_int(value: int, num_bits: int, signed: bool, target: str) -> int:
-    """C-style narrowing to ``num_bits`` — wrap for signed, mask for
-    unsigned — plus the opt-in :class:`NarrowingWarning` when the store
-    actually changed the value. Every integer value setter routes through
-    here so the truncation and the diagnostic cannot drift apart."""
+    """Narrow ``value`` to ``num_bits`` the way C does.
+
+    Signed targets wrap and unsigned targets mask. When the narrowing
+    actually changed the value, this also emits the opt-in
+    :class:`NarrowingWarning`. Every integer value setter routes through
+    here, so the truncation and the diagnostic cannot drift apart.
+    """
     if signed:
         half = 1 << (num_bits - 1)
         narrowed = ((value + half) % (half << 1)) - half
@@ -214,9 +217,11 @@ class BitType(ABC, Generic[T], metaclass=BitTypeMeta):
     @classmethod
     def num_bytes(cls) -> int:
         """
-        The whole bytes this type's serialized form occupies (sub-byte
-        widths round up, matching ``len(bytes(instance))``). Symmetric
-        with ``Plan.num_bytes`` / ``Array.num_bytes`` / ``Struct.num_bytes``.
+        The whole bytes this type's serialized form occupies.
+
+        Sub-byte widths round up, so this always matches
+        ``len(bytes(instance))``. The name is symmetric with
+        ``Plan.num_bytes``, ``Array.num_bytes``, and ``Struct.num_bytes``.
 
         Returns:
             int: The number of bytes in the BitType's serialized form.
@@ -296,14 +301,14 @@ class BitType(ABC, Generic[T], metaclass=BitTypeMeta):
 
     def __repr__(self):
         """
-        Returns a string representation of the BitType
-        that recreates the object when evaluated
-        with the class name in scope.
+        Return a string that recreates this BitType when evaluated with the
+        class name in scope.
 
-        Uses the exact bits rather than the value, so patterns the value
-            setter would normalize (e.g. float NaN payloads) survive the
-            round trip. Subclasses with extra constructor state append it
-            as further keyword arguments (`SInt` appends `int_format=...`).
+        The repr carries the exact bits rather than the value. Bit patterns
+        that the value setter would normalize, such as float NaN payloads,
+        therefore survive the round trip. Subclasses with extra constructor
+        state append it as further keyword arguments, as `SInt` does with
+        `int_format=...`.
 
         Returns:
             str: ClassName(bits='<01 string>', endianness=<'big' or 'little'>)
@@ -337,11 +342,11 @@ class BitType(ABC, Generic[T], metaclass=BitTypeMeta):
 
     def __eq__(self, other):
         """
-        Compares the BitType to another object.
+        Compare this BitType to another object.
 
-        Two bittypes are equal if their values are equal. Note that two equal
-        BitTypes may still have differing internal bit representations
-        (-0 and +0 are equal, though).
+        Two BitTypes are equal when their values are equal. Equal BitTypes
+        may still have differing internal bit representations: -0 and +0 are
+        stored as different bits but compare equal.
 
         Args:
             other (Any): The object to compare to.
@@ -355,11 +360,11 @@ class BitType(ABC, Generic[T], metaclass=BitTypeMeta):
 
     def __ne__(self, other):
         """
-        Compares the BitType to another object.
+        Compare this BitType to another object for inequality.
 
-        Two bittypes are equal if their values are equal. Note that two equal
-        BitTypes may still have differing internal bit representations
-        (-0 and +0 are equal, though).
+        Two BitTypes are equal when their values are equal. Equal BitTypes
+        may still have differing internal bit representations: -0 and +0 are
+        stored as different bits but compare equal.
 
         Args:
             other (Any): The object to compare to.
@@ -466,15 +471,20 @@ class BitType(ABC, Generic[T], metaclass=BitTypeMeta):
 
     def _promoted_value_op(self, other, operation):
         """
-        C-promotion binary op: computes on plain values at full width and
-        returns the **plain** result — no re-boxing, no wrap-at-operator
-        (C never wraps mid-expression; integer promotions convert operands
-        to int first). Width re-attaches only at stores; the narrowing cast
-        spelling is the constructor: ``UInt8(a + b)`` == ``(uint8_t)(a+b)``.
-        Used by the numeric BitTypes (Int, Float).
+        Apply a binary operator under the C promotion model.
+
+        Both operands are unboxed to plain values, the operator runs at full
+        width, and the plain result is returned. Nothing is re-boxed and
+        nothing wraps at the operator, because C never wraps mid-expression:
+        the integer promotions convert the operands first.
+
+        Width re-attaches only at stores. The narrowing cast is spelled as
+        the constructor, so ``UInt8(a + b)`` means ``(uint8_t)(a + b)``.
+
+        Used by the numeric BitTypes, `Int` and `Float`.
 
         Args:
-            other (Any): The other operand (a BitType is unboxed to its value).
+            other (Any): The other operand. A BitType is unboxed to its value.
             operation (Callable): The binary operator to apply.
 
         Returns:
@@ -489,18 +499,23 @@ class BitType(ABC, Generic[T], metaclass=BitTypeMeta):
 
     def _inplace_value_op(self, other, operation):
         """
-        C compound assignment: compute at full width, then convert to this
-        box's type at the store — the value setter is the narrowing cast, so
-        ``u += 1`` keeps ``u``'s type and wraps at *its* width (and, like
-        C's float-to-int conversion, non-integral results truncate toward
-        zero via ``py_type``).
+        Apply a compound assignment operator the way C does.
+
+        The operator runs at full width on the unboxed values, then the
+        result is converted back to this box's type at the store. The value
+        setter is the narrowing cast, so ``u += 1`` keeps ``u``'s type and
+        wraps at ``u``'s own width.
+
+        The conversion goes through ``py_type``, which truncates a
+        non-integral result toward zero, matching C's float-to-int
+        conversion.
 
         Args:
-            other (Any): The other operand (a BitType is unboxed to its value).
+            other (Any): The other operand. A BitType is unboxed to its value.
             operation (Callable): The binary operator to apply.
 
         Returns:
-            BitSelf: ``self``, after narrowing the result into this box; or
+            BitSelf: ``self``, after narrowing the result into this box, or
                 NotImplemented.
         """
         if isinstance(other, BitType):
@@ -597,12 +612,13 @@ class StructPackedBitType(BitType[T]):
     Instance Attributes
     -------------------
     skip_struct_packing : bool
-        If true, the struct packing/unpacking will be skipped and the value will be
-            be calculated using other methods on the MRO.
+        If true, struct packing and unpacking are skipped, and the value is
+        calculated using other methods on the MRO instead.
 
     packing_format : str
-        The struct-packing format (always big-endian ">"); endianness is
-            applied later at the bytes boundary by BitType.__bytes__().
+        The struct-packing format. It is always big-endian (">") because
+        endianness is applied later, at the bytes boundary, by
+        BitType.__bytes__().
     """
 
     packing_format_letter: Final[str]

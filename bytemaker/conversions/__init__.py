@@ -1,15 +1,19 @@
-"""Public conversion API: the aggregate serializers plus the ctypes/pytype
-helpers, re-exported so ``from bytemaker.conversions import to_bytes_aggregate``
-works (mirroring the bittypes/ and bitvector/ subpackages).
+"""Public conversion API: the aggregate serializers plus the ctypes and
+pytype helpers.
 
-The re-export is lazy (PEP 562 module ``__getattr__``) as a deliberate
-lightweight-init choice: sibling modules (``_legacy_aggregate``,
-``aggregate_types``) import each other through this package, and lazy
+They are re-exported here so that ``from bytemaker.conversions import
+to_bytes_aggregate`` works, mirroring the bittypes/ and bitvector/
+subpackages.
+
+The re-export is lazy, through a PEP 562 module ``__getattr__``. That is a
+deliberate lightweight-init choice. The sibling modules ``_legacy_aggregate``
+and ``aggregate_types`` import each other through this package, so lazy
 resolution keeps the convenient names without loading the whole conversion
-stack at package-init time or caring about which sibling imports first.
-(Historically this laziness was load-bearing — ``_legacy_aggregate`` lived
-at the package root and eager re-export here closed a real import cycle;
-since its move into conversions/ the laziness is a preference, not a fix.)
+stack at package-init time and without caring which sibling imports first.
+
+The laziness used to be load-bearing. ``_legacy_aggregate`` once lived at the
+package root, where eager re-export here closed a real import cycle. Since
+its move into conversions/ the laziness is a preference, not a fix.
 """
 
 import importlib

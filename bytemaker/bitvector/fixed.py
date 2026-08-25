@@ -15,20 +15,23 @@ from bytemaker.bitvector.bitvector import BitVector
 
 
 class FixedLengthBitVector(BitVector):
-    """A BitVector rejecting all length-changing mutation.
+    """A BitVector that rejects every length-changing mutation.
 
-    Item writes, length-preserving slice writes, ``reverse()``, and other
-    content mutations behave exactly like :class:`BitVector`. ``append``,
-    ``extend``, ``insert``, ``pop``, ``remove``, ``clear``, ``del b[i]``,
-    ``+=``, ``*=``, length-changing slice assignment, and the in-place
-    growers ``frombytes``/``fromfile`` raise :class:`ValueError`. Make a
-    resizable copy with ``BitVector(b)``.
+    Content mutations behave exactly as they do on :class:`BitVector`. That
+    covers item writes, length-preserving slice writes, ``reverse()``, and
+    the rest.
 
-    Storage is *writable and unaliased* on every backend because the base
-    constructor copies all source-form inputs, byte-likes included (the
-    13 #16 ruling; this class used to copy byte sources itself to shield
-    boxes from the bitarray backend's zero-copy import). The parity suite
-    pins that guarantee at the ``BitVector`` level.
+    Length-changing operations raise :class:`ValueError` instead. Those are
+    ``append``, ``extend``, ``insert``, ``pop``, ``remove``, ``clear``,
+    ``del b[i]``, ``+=``, ``*=``, length-changing slice assignment, and the
+    in-place growers ``frombytes`` and ``fromfile``. Make a resizable copy
+    with ``BitVector(b)``.
+
+    Storage is writable and unaliased on every backend, because the base
+    constructor copies all source-form inputs, byte-likes included. That is
+    the 13 #16 ruling, and the parity suite pins the guarantee at the
+    ``BitVector`` level. This class used to copy byte sources itself, to
+    shield boxes from the bitarray backend's zero-copy import.
     """
 
     def _length_violation(self):

@@ -1,19 +1,20 @@
 """
 The pre-plan-compiler (0.12) aggregate-conversion reference implementation.
 
-Two roles:
+This module has two roles.
 
 1. **Fallback**: ``bytemaker.conversions.aggregate_types`` routes eligible
-   dataclasses through compiled ``bytemaker.plans`` fast paths and delegates
-   everything else (ctypes fields, PyType fields, nested dataclasses,
-   sub-byte-field dataclasses, and all bit-level calls) here unchanged.
+   dataclasses through compiled ``bytemaker.plans`` fast paths. It delegates
+   everything else here unchanged: ctypes fields, PyType fields, nested
+   dataclasses, sub-byte-field dataclasses, and all bit-level calls.
 2. **Differential-test oracle**: the fast paths are required to be
-   byte-identical to this implementation; ``test/plan_fastpath_test.py``
-   enforces that over randomized layouts.
+   byte-identical to this implementation, and
+   ``test/plan_fastpath_test.py`` enforces that over randomized layouts.
 
-Coordination procedure (not a change veto): a deliberate behavior change
-lands in this module AND the fast paths in the same change, with the
-parity suite re-run — never in one path alone.
+Those roles imply a coordination procedure, not a veto on change. A
+deliberate behavior change lands in this module and in the fast paths as one
+change, and the parity suite is re-run afterwards. It never lands in one
+path alone.
 """
 import ctypes
 import dataclasses
@@ -60,20 +61,23 @@ def resolve_field_types(dataclass_type: type) -> Dict[str, type]:
     class.
 
     Field annotations are strings rather than types whenever the defining
-    module uses ``from __future__ import annotations`` (PEP 563) or otherwise
-    stringizes its annotations. ``typing.get_type_hints`` evaluates those
-    strings in the namespace of the module that defined the dataclass, so
-    concrete types such as ``SInt16`` resolve correctly. A bare ``eval`` would
-    instead resolve them in bytemaker's own namespace and raise ``NameError``.
+    module uses ``from __future__ import annotations`` (PEP 563) or
+    otherwise stringizes its annotations. ``typing.get_type_hints``
+    evaluates those strings in the namespace of the module that defined the
+    dataclass, so concrete types such as ``SInt16`` resolve correctly. A
+    bare ``eval`` would instead resolve them in bytemaker's own namespace
+    and raise ``NameError``.
 
-    For non-stringized annotations the field types are already real objects and
-    are returned unchanged, so this is safe to use unconditionally.
+    For non-stringized annotations the field types are already real objects
+    and are returned unchanged, so this is safe to use unconditionally.
 
-    ``get_type_hints`` dominated the per-call cost of the 0.11/0.12 aggregate
-    functions (~50 us of every call), so its result is cached per class HERE
-    — in the reference implementation itself. (It used to be cached by a
-    wrapper in ``aggregate_types`` that monkeypatched this module's globals
-    on import, making this module's behavior depend on import order.)
+    ``get_type_hints`` dominated the per-call cost of the 0.11/0.12
+    aggregate functions, at roughly 50 us of every call. Its result is
+    therefore cached per class here, in the reference implementation itself.
+    The cache used to live in a wrapper in ``aggregate_types`` that
+    monkeypatched this module's globals on import, which made this module's
+    behavior depend on import order.
+
     Mutating a class's annotations after first use is not supported.
 
     Returns:
@@ -92,12 +96,13 @@ def resolve_field_types(dataclass_type: type) -> Dict[str, type]:
 
 
 def count_bits_in_unit_type(unit_type: UnitType) -> int:
-    """Count the number of bits in a UnitType — a Python type, ctype, or
-    BitType (bytemaker type).
+    """Count the number of bits in a UnitType.
 
-    Cached per type, here in the reference implementation (previously a
-    caching wrapper in ``aggregate_types`` monkeypatched this module's
-    global, making behavior depend on import order).
+    A UnitType is a Python type, a ctype, or a BitType (a bytemaker type).
+
+    The result is cached per type, here in the reference implementation. The
+    cache used to be a wrapper in ``aggregate_types`` that monkeypatched
+    this module's global, which made behavior depend on import order.
 
     Returns:
         int: The number of bits the unit type occupies.
@@ -459,21 +464,21 @@ def from_bytes_aggregate(
     endianness: Literal["big", "little"] = "big",
 ) -> Union[UnitType, AggregateTypeByteConvertible]:
     """
-    Function to convert a collection of bytes into Python primitives, ctypes objects,\
-        BitTypes, or a dataclass of those types.
+    Convert a collection of bytes into Python primitives, ctypes objects,
+    BitTypes, or a dataclass of those types.
 
-    Essentially a bitfield deserializer.
+    This is essentially a bitfield deserializer.
 
     Args:
         bytes_obj (bytes): The bytes object to convert to a Python primitive,
             ctypes object, BitType, or dataclass.
-        aggregate_type (type): The type(s) of the object to convert to.
-            Must be a member of UnitType or a dataclass annotated with UnitType members.
+        aggregate_type (type): The type(s) of the object to convert to. It
+            must be a member of UnitType, or a dataclass annotated with
+            UnitType members.
         is_array (bool, optional): Whether ``bytes_obj`` holds consecutive
-            entries of ``aggregate_type``; if so a ``list`` of decoded entries
-            is returned. Defaults to False.
-        endianness: The byte order of the input bytes.
-            Defaults to "big".
+            entries of ``aggregate_type``. If it does, a ``list`` of decoded
+            entries is returned. Defaults to False.
+        endianness: The byte order of the input bytes. Defaults to "big".
 
     Returns:
         Union[UnitType, AggregateTypeByteConvertible]: The object(s) represented by

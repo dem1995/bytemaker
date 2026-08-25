@@ -75,10 +75,10 @@ class BitsCastable(Protocol):
         """
         Returns a BitVector representation of the object.
 
-        The result may be a copy or a live view of the object's bits,
-            which is the implementor's ownership choice (see the
-            BitsCastable class docstring). Constructors copy-construct
-            from the result either way.
+        The result may be a copy or a live view of the object's bits. That
+        choice belongs to the implementor and is explained in the
+        BitsCastable class docstring. Constructors copy-construct from the
+        result either way.
 
         This method is prioritized when BitVectorSubtype(object) is called.
 
@@ -271,29 +271,30 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
         buffer: Buffer = None,  # type: ignore
     ) -> None:
         """
-        If `buffer` is not None, the BitVector's bits are read from the
-            provided buffer object. The buffer object must support the buffer
-            protocol (https://docs.python.org/3/c-api/buffer.html).
+        Set up the BitVector's bits from `buffer`, or else from `source`.
+
+        If `buffer` is not None, the bits are read from the provided buffer
+        object. That object must support the buffer protocol
+        (https://docs.python.org/3/c-api/buffer.html).
 
         Otherwise, `source` determines the BitVector's bits.
         * If `source` is None, the BitVector is empty.
-        * If `source` is a str, the bits are obtained by prefix-determined classmethod
+        * If `source` is a str, a prefix-determined classmethod builds the
+          bits:
            * "" invokes `from01`
            * "0b" invokes `frombin`
            * "0o" invokes `fromoct`
            * "0x" invokes `fromhex`
-        * If `source` is an int, the BitVector is created with that many bits set to 0.
+        * If `source` is an int, the BitVector is created with that many
+          bits, all set to 0.
 
         Args:
-            source (Optional[Union[BitsConstructible, int]]): The bits of the BitVector
-               If None, a BitVector with no bits is created.\
-               If a string, uses the prefix (none, 0b, 0o, or 0x) to call\
-                    (`from01`, `frombin`, `fromoct`, `fromhex`).\
-                If an int, a BitVector with that many bits (set to 0) is created.\
-            encoding (Optional[str]): The encoding to use
-            errors (Optional[str]): The error handling to use (not implemented).
-            buffer (Buffer): The buffer to use
-
+            source (Optional[Union[BitsConstructible, int]]): The bits of the
+                BitVector, interpreted as described above.
+            encoding (Optional[str]): The encoding to use.
+            errors (Optional[str]): The error handling to use (not
+                implemented).
+            buffer (Buffer): The buffer to take the bits from.
         """
         super().__init__()
 
@@ -519,8 +520,9 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
     ) -> str:
         """
         Convert the BitVector to a string in a given base.
-        If `sep` is not None, the string is split into chunks of `bytes_per_sep` bytes
-           punctuated by `sep`.
+
+        If `sep` is not None, the string is split into chunks of
+        `bytes_per_sep` bytes, punctuated by `sep`.
 
         Args:
             base (int): The base to convert to (a power of 2, at most 64).
@@ -647,8 +649,9 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
     # Magic Methods and Overloads
     def __eq__(self, other: object) -> bool:
         """
-        Returns whether this BitVector's bits are equal to another object's bits.
-        This will only really be true if both objects are BitVectors.
+        Returns whether this BitVector's bits equal another object's bits.
+
+        The result is only ever True when both objects are BitVectors.
         """
         if isinstance(other, BitVector):
             return self._bits == other._bits
@@ -1157,11 +1160,13 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
         self, index: Optional[int] = None, default=_MISSING
     ) -> Union[int, T]:
         """Removes and returns the bit at the given index (zero-indexed).
-        All bits to the right of the index are shifted one left.
-        If the provided index is None, the rightmost bit is popped.
-        Negative indices count from the end, as with __getitem__.
-        If a default is provided and the index is out of bounds,
-        the default is returned (including an explicit ``default=None``).
+
+        Every bit to the right of the index shifts one place left. If the
+        index is None, the rightmost bit is popped. Negative indices count
+        from the end, as with __getitem__.
+
+        If a default is provided and the index is out of bounds, the default
+        is returned. That includes an explicit ``default=None``.
 
         Args:
             index (Optional[int], optional): The position of the bit to pop.
@@ -1264,9 +1269,10 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
         stop: Optional[int] = None,
     ) -> bool:
         """
-        Checks if the BitVector starts with the given substring.
-        If start and stop are provided, the check is performed only
-            on the bits between the start (inclusive) and stop (exclusive) indices.
+        Checks whether the BitVector starts with the given substring.
+
+        If start and stop are provided, the check covers only the bits
+        between the start index (inclusive) and the stop index (exclusive).
 
         Args:
             substrings (Union[BitsConstructible, BitVector, Literal[0, 1],\
@@ -1304,9 +1310,10 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
         stop: Optional[int] = None,
     ) -> bool:
         """
-        Checks if the BitVector ends with the given substring.
-        If start and stop are provided, the check is performed only
-            on the bits between the start (inclusive) and stop (exclusive) indices.
+        Checks whether the BitVector ends with the given substring.
+
+        If start and stop are provided, the check covers only the bits
+        between the start index (inclusive) and the stop index (exclusive).
 
         Args:
             substrings (Union[BitsConstructible, BitVector, Literal[0, 1],\
@@ -1754,10 +1761,12 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
 
     def to_bytes(self, reverse_endianness=False) -> bytes:
         """
-        Converts the BitVector to bytes, RIGHT-aligned: the bits form a
-        big-endian integer, zero-padded on the left to a whole number of
-        bytes. Contrast tobytes()/bytes(), which LEFT-align (zero-pad on
-        the right) a trailing partial byte.
+        Converts the BitVector to bytes, right-aligned.
+
+        The bits form a big-endian integer, zero-padded on the left to a
+        whole number of bytes. Contrast ``tobytes()`` and ``bytes()``, which
+        left-align instead: they zero-pad a trailing partial byte on the
+        right.
         """
         value = 0
         for bit in self._bits:

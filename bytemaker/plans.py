@@ -127,8 +127,9 @@ class FieldSpec:
 
 
 def _float_pattern_conv(codec: type, width: int) -> tuple:
-    """(value -> bit pattern int, bit pattern int -> value) through the
-    float type's own codec, in natural (unswapped) bit order."""
+    """Return a ``(value -> bit pattern int, bit pattern int -> value)`` pair
+    built from the float type's own codec, in natural (unswapped) bit
+    order."""
 
     def to_pattern(value, _c=codec):
         return _c(float(value)).bits.to_int(signed=False)
@@ -258,8 +259,8 @@ class Plan:
     def unpack_tuple(self, data) -> tuple:
         """Decode one record's bytes into a flat tuple of plain values.
 
-        ``data`` must be exactly :attr:`num_bytes` long; a wrong-length
-        buffer raises ``ValueError`` on both tiers rather than decoding
+        ``data`` must be exactly :attr:`num_bytes` long. A wrong-length
+        buffer raises ``ValueError`` on both tiers, rather than decoding
         from the wrong byte positions.
         """
         size = data.nbytes if isinstance(data, memoryview) else len(data)
@@ -291,10 +292,10 @@ class Plan:
     def pack_tuple(self, values: Sequence) -> bytes:
         """Encode a flat sequence of plain values into one record's bytes.
 
-        ``values`` must hold exactly one entry per leaf field; a wrong
-        count raises ``ValueError`` on both tiers rather than zero-filling
-        missing fields or dropping extras. Out-of-range integers narrow
-        C-style (wrap) rather than raising, at every width.
+        ``values`` must hold exactly one entry per leaf field. A wrong
+        count raises ``ValueError`` on both tiers, rather than zero-filling
+        missing fields or dropping extras. Out-of-range integers wrap
+        C-style instead of raising, at every width.
         """
         if len(values) != len(self.fields):
             raise ValueError(
@@ -324,12 +325,13 @@ class Plan:
 
     def pack_into(self, buf, offset: int, values: Sequence) -> None:
         """Encode a flat value sequence straight into a writable ``buf`` at
-        ``offset`` — the in-place twin of :meth:`pack_tuple`.
+        ``offset``.
 
-        The struct tier writes through ``struct.pack_into`` with no
-        intermediate bytes object; the shiftmask tier splices. ``buf`` must
-        be writable (a ``bytearray`` or a writable ``memoryview``); bounds
-        are checked, so a short buffer raises instead of truncating.
+        This is the in-place counterpart of :meth:`pack_tuple`. The struct
+        tier writes through ``struct.pack_into`` with no intermediate bytes
+        object, while the shiftmask tier splices. ``buf`` must be writable,
+        so pass a ``bytearray`` or a writable ``memoryview``. Bounds are
+        checked, so a short buffer raises instead of truncating.
         """
         if len(values) != len(self.fields):
             raise ValueError(
@@ -371,9 +373,10 @@ class Plan:
     ) -> Iterator[tuple]:
         """Iterate flat tuples over consecutive records in ``buf``.
 
-        ``count=None`` reads as many whole records as fit from ``offset`` to
-        the end of ``buf``; an explicit ``count`` larger than the number of
-        whole records available raises ``ValueError`` (both tiers alike).
+        ``count=None`` reads as many whole records as fit between
+        ``offset`` and the end of ``buf``. An explicit ``count`` larger
+        than the number of whole records available raises ``ValueError``,
+        on both tiers alike.
         """
         size = self.num_bytes
         view = memoryview(buf)
@@ -448,9 +451,9 @@ class Plan:
     def byte_span(self, name: str) -> Tuple[int, int]:
         """``(byte offset, byte width)`` of a byte-aligned field.
 
-        The pair is what it takes to address a field's bytes on their own —
-        the offset says where, and without the width there is no way to know
-        how far the field runs.
+        Addressing a field's bytes on their own takes both numbers. The
+        offset says where the field starts, and the width says how far it
+        runs.
         """
         f = self._find(name)
         if f.bit_offset % 8 or f.bit_width % 8:
@@ -515,12 +518,15 @@ def compile_plan(
 ) -> Plan:
     """Compile ``(name, type)`` field definitions into a :class:`Plan`.
 
-    Types may be scalar BitType classes or Struct classes (flattened, their
-    leaves keeping the child's endianness). ``endian_overrides`` maps
-    top-level scalar field names to a per-field byte order (the
-    ``field(T, endian=...)`` spelling; validated by the caller). Raises
-    :class:`PlanCompileError` (at import time, when called from Struct
-    creation) for malformed layouts.
+    Types may be scalar BitType classes or Struct classes. A Struct class
+    is flattened, and its leaves keep the child's endianness.
+
+    ``endian_overrides`` maps top-level scalar field names to a per-field
+    byte order. It carries the ``field(T, endian=...)`` spelling, which the
+    caller has already validated.
+
+    A malformed layout raises :class:`PlanCompileError`. Struct creation
+    calls this function, so that error surfaces at import time.
     """
     if not field_defs:
         raise PlanCompileError(f"{owner_name} declares no fields")
@@ -532,18 +538,20 @@ def compile_plan(
     def check_bit_order(full: str, ftype, subplan: "Plan") -> None:
         """Refuse flattening a child compiled under the other bit order.
 
-        endian survives flattening because it lives on each leaf; bit_order
+        endian survives flattening because it lives on each leaf. bit_order
         is one value per Plan, so a mismatched child would be silently
-        REPACKED under the parent's order — same record, same values,
-        different bytes than it packs standalone, with nothing left after
-        compilation to reveal it (findings #29).
+        repacked under the parent's order. The record and its values would
+        be unchanged, but its bytes would differ from what it packs
+        standalone, and compilation leaves nothing behind that would reveal
+        it (findings #29).
 
-        Exemption: a child whose leaves are all whole bytes. For such a
-        record bit_order is provably a no-op: the aligned tier never reads
-        it at all, and the shiftmask tier — the only code where bit_order
-        exists — serializes its record int in an order that tracks it, so
-        byte-aligned layouts come out identical either way (differentially
-        pinned on the shiftmask tier). Refusing it would make one
+        A child whose leaves are all whole bytes is exempt, because
+        bit_order is provably a no-op for such a record. The aligned tier
+        never reads bit_order at all. The shiftmask tier is the only code
+        where bit_order exists, and it serializes its record int in an
+        order that tracks bit_order, so byte-aligned layouts come out
+        identical either way. That equivalence is differentially pinned on
+        the shiftmask tier. Refusing the exemption would make one
         byte-aligned child unusable across parents that disagree about an
         order it does not even express.
         """
@@ -665,10 +673,13 @@ class LegacyRecordPlan:
     """Byte-slicing fast path for a dataclass whose fields are all
     byte-aligned BitType classes.
 
-    Behavior contract: byte-identical to ``bytemaker.conversions._legacy_aggregate`` for
-    every input either path accepts (enforced by the differential suite).
-    Parsing boxes each field with ``bytes_to_bittype`` (bits-authoritative, no
-    value computation); packing reuses each instance's canonical bits.
+    The behavior contract is to be byte-identical to
+    ``bytemaker.conversions._legacy_aggregate`` for every input either path
+    accepts, which the differential suite enforces.
+
+    Parsing boxes each field with ``bytes_to_bittype``, which is
+    bits-authoritative and computes no values. Packing reuses each
+    instance's canonical bits.
     """
 
     __slots__ = ("cls", "names", "types", "offsets", "sizes", "total", "fmt_letters")
@@ -683,8 +694,8 @@ class LegacyRecordPlan:
         self.fmt_letters = fmt_letters  # per-field letter or None
 
     def parse(self, data: bytes, endianness: Literal["big", "little"]):
-        """Box ``data`` back into an instance of the dataclass, one field
-        per byte slice, decoding each with ``bytes_to_bittype``."""
+        """Box ``data`` back into an instance of the dataclass. Each field is
+        one byte slice, decoded with ``bytes_to_bittype``."""
         if len(data) * 8 != self.total * 8:
             raise ValueError(
                 f"Cannot convert {data!r} to {self.cls}"
@@ -700,8 +711,8 @@ class LegacyRecordPlan:
         )
 
     def pack(self, obj, endianness: Literal["big", "little"]) -> bytes:
-        """Serialize ``obj``'s fields to bytes in ``endianness`` order,
-        coercing non-BitType values C-style via each field's type."""
+        """Serialize ``obj``'s fields to bytes in ``endianness`` order. A
+        non-BitType value is coerced C-style through its field's type."""
         parts = []
         for name, ftype in zip(self.names, self.types):
             v = getattr(obj, name)

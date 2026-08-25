@@ -26,9 +26,9 @@ class Float(BitType[float]):
     """
     A BitType that represents an IEEE-754-style floating-point number.
 
-    Use the `specialize` method to create a subclass with the desired number of
-        exponent and mantissa bits
-        or use one of the pre-defined subclasses.
+    Use the `specialize` method to create a subclass with the number of
+    exponent and mantissa bits you need, or use one of the pre-defined
+    subclasses.
 
     The floating-point format in use is as follows:
     - The first bit is the sign bit
@@ -157,12 +157,11 @@ class Float(BitType[float]):
         """
         Convert a `float` (or a `Float`) to a binary string.
 
-        Follows IEEE-754 conversion conventions: zeros keep their sign,
-            rounding is to nearest (ties to even),
-            magnitudes below the normal range become subnormals
-            (or signed zero once even the subnormal range is exceeded),
-            magnitudes above the normal range become signed infinity,
-            and NaN encodes as a quiet NaN.
+        The conversion follows IEEE-754 conventions. Zeros keep their sign,
+        and rounding is to nearest with ties going to even. A magnitude
+        below the normal range becomes a subnormal, or a signed zero once it
+        falls below the subnormal range as well. A magnitude above the
+        normal range becomes a signed infinity. NaN encodes as a quiet NaN.
 
         Args:
             num_exponent_bits (int): The number of bits to use for the exponent.
@@ -249,15 +248,15 @@ class Float(BitType[float]):
         name_: Optional[str] = None,
     ):
         """
-        Produce a subclass of Float with the specified number of bits
-            in the exponent and mantissa.
+        Produce a subclass of Float with the given number of exponent and
+        mantissa bits.
 
-        If a packing format letter is provided, the subclass will also be a
-            `StructPackedBitType` and use `struct`'s packing/unpacking functions
-            with the provided letter.
+        If a packing format letter is provided, the subclass is also a
+        `StructPackedBitType` and uses `struct`'s packing and unpacking
+        functions with that letter.
 
-        If `name_` is provided, the subclass will have that name internally after class
-            creation. Otherwise, the subclass will be named _Float.
+        If `name_` is provided, the subclass takes that name after class
+        creation. Otherwise it is named _Float.
 
         Args:
             num_exponent_bits_ (int): The number of bits to use for the exponent.

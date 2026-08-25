@@ -130,17 +130,22 @@ DEBUG_VALIDATE = bool(os.environ.get("BYTEMAKER_DEBUG"))
 class Codec(Protocol):
     """The structural protocol the composite schema objects satisfy.
 
-    A codec maps ``num_bits // 8`` bytes to a value and back: ``parse(data)``
-    decodes, ``pack(value)`` encodes what ``parse`` returned. Struct
-    *classes* satisfy it -- ``parse`` is a classmethod and the value is the
-    instance, so ``S.pack(s)`` is ``s.pack()`` -- and so do :class:`Array`
-    objects, whose values are lists. Scalar BitType classes do NOT: they
-    carry ``num_bits`` but serialize through the constructor and
-    ``bytes()``, so ``isinstance(UInt16, Codec)`` is False (compose scalars
-    through a Struct or an Array, which are codecs of them). Note that
-    ``runtime_checkable`` checks attribute *presence* only: a Struct
-    *instance* also passes ``isinstance``, but its bound ``pack()`` takes
-    no value argument -- the codec object for a Struct is the class itself.
+    A codec maps ``num_bits // 8`` bytes to a value and back. ``parse(data)``
+    decodes, and ``pack(value)`` encodes what ``parse`` returned.
+
+    Struct classes satisfy it. ``parse`` is a classmethod and the value is
+    the instance, so ``S.pack(s)`` is ``s.pack()``. :class:`Array` objects
+    satisfy it too, and their values are lists.
+
+    Scalar BitType classes do not. They carry ``num_bits``, but they
+    serialize through the constructor and ``bytes()``, so
+    ``isinstance(UInt16, Codec)`` is False. Compose scalars through a
+    Struct or an Array, both of which are codecs of them.
+
+    ``runtime_checkable`` checks attribute presence only, so a Struct
+    instance also passes ``isinstance``. Its bound ``pack()`` takes no
+    value argument, though: the codec object for a Struct is the class
+    itself.
     """
 
     num_bits: int
@@ -174,25 +179,27 @@ _EXC_FAMILIES = (
 def _attributed(exc, label: str):
     """``exc`` re-expressed with ``label`` prefixed to its message.
 
-    The raised object is a WRAPPER carrying the attributed message; the
-    intact original is always chained as ``__cause__`` by the caller, and
-    that chain — not the wrapper — is where precise type and attributes
-    live. Two rules decide the wrapper's class:
+    The raised object is a wrapper carrying the attributed message. The
+    caller always chains the intact original as ``__cause__``, and that
+    chain is where the precise type and attributes live, not the wrapper.
 
-    * The exact class, when it is a builtin constructed from one argument:
-      the family and the message — everything the ``except`` clause and the
-      error text depend on — rebuild faithfully. (Not necessarily every
-      attribute: an ``AttributeError`` minted by the interpreter carries
-      ``.name``/``.obj`` outside ``args``, and the wrapper's are None; the
-      original's are intact on ``__cause__``, which is the fidelity channel
-      throughout.) Naively rebuilding *everything* this way broke twice —
-      a multi-arg builtin (``UnicodeEncodeError`` takes five) makes the
-      constructor fail, and a user subclass that captures constructor args
-      as attributes gets them silently replaced by the message string.
+    Two rules decide the wrapper's class:
+
+    * The exact class, when it is a builtin constructed from one argument.
+      The family and the message rebuild faithfully, and those are what the
+      ``except`` clause and the error text depend on. Not every attribute
+      survives: an ``AttributeError`` minted by the interpreter carries
+      ``.name`` and ``.obj`` outside ``args``, so the wrapper's are None.
+      The original's are intact on ``__cause__``, which is the fidelity
+      channel throughout. Rebuilding every exception this way broke twice.
+      A multi-arg builtin makes the constructor fail, because
+      ``UnicodeEncodeError`` takes five arguments. A user subclass that
+      captures constructor args as attributes gets them silently replaced
+      by the message string.
     * Otherwise the nearest builtin family (:data:`_EXC_FAMILIES`), so
       ``except KeyError`` around a ``TABLE.__getitem__`` adapter still
-      catches, whatever KeyError subclass the table raised. ValueError is
-      the default: it is what "this wire value is wrong" means.
+      catches whatever KeyError subclass the table raised. ValueError is
+      the default, because it is what "this wire value is wrong" means.
     """
     msg = f"{label}: {exc}"
     cls = type(exc)
@@ -210,25 +217,27 @@ def _attributed(exc, label: str):
 def _unreadable(exc, prefix: str) -> str:
     """The ``<unreadable: why>`` marker for a field whose read raised.
 
-    A repr must never raise, and reading a field CAN: an adapter's ``load``
+    A repr must never raise, but reading a field can. An adapter's ``load``
     runs over whatever the bytes say, so one value the schema does not
-    describe (``enum_(E)`` over an undocumented wire byte) would otherwise
-    take out the repr of the whole record -- and with it ``print(records)``,
-    the first thing anyone does with a table they are still figuring out.
-    The readable fields are exactly what they need to see; the unreadable
-    one says so, and names the reason.
+    describe, such as ``enum_(E)`` over an undocumented wire byte, would
+    otherwise take out the repr of the whole record. That would also break
+    ``print(records)``, which is the first thing anyone does with a table
+    they are still figuring out. The readable fields are exactly what
+    they need to see, and the unreadable one says so and names the reason.
 
-    Called from the ``except`` path only, so its work (and ``prefix``, the
-    "Record.field: " :func:`_raise_named` prepends — noise beside the
-    field's own name in a repr) costs nothing when every field reads.
-    Shared by :meth:`Struct._bm_repr_of` and :meth:`BoundField.__repr__`,
-    which read the same plane and so can fail the same way.
+    This runs from the ``except`` path only, so its work costs nothing when
+    every field reads. That includes stripping ``prefix``, the
+    "Record.field: " that :func:`_raise_named` prepends, which is noise
+    beside the field's own name in a repr. :meth:`Struct._bm_repr_of` and
+    :meth:`BoundField.__repr__` share this function, because they read the
+    same plane and so can fail the same way.
 
-    The reason comes from ``args[0]`` when that is the message, not from
-    ``str(exc)``: for a KeyError ``str()`` is ``repr(args[0])``, which would
-    quote the message and defeat the prefix strip. The type-name fallback
-    runs AFTER the strip, so a message-less exception ("R.v: " stripped to
-    nothing) still names its type instead of rendering blank.
+    The reason comes from ``args[0]`` when that is the message, rather than
+    from ``str(exc)``. For a KeyError, ``str()`` is ``repr(args[0])``,
+    which would quote the message and defeat the prefix strip. The
+    type-name fallback runs after the strip, so a message-less exception,
+    whose "R.v: " strips to nothing, still names its type instead of
+    rendering blank.
     """
     args = exc.args
     if len(args) == 1 and isinstance(args[0], str):
@@ -243,12 +252,14 @@ def _unreadable(exc, prefix: str) -> str:
 def _raise_named(slot, obj, exc):
     """Re-raise a field conversion error naming the record class and field.
 
-    Used by both directions: a store-time narrowing/validation failure, and
-    (via :class:`_AdaptedField`) an adapter ``load`` failure on data the
-    schema does not describe. Compile-time diagnostics always name their
-    field; runtime value errors previously surfaced bare ("'str' object
-    cannot be interpreted as an integer"), which on a 20-field record names
-    nothing. The original message survives as the suffix and ``__cause__``.
+    Both directions use it: a store-time narrowing or validation failure,
+    and an adapter ``load`` failure on data the schema does not describe,
+    which arrives via :class:`_AdaptedField`.
+
+    Compile-time diagnostics always name their field. Runtime value errors
+    previously surfaced bare, as in "'str' object cannot be interpreted as
+    an integer", which names nothing on a 20-field record. The original
+    message survives as the suffix and on ``__cause__``.
     """
     field_name = slot.__name__[4:]  # strip the "_bm_" slot prefix
     raise _attributed(exc, f"{type(obj).__name__}.{field_name}") from exc
@@ -375,12 +386,15 @@ class _BytesField:
 
 
 def _field_name_of(descriptor) -> "Optional[str]":
-    """The field name a Struct field descriptor was installed under, or None
-    for anything that is not one. Class-level attribute access returns the
-    descriptor (``WarpPoint.room_ptr``), so this is what lets an API accept
-    the ATTRIBUTE as a refactor-safe alternative to the name string. The
-    name comes from the slot the descriptor wraps (``_bm_<field>``), the
-    same derivation the narrowing warning uses."""
+    """The field name a Struct field descriptor was installed under, or
+    None for anything that is not one.
+
+    Class-level attribute access returns the descriptor, as in
+    ``WarpPoint.room_ptr``. This function is what lets an API accept that
+    attribute as a refactor-safe alternative to the name string. The name
+    comes from the slot the descriptor wraps (``_bm_<field>``), the same
+    derivation the narrowing warning uses.
+    """
     inner = getattr(descriptor, "_inner", descriptor)  # _AdaptedField wraps
     slot = getattr(inner, "_slot", None)
     name = getattr(slot, "__name__", "")
@@ -388,28 +402,31 @@ def _field_name_of(descriptor) -> "Optional[str]":
 
 
 class _AdaptedField:
-    """Wraps a scalar field descriptor with an :class:`Adapter`: reads
-    ``load`` the slot's wire value; writes ``store`` the user value and
-    then run the inner descriptor's usual wire narrowing. The slot (and
-    therefore parse/pack and the generated tuple converters, which bypass
-    descriptors) always holds the WIRE value.
+    """Wraps a scalar field descriptor with an :class:`Adapter`.
+
+    A read applies ``load`` to the slot's wire value. A write applies
+    ``store`` to the user value and then runs the inner descriptor's usual
+    wire narrowing. The slot always holds the wire value, and so do
+    parse/pack and the generated tuple converters, which bypass
+    descriptors.
 
     Both directions attribute their failures. A ``load`` can fail on data
-    the schema does not describe -- ``enum_(E)`` over a wire byte that is
-    not a member is the shipped example -- and that failure surfaces on a
-    plain attribute READ, arbitrarily far from the ``parse`` that accepted
-    the bytes (parse fills slots wire-plane and never calls ``load``), so
-    an unattributed message would name neither the record nor the field.
+    the schema does not describe; the shipped example is ``enum_(E)`` over
+    a wire byte that is not a member. That failure surfaces on a plain
+    attribute read, arbitrarily far from the ``parse`` that accepted the
+    bytes, because parse fills slots wire-plane and never calls ``load``.
+    An unattributed message would name neither the record nor the field.
 
-    An adapter is USER code, so both handlers catch ``Exception`` rather
-    than a shortlist: a table adapter spelled ``Adapter(TABLE.__getitem__,
-    ...)`` -- the obvious way to decode a game's character table, and the
-    most likely adapter after ``enum_`` -- raises ``KeyError`` on precisely
-    the undocumented byte this attribution exists for. Nothing is
-    swallowed: :func:`_attributed` re-raises, keeping the exception's exact
-    class for one-arg builtins and its builtin FAMILY otherwise (see its
-    docstring for why subclasses are never rebuilt), always chaining the
-    intact original as ``__cause__``.
+    An adapter is user code, so both handlers catch ``Exception`` rather
+    than a shortlist. A table adapter spelled ``Adapter(TABLE.__getitem__,
+    ...)`` is the obvious way to decode a game's character table, and the
+    most likely adapter after ``enum_``. It raises ``KeyError`` on
+    precisely the undocumented byte this attribution exists for.
+
+    Nothing is swallowed. :func:`_attributed` re-raises, keeping the
+    exception's exact class for one-arg builtins and its builtin family
+    otherwise, and it always chains the intact original as ``__cause__``.
+    See that function's docstring for why subclasses are never rebuilt.
     """
 
     __slots__ = ("_inner", "_adapter")
@@ -438,13 +455,13 @@ class _AdaptedField:
 def _elem_loader(load, label: str):
     """A whole-field element loader for an adapted Array field.
 
-    An adapted array's elements are loaded in the generated
-    ``_bm_from_tuple`` (its slot holds USER-plane values), which has no
-    field context of its own — so a strict ``load`` over undocumented data
-    would fail *inside parse* with a message naming nothing. Binding the
+    An adapted array's slot holds user-plane values, so its elements are
+    loaded in the generated ``_bm_from_tuple``. That function has no field
+    context of its own, so a strict ``load`` over undocumented data would
+    fail inside parse with a message naming nothing. Binding the
     ``"Record.field"`` label here keeps the attribution that
     :class:`_AdaptedField` gives a scalar, at one call per field per record
-    rather than per element.
+    rather than one per element.
     """
 
     def load_elems(values):
@@ -457,13 +474,14 @@ def _elem_loader(load, label: str):
 
 
 def _elem_storer(store, label: str):
-    """The PACK-direction twin of :func:`_elem_loader`.
+    """The pack-direction counterpart of :func:`_elem_loader`.
 
     An adapted array's slot is user-plane, so ``pack()`` re-encodes every
-    element through ``store`` inside the generated ``_bm_to_tuple`` — and a
-    mutable user value can have drifted into a state ``store`` refuses since
-    it was last stored, making pack one of the five places an element type
-    can be tripped. Anonymous there, it named neither record nor field.
+    element through ``store`` inside the generated ``_bm_to_tuple``. A
+    mutable user value can have drifted since it was last stored into a
+    state ``store`` refuses, which makes pack one of the five places an
+    element type can be tripped. Anonymous there, it named neither the
+    record nor the field.
     """
 
     def store_elems(values):
@@ -535,13 +553,13 @@ class NarrowingList(list):
     def _coerce(self, value):
         """``Array._coerce_one``, attributed to the owning record and field.
 
-        One of the FIVE ways a value crosses an array field's element type,
-        all attributed: whole-list assignment and ``__init__`` go through
-        :class:`_ArrayField`, parse-time loads through
-        :func:`_elem_loader`, pack-time stores through
-        :func:`_elem_storer`, and the element store lands here. It was the
-        last of them to be named — ``s.fns[0] = 99`` reported "99 is not a
-        valid Terrain" alone.
+        A value crosses an array field's element type in five ways, and all
+        five are attributed. Whole-list assignment and ``__init__`` go
+        through :class:`_ArrayField`. Parse-time loads go through
+        :func:`_elem_loader`, and pack-time stores through
+        :func:`_elem_storer`. The element store lands here. It was the last
+        of the five to be named: ``s.fns[0] = 99`` reported "99 is not a
+        valid Terrain" and nothing more.
         """
         try:
             return self._arr._coerce_one(value)
@@ -598,16 +616,19 @@ class NarrowingList(list):
 
 
 class _ArrayField:
-    """Descriptor for an Array field: the slot holds a live
-    :class:`NarrowingList`; assignment snapshots into a fresh fixed-length
-    list (the caller's *sequence* is never aliased, per R1).
+    """Descriptor for an Array field.
 
-    Scope note: the snapshot copies the list container and narrows numeric
-    elements to plain values. Struct *element instances* are stored by
-    reference (not deep-copied) -- exactly as a scalar nested-Struct field
-    does via :class:`_StructField` -- so explicitly assigning one Struct
-    instance into several records (or slots) aliases it, deliberately.
-    *Defaults* are the exception: ``__init__`` detach-copies Struct-valued
+    The slot holds a live :class:`NarrowingList`. Assignment snapshots the
+    values into a fresh fixed-length list, so the caller's sequence is
+    never aliased (per R1).
+
+    The snapshot copies the list container and narrows numeric elements to
+    plain values. Struct element instances are stored by reference rather
+    than deep-copied, exactly as a scalar nested-Struct field does via
+    :class:`_StructField`. Explicitly assigning one Struct instance into
+    several records or slots therefore aliases it, deliberately.
+
+    Defaults are the exception. ``__init__`` detach-copies Struct-valued
     defaults, scalar and array-element alike (see ``_generate_methods``),
     so default-constructed instances never share one. Numeric elements are
     immutable, so numeric arrays are fully independent."""
@@ -655,8 +676,8 @@ _STRUCT_REGISTRY: Dict[str, Any] = {}
 
 
 def _structs_named(name: str) -> tuple:
-    """All live concrete Struct classes named ``name``, module-sorted (the
-    stable order matters only for error messages)."""
+    """All live concrete Struct classes named ``name``, sorted by module. The
+    stable order matters only for error messages."""
     registered = _STRUCT_REGISTRY.get(name)
     if not registered:
         return ()
@@ -678,9 +699,10 @@ def _resolve_hints(cls) -> Dict[str, Any]:
 
 
 def _reject_endian_tag_metadata(owner: str, field_name: str, hint) -> None:
-    """A byte-order string in Annotated metadata — the spelling a user is
-    most likely to guess for per-field endianness — was silently ignored
-    and produced record-order bytes. Refuse it with the real spelling."""
+    """Refuse a byte-order string in Annotated metadata, and name the real
+    spelling. It is the spelling a user is most likely to guess for
+    per-field endianness, and it used to be ignored silently, producing
+    record-order bytes."""
     if get_origin(hint) is not Annotated:
         return
     for meta in get_args(hint)[1:]:
@@ -696,15 +718,16 @@ def _reject_endian_tag_metadata(owner: str, field_name: str, hint) -> None:
 
 def _is_wire_type(obj) -> bool:
     """True for anything the field machinery accepts as a wire type: a
-    BitType class, an :class:`Adapted` codec, a Struct class, an Array."""
+    BitType class, an :class:`Adapted` codec, a Struct class, or an
+    Array."""
     return isinstance(obj, (StructMeta, Array, Adapted)) or (
         isinstance(obj, type) and issubclass(obj, BitType)
     )
 
 
 def _unwrap_annotation(owner: str, field: str, hint) -> Any:
-    """``Annotated[int, UInt8]`` -> ``UInt8``; BitType/Adapted/Struct/Array
-    pass through; anything else is a compile error."""
+    """``Annotated[int, UInt8]`` unwraps to ``UInt8``. A BitType, Adapted,
+    Struct or Array passes through. Anything else is a compile error."""
     _reject_endian_tag_metadata(owner, field, hint)
     if get_origin(hint) is Annotated:
         for meta in get_args(hint)[1:]:
@@ -723,21 +746,23 @@ def _unwrap_annotation(owner: str, field: str, hint) -> Any:
 
 
 def _reject_foreign_value_override(owner: str, field_name: str, ftype) -> None:
-    """Refuse a BitType subclass whose ``value`` property is (re)defined
-    outside bytemaker as a field/element type.
+    """Refuse a BitType subclass as a field or element type when its
+    ``value`` property is defined or redefined outside bytemaker.
 
     The plan engine moves plain wire values through slots and generated
-    tuple converters; it never constructs the box on the hot path, so a
-    user subclass like ``class ThumbPointer(UInt32)`` with a custom
-    ``value`` property would be **silently ignored**: parse would store
-    the raw wire value, pack would re-emit it untransformed, while the
-    standalone box (and ``BoundField.boxed()``) applied the override —
-    two answers for one field, and no diagnostic. Failing the class
-    definition converts wrong bytes into an error. The sanctioned seam
-    for value transforms is ``adapt=`` (:mod:`bytemaker.adapters`);
-    String/Buffer codec customization via ``encoding``/``decoding`` or
-    ``of(...)`` is engine-honored and unaffected (those hooks define no
-    ``value``)."""
+    tuple converters, and it never constructs the box on the hot path. A
+    user subclass such as ``class ThumbPointer(UInt32)`` with a custom
+    ``value`` property would therefore be silently ignored. Parse would
+    store the raw wire value and pack would re-emit it untransformed, while
+    the standalone box and ``BoundField.boxed()`` applied the override.
+    That is two answers for one field, with no diagnostic. Failing the
+    class definition turns wrong bytes into an error instead.
+
+    The sanctioned seam for value transforms is ``adapt=``, in
+    :mod:`bytemaker.adapters`. String and Buffer codec customization
+    through ``encoding``/``decoding`` or ``of(...)`` is engine-honored and
+    unaffected, because those hooks define no ``value``.
+    """
     if not (isinstance(ftype, type) and issubclass(ftype, BitType)):
         return
     for klass in type.mro(ftype):
@@ -777,13 +802,15 @@ def _expected_py_type(bittype):
 
 
 def _check_spec_annotation(owner, field_name, bittype, annotation, adapter=None):
-    """R10 invariant: a ``field()``/``array()`` field's plain annotation is
-    the type a checker trusts, so it must match the value type its wire
-    ``bittype`` actually reads as — or, for an adapted field, the
-    adapter's user-plane ``py_type``. Raises :class:`PlanCompileError` on
-    a disagreement (the annotation-carried path enforces the same truth
-    via ``_unwrap_annotation``). ``Any`` is allowed as a deliberate
-    opt-out."""
+    """Enforce the R10 invariant on a ``field()`` or ``array()`` field.
+
+    The plain annotation is the type a checker trusts, so it must match the
+    value type its wire ``bittype`` actually reads as. For an adapted field
+    it must match the adapter's user-plane ``py_type`` instead. A
+    disagreement raises :class:`PlanCompileError`. The
+    annotation-carried path enforces the same truth via
+    ``_unwrap_annotation``. ``Any`` is allowed as a deliberate opt-out.
+    """
     if annotation is None:
         return
     _reject_endian_tag_metadata(owner, field_name, annotation)
@@ -830,10 +857,11 @@ def _check_spec_annotation(owner, field_name, bittype, annotation, adapter=None)
 
 def _annotation_accepts(ann, expected) -> bool:
     """True when ``ann`` truthfully describes a field whose values are of
-    type ``expected``: the exact type, or a SUPERclass of it. A field may be
-    annotated looser than what it returns — ``int`` for a field that reads
-    as a PtrValue — never tighter (``bool`` for an int field stays refused,
-    because the values would not satisfy the annotation)."""
+    type ``expected``, meaning ``ann`` is that exact type or a superclass
+    of it. A field may be annotated looser than what it returns, such as
+    ``int`` for a field that reads as a PtrValue. It may never be
+    annotated tighter: ``bool`` for an int field stays refused, because the
+    values would not satisfy the annotation."""
     if ann is expected:
         return True
     return (
@@ -1043,12 +1071,13 @@ _MISSING = object()
 
 
 class _FieldSpec:
-    """Runtime marker produced by :func:`field`/:func:`array`. Carries the
-    field's bytemaker type (a BitType class, a Struct class, or an
-    :class:`Array`), an optional default, and an optional value
-    :class:`Adapter`. The metaclass reads the type from here when a field
-    is spelled ``name: <plain type> = field(...)``, so the annotation
-    stays the plain checker type."""
+    """Runtime marker produced by :func:`field` and :func:`array`.
+
+    It carries the field's bytemaker type, which is a BitType class, a
+    Struct class or an :class:`Array`, plus an optional default and an
+    optional value :class:`Adapter`. The metaclass reads the type from here
+    when a field is spelled ``name: <plain type> = field(...)``, so the
+    annotation stays the plain checker type."""
 
     __slots__ = ("bittype", "default", "adapter", "endian")
 
@@ -1066,44 +1095,50 @@ def field(
     adapt: Any = None,
     endian: Any = None,
 ) -> Any:
-    """Declare a Struct field whose *checker* type is the annotation and
-    whose *wire* type is ``bittype`` — a scalar BitType class, a
-    ``String``/``Buffer`` type (e.g. from ``String.of(...)``), a nested
-    ``Struct`` class, or an ``Array``. The checker-friendly counterpart to
-    the annotation-carries-the-type spellings (``uN``, ``Annotated[...]``)::
+    """Declare a Struct field whose checker type is the annotation and
+    whose wire type is ``bittype``.
+
+    ``bittype`` may be a scalar BitType class, a ``String`` or ``Buffer``
+    type such as one from ``String.of(...)``, a nested ``Struct`` class, or
+    an ``Array``. The ``uN`` and ``Annotated[...]`` spellings instead put
+    the wire type in the annotation, and ``field()`` is the checker-friendly
+    counterpart to those::
 
         hp:   int = field(UInt8)
         name: str = field(String.of(nbytes=4, encoding=MON_TABLE))
 
-    Returns ``Any`` to type checkers so it is assignable to any field
-    annotation; the field's real type comes from the annotation (via
-    dataclass_transform), the wire type from ``bittype`` at runtime.
+    To a type checker this returns ``Any``, so it is assignable to any
+    field annotation. The field's real type comes from the annotation, via
+    dataclass_transform, and its wire type comes from ``bittype`` at
+    runtime.
 
-    ``adapt`` attaches a :class:`bytemaker.adapters.Adapter` so an encoding
-    convention (THUMB bit, fixed-point scale, +1 bias, enums) lives in the
-    schema: reads ``load`` the wire value, writes ``store`` the user value
-    before the usual wire narrowing, and the annotation is checked against
-    the adapter's ``py_type``::
+    ``adapt`` attaches a :class:`bytemaker.adapters.Adapter`, which puts an
+    encoding convention into the schema: a THUMB bit, a fixed-point scale,
+    a +1 bias, or an enum. Reads apply ``load`` to the wire value. Writes
+    apply ``store`` to the user value before the usual wire narrowing. The
+    annotation is checked against the adapter's ``py_type``::
 
         anim_fn:    int   = field(UInt32, adapt=THUMB_PTR)
         multiplier: float = field(UInt16, adapt=fixed(4))
 
-    Scalar wire types only (an adapted :class:`Array` is a standalone
-    codec; nested Structs adapt their own fields).
+    ``adapt`` takes scalar wire types only. An adapted :class:`Array` is a
+    standalone codec, and a nested Struct adapts its own fields.
 
-    ``endian`` overrides the record's byte order for THIS multi-byte
-    numeric field (the C-struct rarity a mixed-endian ROM table needs)::
+    ``endian`` overrides the record's byte order for this one multi-byte
+    numeric field. It is the C-struct rarity that a mixed-endian ROM table
+    needs::
 
         char_number: int = field(UInt16, endian="big")   # in an LE record
 
-    Text/bytes fields have no byte order, nested Structs declare their
-    own at their class definition, and arrays spell it ``array(T, n,
-    endian=...)`` — each of those is refused here with directions.
+    Every other case is refused here, with directions. Text and bytes
+    fields have no byte order. A nested Struct declares its own at its
+    class definition. An array spells it ``array(T, n, endian=...)``.
 
-    A Struct-valued ``default`` (scalar or array element) is detach-copied
-    per instance at ``__init__`` time, so default-constructed records never
-    share one mutable instance; immutable defaults are bound as-is.
-    Defaults are user-plane values (they store through the adapter).
+    A Struct-valued ``default``, scalar or array element alike, is
+    detach-copied per instance at ``__init__`` time, so default-constructed
+    records never share one mutable instance. Immutable defaults are bound
+    as-is. Defaults are user-plane values, so they store through the
+    adapter.
     """
     if adapt is not None and not isinstance(adapt, Adapter):
         raise TypeError(
@@ -1423,16 +1458,18 @@ class Struct(metaclass=StructMeta):
 
     @classmethod
     def from_tuple(cls, values: Sequence[Any]) -> Self:
-        """Build a record from one flat **wire-plane** tuple.
+        """Build a record from one flat wire-plane tuple.
 
-        The inverse of :meth:`to_tuple`, and the record half of
-        :meth:`Plan.unpack_tuple <bytemaker.plans.Plan.unpack_tuple>`: the
-        values are in the plan's flat field order (nested Structs and array
-        elements splatted in place), exactly as ``plan.unpack_tuple`` yields
-        them. Trusted like :meth:`parse` — the narrowing descriptors are
-        bypassed, so values must already be in range.
+        This is the inverse of :meth:`to_tuple` and the record half of
+        :meth:`Plan.unpack_tuple <bytemaker.plans.Plan.unpack_tuple>`. The
+        values are in the plan's flat field order, with nested Structs and
+        array elements splatted in place, exactly as ``plan.unpack_tuple``
+        yields them.
 
-        Adapted fields take their **wire** value here; reads through the
+        The values are trusted, as in :meth:`parse`. The narrowing
+        descriptors are bypassed, so they must already be in range.
+
+        An adapted field takes its wire value here. Reads through the
         attribute apply the adapter as usual.
         """
         want = len(cls.plan.fields)
@@ -1444,9 +1481,9 @@ class Struct(metaclass=StructMeta):
         return cls._bm_from_tuple(values)
 
     def to_tuple(self) -> tuple:
-        """This record's flat **wire-plane** tuple (adapters not applied).
+        """This record's flat wire-plane tuple, with adapters not applied.
 
-        Round-trips through :meth:`from_tuple`, and is what
+        It round-trips through :meth:`from_tuple`, and it is what
         :meth:`Plan.pack_tuple <bytemaker.plans.Plan.pack_tuple>` consumes.
         """
         return self._bm_to_tuple()
@@ -1457,22 +1494,24 @@ class Struct(metaclass=StructMeta):
     ) -> Iterator[Self]:
         """Lazily decode consecutive records starting at ``offset``.
 
-        The record-plane twin of
-        :meth:`Plan.iter_tuples <bytemaker.plans.Plan.iter_tuples>`: no
-        slicing at the call site, no intermediate copies, and nothing is
-        decoded until the iterator is consumed. ``count=None`` reads as many
-        whole records as fit between ``offset`` and the end of ``data``.
+        This is the record-plane counterpart of
+        :meth:`Plan.iter_tuples <bytemaker.plans.Plan.iter_tuples>`. It
+        needs no slicing at the call site and makes no intermediate copies,
+        and nothing is decoded until the iterator is consumed.
+        ``count=None`` reads as many whole records as fit between
+        ``offset`` and the end of ``data``.
 
         For a table scan that never materializes records at all, use
-        ``cls.plan.iter_tuples(...)`` directly — the tuples are the same
+        ``cls.plan.iter_tuples(...)`` directly. Those tuples are the same
         wire-plane values :meth:`from_tuple` accepts.
         """
         return map(cls._bm_from_tuple, cls.plan.iter_tuples(data, offset, count))
 
     @classmethod
     def parse_at(cls, data: BytesLike, offset: int = 0) -> Self:
-        """Decode one record at a byte ``offset`` — :meth:`parse` without the
-        call-site slice (and with a bounds error that names the record)."""
+        """Decode one record at a byte ``offset``. This is :meth:`parse`
+        without the call-site slice, and its bounds error names the
+        record."""
         return cls._bm_from_tuple(
             next(iter(cls.plan.iter_tuples(data, offset, 1)))
         )
@@ -1485,8 +1524,9 @@ class Struct(metaclass=StructMeta):
         return self.plan.pack_tuple(values)
 
     def pack_into(self, buf, offset: int = 0) -> None:
-        """Encode this instance into a writable ``buf`` at ``offset``,
-        in place — the read-modify-write twin of :meth:`parse_at`."""
+        """Encode this instance in place into a writable ``buf`` at
+        ``offset``. It is the read-modify-write counterpart of
+        :meth:`parse_at`."""
         values = self._bm_to_tuple()
         if DEBUG_VALIDATE:
             self.plan.validate_tuple(values)
@@ -1519,9 +1559,9 @@ class Struct(metaclass=StructMeta):
         return f"{type(self).__name__}({args})"
 
     def _bm_repr_of(self, name: str) -> str:
-        """One field's repr text, or a marker if reading it raises (see
-        :func:`_unreadable`). The happy path is one getattr and one repr;
-        marker work is paid only on the field that cannot load."""
+        """One field's repr text, or a marker when reading it raises (see
+        :func:`_unreadable`). The happy path is one getattr and one repr,
+        and the marker work is paid only on a field that cannot load."""
         try:
             return repr(getattr(self, name))
         except Exception as exc:  # noqa: BLE001 - a repr must not raise
@@ -1611,21 +1651,25 @@ class BoundField(typing.Generic[V]):
         return self._ftype.num_bits
 
     def boxed(self) -> "BitType[V]":
-        """A detached BitType snapshot in the FIELD's wire byte order;
-        survives later struct mutation. Wire-plane: for an adapted field the
-        box holds the slot's WIRE value (the box is a serialization object)
-        — the user-plane number is ``.value``.
+        """A detached BitType snapshot in the field's wire byte order, which
+        survives later mutation of the struct.
 
-        The byte order comes from the field's plan leaf, not the record: a
-        ``field(T, endian=...)`` override must serialize from the box
-        exactly as ``pack()`` writes it, or the one object documented as the
-        wire-inspection path lies about the wire. Byte-payload fields
-        (String/Buffer, plan kind ``"b"``) have no byte order — ``pack()``
-        writes them in stream order whatever the record declares, and their
-        leaf endian exists only for tier selection — so their box is minted
-        big-endian, whose serialization IS stream order. (Under the old
-        record-endian stamp, a String box in a little-endian record
-        byte-reversed on ``bytes()`` — the wire backwards.)
+        The box is wire-plane. For an adapted field it holds the slot's
+        wire value, because the box is a serialization object. The
+        user-plane number is ``.value``.
+
+        The byte order comes from the field's plan leaf rather than the
+        record. A ``field(T, endian=...)`` override must serialize from the
+        box exactly as ``pack()`` writes it, or the one object documented
+        as the wire-inspection path would misreport the wire.
+
+        Byte-payload fields, meaning String and Buffer with plan kind
+        ``"b"``, have no byte order. ``pack()`` writes them in stream order
+        whatever the record declares, and their leaf endian exists only for
+        tier selection. Their box is therefore minted big-endian, whose
+        serialization is stream order. Under the old record-endian stamp, a
+        String box in a little-endian record byte-reversed on ``bytes()``,
+        which put the wire backwards.
         """
         leaf = type(self._owner).plan._find(self._name)
         endianness = "big" if leaf.kind == "b" else leaf.endian
@@ -1965,54 +2009,58 @@ class _SizedView:
 class Array(typing.Generic[V]):
     """A fixed-count codec of a uniform element codec.
 
-    Built via ``element * count`` (Struct classes and scalar BitType classes
-    both support ``*``) or :meth:`Array.of`. ``parse`` returns a ``list``;
-    ``pack`` accepts any sequence of the right length.
+    Build one with ``element * count`` (Struct classes and scalar BitType
+    classes both support ``*``) or with :meth:`Array.of`. ``parse`` returns
+    a ``list``, and ``pack`` accepts any sequence of the right length.
 
-    The type parameter is the decoded ELEMENT VALUE type — ``Array.of``
+    The type parameter is the decoded element value type. The ``Array.of``
     overloads infer it, so ``Array.of(UInt16, 4).parse(b)`` reads as
-    ``list[int]`` and ``Array.of(RGB, 3).parse(b)`` as ``list[RGB]``.
+    ``list[int]`` and ``Array.of(RGB, 3).parse(b)`` reads as ``list[RGB]``.
 
-    **Decoded scalars are plain Python values** — the one decoded-scalar
-    rule, same as Struct fields: ``int``/``float`` for numeric elements,
-    ``str`` for String elements (decoded through the element's
-    terminator/pad policy), ``bytes`` for Buffer elements. Width lives in
-    the schema (``self.element``); re-attach it on demand with the
-    constructor cast, ``arr.element(v)``. ``pack`` accepts plain values
-    (coerced through the element type — C-narrowing for ints,
-    encode-validation for text) or boxes. ``endian`` governs numeric
-    elements' byte order; text/bytes elements have no byte order and stay
-    in stream order (as in the plan engine and C ``char[]``).
+    **Decoded scalars are plain Python values.** That is the same
+    decoded-scalar rule Struct fields follow: ``int`` or ``float`` for
+    numeric elements, ``str`` for String elements, and ``bytes`` for Buffer
+    elements. A String element decodes through the element's terminator and
+    pad policy. Width lives in the schema, on ``self.element``, and the
+    constructor cast ``arr.element(v)`` re-attaches it on demand.
 
-    **Type-checking an array field.** The terse ``field: Elem * N`` spelling
-    works at runtime but is not a valid *type* to a checker (``Elem * N`` is
-    an expression, not a type). For checker visibility use the ``Annotated``
-    form — the array analog of the ``uN`` scalar aliases::
+    ``pack`` accepts plain values or boxes. A plain value is coerced
+    through the element type, which means C-narrowing for ints and
+    encode-validation for text. ``endian`` governs the byte order of
+    numeric elements. Text and bytes elements have no byte order and stay
+    in stream order, as they do in the plan engine and in C ``char[]``.
+
+    **Type-checking an array field.** The terse ``field: Elem * N``
+    spelling works at runtime but is not a valid type to a checker, because
+    ``Elem * N`` is an expression rather than a type. For checker
+    visibility use the ``Annotated`` form, the array analog of the ``uN``
+    scalar aliases::
 
         colors: Annotated[list[int], UInt16 * 8]   # reads as list[int]
         tiles:  Annotated[list[RGB], RGB * 3]       # reads as list[RGB]
 
-    The first argument is the plain type the field reads/writes as
-    (``list[int]`` / ``list[float]`` / ``list[YourStruct]``); the ``Elem * N``
-    metadata is the runtime :class:`Array` (unwrapped by the field
-    machinery). Bind it to a module-level alias to reuse it. See
+    The first argument is the plain type the field reads and writes as,
+    such as ``list[int]``, ``list[float]`` or ``list[YourStruct]``. The
+    ``Elem * N`` metadata is the runtime :class:`Array`, which the field
+    machinery unwraps. Bind it to a module-level alias to reuse it. See
     ``test/_typing_repro.py`` for the mypy contract.
 
-    **Adapted elements** (``array(THUMB_PTR @ UInt32, 8)`` or
-    ``Array.of(UInt32, 8, adapt=THUMB_PTR)``) transform each element between
-    the wire and the user plane. Unlike an adapted *scalar* field — whose
-    slot stays in the wire plane — the live element list holds USER-plane
-    values, because that is what a list has to hold for
-    ``s.fns[0] = addr`` and ``s.fns == [...]`` to mean what they read as.
+    **Adapted elements** transform each element between the wire plane and
+    the user plane. Spell them ``array(THUMB_PTR @ UInt32, 8)`` or
+    ``Array.of(UInt32, 8, adapt=THUMB_PTR)``. An adapted scalar field keeps
+    its slot in the wire plane, but the live element list holds user-plane
+    values instead. A list has to hold those for ``s.fns[0] = addr`` and
+    ``s.fns == [...]`` to mean what they read as.
 
-    The accepted consequence: an adapted array field CANONICALIZES the wire
-    on repack. Every element round-trips ``load`` then ``store``, so wire
-    the adapter cannot represent is normalized — a THUMB table entry parsed
-    with bit 0 clear repacks with it set. ``parse -> pack`` is therefore the
-    identity for canonical wire only. (Same posture as a ``String`` field's
-    terminator/pad canonicalization.) Read the table unadapted if exact
-    byte preservation of malformed data matters; scalar adapted fields keep
-    slot=wire and exact identity unconditionally.
+    The accepted consequence is that an adapted array field canonicalizes
+    the wire on repack. Every element round-trips through ``load`` and then
+    ``store``, so wire the adapter cannot represent is normalized: a THUMB
+    table entry parsed with bit 0 clear repacks with it set. Therefore
+    ``parse -> pack`` is the identity for canonical wire only, the same
+    posture as a ``String`` field's terminator and pad canonicalization.
+    Read the table unadapted if exact byte preservation of malformed data
+    matters. Scalar adapted fields keep slot = wire and exact identity
+    unconditionally.
     """
 
     # Immutable value object: the byte order is compiled into the scalar
@@ -2125,21 +2173,22 @@ class Array(typing.Generic[V]):
 
     @property
     def adapter(self) -> Optional[Adapter]:
-        """The element adapter, or None. The fourth declarative field, next
-        to element/count/declared_endian: together they are what
-        ``__reduce__`` rebuilds an equivalent Array from."""
+        """The element adapter, or None. It is the fourth declarative field,
+        alongside element, count and declared_endian. Those four together
+        are what ``__reduce__`` rebuilds an equivalent Array from."""
         return self._adapter
 
     @property
     def declared_endian(self) -> Optional[Literal["big", "little"]]:
-        """The byte order this Array was DECLARED with, or None when unset.
+        """The byte order this Array was declared with, or None when it was
+        left unset.
 
-        One Array object means two things: standalone, an unset array
-        resolves to big (the historical default, now guarded — see
-        parse/pack); as a Struct field it inherits the record's byte
-        order like a C array. ``endian`` always answers with the resolved
-        standalone value, so this is the only way to tell "explicitly
-        big" from "unset"."""
+        One Array object means two things. Standalone, an unset array
+        resolves to big, the historical default, now guarded (see
+        parse/pack). As a Struct field it inherits the record's byte order,
+        like a C array. ``endian`` always answers with the resolved
+        standalone value, so this property is the only way to tell
+        "explicitly big" from "unset"."""
         return self._endian if self._endian_set else None
 
     @property
@@ -2221,11 +2270,12 @@ class Array(typing.Generic[V]):
 
     def field_list(self, values, label: str = "") -> "NarrowingList":
         """Wrap already-decoded, in-range values into a live
-        :class:`NarrowingList` for the parse path (no re-narrow).
+        :class:`NarrowingList` for the parse path, without re-narrowing.
 
-        ``label`` is the owning ``"Record.field"``, which the generated
-        ``_bm_from_tuple`` knows and the Array does not, so a later element
-        store through the live list can name where it happened.
+        ``label`` is the owning ``"Record.field"``. The generated
+        ``_bm_from_tuple`` knows it and the Array does not, so passing it
+        here lets a later element store through the live list name where it
+        happened.
         """
         return NarrowingList(self, list(values), label)
 
@@ -2242,16 +2292,19 @@ class Array(typing.Generic[V]):
         return [self._coerce_one(v) for v in seq]
 
     def _coerce_one(self, value):
-        """Coerce one element to its plain stored form, *exactly* as the
-        scalar field descriptors do: Int/SInt via ``operator.index`` + C
-        mask (rejects float/str, emits the opt-in NarrowingWarning); Float
-        narrowed through the codec (D1); Struct type-checked (stored by
-        reference, like ``_StructField``).
+        """Coerce one element to its plain stored form, exactly as the scalar
+        field descriptors do.
 
-        For an ADAPTED array the stored plane is the USER plane, so the
-        value round-trips through the wire (``store`` -> narrow -> ``load``)
-        and the live list can never show something ``pack()`` would not
-        reproduce."""
+        An Int or SInt element goes through ``operator.index`` and a C
+        mask, which rejects float and str and emits the opt-in
+        NarrowingWarning. A Float element is narrowed through the codec
+        (D1). A Struct element is type-checked and stored by reference,
+        like ``_StructField``.
+
+        For an adapted array the stored plane is the user plane, so the
+        value round-trips through the wire as ``store``, narrow, then
+        ``load``. The live list can therefore never show something
+        ``pack()`` would not reproduce."""
         element = self._element
         if isinstance(element, StructMeta):
             if not isinstance(value, element):
@@ -2265,8 +2318,9 @@ class Array(typing.Generic[V]):
         return self._adapter.load(self._narrow_wire(self._adapter.store(value)))
 
     def _narrow_wire(self, value):
-        """Narrow one WIRE-plane numeric element value (no adapter): the
-        store-time narrowing the scalar field descriptors apply."""
+        """Narrow one wire-plane numeric element value, with no adapter
+        involved. This is the store-time narrowing the scalar field
+        descriptors apply."""
         element = self._element
         if issubclass(element, Int):  # mirrors _UIntField / _SIntField
             iv = operator.index(value)
@@ -2285,9 +2339,9 @@ class Array(typing.Generic[V]):
         return self.num_bits // 8
 
     def _require_whole_byte_elements(self, op: str) -> None:
-        """The standalone parse/pack paths slice per-element BYTES; a
-        sub-byte element only works as a Struct field (compile_plan
-        flattens each element into an ordinary sub-byte leaf)."""
+        """The standalone parse and pack paths slice per-element bytes, so a
+        sub-byte element only works as a Struct field. There ``compile_plan``
+        flattens each element into an ordinary sub-byte leaf."""
         elem_bits = self._element.num_bits
         if elem_bits % 8:
             raise ValueError(

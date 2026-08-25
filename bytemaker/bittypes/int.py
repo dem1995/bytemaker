@@ -1,9 +1,11 @@
 """Sized integer BitTypes: `Int` and its `SInt`/`UInt` families.
 
-Arithmetic follows the C promotion model: binary operators (including the
-bitwise family and `~`) compute on plain values at full width and return a
-plain `int`. Narrowing back to a width happens only at stores — the `value`
-setter and compound assignment — and at the constructor, which is the
+Arithmetic follows the C promotion model. Binary operators compute on plain
+values at full width and return a plain `int`, and that includes the bitwise
+family and `~`.
+
+Narrowing back to a width happens only at stores, meaning the `value` setter
+and compound assignment. It also happens at the constructor, which is the
 narrowing cast. See the `Int` docstring for the full contract.
 """
 from __future__ import annotations
@@ -32,17 +34,22 @@ class Int(BitType[int]):
     """
     A `BitType` that represents an integer.
 
-    Is further subclassed into `SInt` and `UInt` for signed and unsigned
-        integers respectively.
+    It is further subclassed into `SInt` and `UInt` for signed and unsigned
+    integers respectively.
 
-    Arithmetic follows the C promotion model. Binary operators — including
-    the bitwise family and `~` — compute on plain values at full width and
-    return a plain `int`: `UInt8(200) + UInt8(100) == 300`, never a wrapped
-    box. Width re-attaches only at stores: the constructor is the narrowing
-    cast (`UInt8(a + b)` wraps like `(uint8_t)(a + b)` in C), and compound
-    assignment (`u += 1`) narrows the result back into the box's width.
-    Out-of-range stores wrap silently by default, as in C; set
-    `NarrowingConfig.warn = True` to make them emit a `NarrowingWarning`.
+    Arithmetic follows the C promotion model. Binary operators compute on
+    plain values at full width and return a plain `int`, and that includes
+    the bitwise family and `~`. So `UInt8(200) + UInt8(100) == 300`, never a
+    wrapped box.
+
+    Width re-attaches only at stores. The constructor is the narrowing cast,
+    so `UInt8(a + b)` wraps just like `(uint8_t)(a + b)` does in C. Compound
+    assignment such as `u += 1` narrows the result back into the box's own
+    width.
+
+    Out-of-range stores wrap silently by default, as in C. Set
+    `NarrowingConfig.warn = True` to make each such store also emit a
+    `NarrowingWarning`.
 
     Class Attributes:
     -----------------
@@ -90,16 +97,16 @@ class Int(BitType[int]):
         Convert the bits of `self` to an integer.
 
         Parameters:
-        - self (BitType | BitsConstructible): The object whose bits to convert.
-            May be a `BitType`, a `BitVector`, or anything a `BitVector` can
-            be constructed from (e.g. a "01" string), so this is also
-            callable unbound, as `Int.to_pyint("1010")`.
-        - signed (Optional[bool], optional): Whether the bits represent
-            a signed integer (vs unsigned). Default is `self.is_signed`
-            where that exists (`Int` subclasses), else `True`.
-        - bin_format (Optional[str], optional): The format for signed integers.
-            Can be "twos_complement", "signed_magnitude", or "ones_complement".
-            Default is "twos_complement".
+        - self (BitType | BitsConstructible): The object whose bits to
+            convert. It may be a `BitType`, a `BitVector`, or anything a
+            `BitVector` can be constructed from, such as a "01" string.
+            That makes this callable unbound, as `Int.to_pyint("1010")`.
+        - signed (Optional[bool], optional): Whether the bits represent a
+            signed integer rather than an unsigned one. Defaults to
+            `self.is_signed` on `Int` subclasses, and to `True` elsewhere.
+        - bin_format (Optional[str], optional): The format for signed
+            integers. It can be "twos_complement", "signed_magnitude", or
+            "ones_complement". Default is "twos_complement".
 
         Returns:
         - int: The integer representation of the bits.
@@ -223,14 +230,15 @@ class Int(BitType[int]):
         Convert an integer to a bitstring.
 
         Parameters:
-        - self (Int | int): The integer to convert. Callable on an instance
-            (``x.to_bitstring()``) or directly (``Int.to_bitstring(5, ...)``).
-        - signed (bool, optional): Whether the integer should be treated as signed.
-            Default is True.
+        - self (Int | int): The integer to convert. Call it on an instance
+            as ``x.to_bitstring()``, or directly as
+            ``Int.to_bitstring(5, ...)``.
+        - signed (bool, optional): Whether the integer should be treated as
+            signed. Default is True.
         - bit_length (int, optional): The length of the bitstring.
-        - rep_format (Optional[str], optional): The format for signed integers.
-            Can be "twos_complement", "signed_magnitude", or "ones_complement".
-            Default is "twos_complement".
+        - rep_format (Optional[str], optional): The format for signed
+            integers. It can be "twos_complement", "signed_magnitude", or
+            "ones_complement". Default is "twos_complement".
 
         Returns:
         - str: The bitstring representation of the integer.
@@ -573,28 +581,28 @@ class SInt(Int):
     """
     A BitType that represents a signed integer.
 
-    Use the `specialize` method to create a subclass with the desired number of bits
-        or use one of the pre-defined subclasses.
+    Use the `specialize` method to create a subclass with the number of bits
+    you need, or use one of the pre-defined subclasses.
 
-    To change the signed integer format, use the `SignedConfig` class
-        (or set the `int_format` parameter in the constructor).
-        The default signed integer format is two's complement.
+    The default signed integer format is two's complement. Change it for a
+    single instance through the constructor's `int_format` parameter, or for
+    every otherwise-unspecified signed integer through the `SignedConfig`
+    class.
 
     Class Attributes:
         base_bit_type : Type[BitType]
-            The base class (this is `SInt` for `SInt` children).
+            The base class, which is `SInt` for `SInt` children.
         num_bits : int
             The number of bits in the integer.
         is_signed : bool
-            Whether the integer is signed (this is True for SInts).
+            Whether the integer is signed. It is True for SInts.
 
     Instance Attributes:
         int_format : Optional[str]
-            The format for this signed integer.
-            Can be "twos_complement", "signed_magnitude", or "ones_complement".
-            If this is left as `None`, the format will be taken from
-                the `SignedConfig` class.
-            Default is "twos_complement".
+            The format for this signed integer. It can be
+            "twos_complement", "signed_magnitude", or "ones_complement".
+            Leaving it as `None` takes the format from the `SignedConfig`
+            class, which itself defaults to "twos_complement".
         value : int
             The `int` value of the `SInt`.
         bits : BitVector
@@ -653,14 +661,13 @@ class SInt(Int):
 
     def __repr__(self):
         """
-        Returns a string representation of the SInt
-        that recreates the object when evaluated
-        with the class name in scope.
+        Return a string that recreates this SInt when evaluated with the
+        class name in scope.
 
-        Appends `int_format` to the base `BitType` format: the same bits
-            decode to different values under different signed formats, so a
-            faithful reconstruction needs the format this instance was
-            built with.
+        The repr appends `int_format` to the base `BitType` format. The same
+        bits decode to different values under different signed formats, so a
+        faithful reconstruction needs the format this instance was built
+        with.
 
         Returns:
             str: ClassName(bits='<01 string>', endianness=..., int_format=...)
@@ -752,10 +759,11 @@ class SInt7(SInt):
 class _StructPackedSInt(StructPackedBitType[int], SInt):
     """Shared base of the struct-packable signed widths (SInt8/16/32/64).
 
-    struct's b/h/i/q letters are two's-complement only, so packing applies
-    exactly when *this instance's* ``int_format`` is two's complement —
-    the same per-instance gate ``SInt.specialize`` generates. Any other
-    format falls back to the bit-string path on the MRO.
+    struct's b/h/i/q letters are two's-complement only. Packing therefore
+    applies exactly when this instance's own ``int_format`` is two's
+    complement, which is the same per-instance gate that ``SInt.specialize``
+    generates. Any other format falls back to the bit-string path on the
+    MRO.
     """
 
     @property
