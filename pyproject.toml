@@ -44,7 +44,7 @@ docs = [
 ]
 
 [tool.setuptools]
-packages = ["bytemaker", "bytemaker.bittypes", "bytemaker.bitvector", "bytemaker.conversions"]
+packages = ["bytemaker", "bytemaker.bittypes", "bytemaker.bitvector", "bytemaker.conversions", "bytemaker.rom"]
 
 [tool.setuptools.package-data]
 bytemaker = ["py.typed", "*.pyi"]
