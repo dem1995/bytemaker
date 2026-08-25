@@ -235,9 +235,9 @@ class BitType(ABC, Generic[T], metaclass=BitTypeMeta):
         The (readonly) getter for the (Pythonic) value of the BitType.
 
         To set the value directly, use the `value` setter.
-        To directly adjust the value more complicatedly,
-            use operations available directly on BitType object
-            rather than on the value returned by this property.
+        To directly adjust the value more complicatedly, use operations
+        available directly on the BitType object rather than on the value
+        returned by this property.
 
         Returns:
             T: The (Pythonic) value of the BitType.

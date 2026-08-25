@@ -209,36 +209,37 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
     (int.from_bytes -> op -> int.to_bytes, or a bytearray memcpy).
 
     Two shorthands appear below:
+
     - *01 string* is to01()
     - *big-int* is the packed bits read as one
-       arbitrary-precision Python int (via int.from_bytes).
+      arbitrary-precision Python int (via int.from_bytes).
 
-    ```
-    operation                   cost    mechanism
-    --------------------------  ------  -----------------------------
-    len, clear                  O(1)    length field
-    get/set one bit             O(1)    byte shift + mask
-    append, pop from the end    O(1)*   only the last byte
-    bytes(), tobytes()          O(n)    buffer copy (memcpy)
-    construct from bytes, copy  O(n)    buffer copy (memcpy)
-    &, |, ^, ~, <<, >>          O(n)    one big-int op
-    from_int, to_int            O(n)    int <-> bytes
-    insert, del a[i]            O(n)    splice via big-int shift
-    to01/hex/oct, from01        O(n)    int <-> digit string
-    ==, !=                      O(n)    C bytearray compare
-    <, <=, >, >=                O(n)    compares 01 strings
-    slice a[i:j], +, *, extend  O(k)    memcpy or big-int shift
-    setitem/delitem by slice    O(n)    rebuilds via 01 string
-    reverse, replace            O(n)    rebuilds via 01 string
-    find/rfind/count (bit)      O(n)    popcount / set-bit scan
-    find/count (subsequence)    O(n*m)  substring search on 01 string
-    startswith, endswith        O(m)    extracts an m-bit window
+    ::
 
-    (*) amortized.
-    ```
+        operation                   cost    mechanism
+        --------------------------  ------  -----------------------------
+        len, clear                  O(1)    length field
+        get/set one bit             O(1)    byte shift + mask
+        append, pop from the end    O(1)*   only the last byte
+        bytes(), tobytes()          O(n)    buffer copy (memcpy)
+        construct from bytes, copy  O(n)    buffer copy (memcpy)
+        &, |, ^, ~, <<, >>          O(n)    one big-int op
+        from_int, to_int            O(n)    int <-> bytes
+        insert, del a[i]            O(n)    splice via big-int shift
+        to01/hex/oct, from01        O(n)    int <-> digit string
+        ==, !=                      O(n)    C bytearray compare
+        <, <=, >, >=                O(n)    compares 01 strings
+        slice a[i:j], +, *, extend  O(k)    memcpy or big-int shift
+        setitem/delitem by slice    O(n)    rebuilds via 01 string
+        reverse, replace            O(n)    rebuilds via 01 string
+        find/rfind/count (bit)      O(n)    popcount / set-bit scan
+        find/count (subsequence)    O(n*m)  substring search on 01 string
+        startswith, endswith        O(m)    extracts an m-bit window
 
-    Do note that the structural behavior documented in bitvector.pyi
-        is what is guaranteed.
+        (*) amortized.
+
+    The structural behavior documented in bitvector.pyi is what is
+    guaranteed.
     """
 
     _buf: bytearray
@@ -592,8 +593,8 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
         """
         Create a BitVector from a string in a given base.
         The string may contain any of '_', '-', ' ', or ':'.
-        In the case of bases 2, 8, and 16,
-            the string may start with "0b", "0o", or "0x" respectively.
+        In the case of bases 2, 8, and 16, the string may start with
+        "0b", "0o", or "0x" respectively.
 
         Args:
             string (str): The string to convert
@@ -679,8 +680,8 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
     ) -> str:
         """
         Convert the BitVector to a string in a given base.
-        If `sep` is not None, the string is split into chunks of `bytes_per_sep` bytes
-           punctuated by `sep`.
+        If `sep` is not None, the string is split into chunks of
+        `bytes_per_sep` bytes, punctuated by `sep`.
 
         Args:
             base (int): The base to convert to (a power of 2, at most 64).
@@ -745,8 +746,8 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
     def to01(self, sep: Optional[str] = None, bytes_per_sep: int = 1) -> str:
         """
         Convert the BitVector to an unprefixed binary string.
-        If `sep` is not None, the string is split into chunks of `bytes_per_sep` bytes
-           punctuated by `sep`.
+        If `sep` is not None, the string is split into chunks of
+        `bytes_per_sep` bytes, punctuated by `sep`.
         """
         if self._len == 0:
             plain = ""
@@ -1628,7 +1629,7 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
     ) -> Self:
         """
         Generates a new BitVector with occurrences of the sequences of
-            old bits replaced by the new bits.
+        old bits replaced by the new bits.
         If count is provided, only the first `count` occurrences are replaced.
 
         Args:

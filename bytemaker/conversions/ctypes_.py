@@ -194,8 +194,7 @@ def bytes_to_ctype(
             Defaults to "big".
 
     Returns:
-        ctypes._SimpleCData | ctypes.Structure | ctypes.Union
-            | ctypes.Array:
+        ctypes._SimpleCData | ctypes.Structure | ctypes.Union | ctypes.Array:
             The ctypes object representation of the bytes
     """
 
@@ -228,8 +227,7 @@ def bits_to_ctype(
             Defaults to "big".
 
     Returns:
-        ctypes._SimpleCData | ctypes.Structure | ctypes.Union
-            | ctypes.Array:
+        ctypes._SimpleCData | ctypes.Structure | ctypes.Union | ctypes.Array:
             The ctypes object representation of the bits
     """
     return bytes_to_ctype(bits_obj.to_bytes(), ctype_type, endianness=endianness)

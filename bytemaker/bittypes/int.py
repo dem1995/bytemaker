@@ -97,18 +97,20 @@ class Int(BitType[int]):
         Convert the bits of `self` to an integer.
 
         Parameters:
+
         - self (BitType | BitsConstructible): The object whose bits to
-            convert. It may be a `BitType`, a `BitVector`, or anything a
-            `BitVector` can be constructed from, such as a "01" string.
-            That makes this callable unbound, as `Int.to_pyint("1010")`.
+          convert. It may be a `BitType`, a `BitVector`, or anything a
+          `BitVector` can be constructed from, such as a "01" string.
+          That makes this callable unbound, as `Int.to_pyint("1010")`.
         - signed (Optional[bool], optional): Whether the bits represent a
-            signed integer rather than an unsigned one. Defaults to
-            `self.is_signed` on `Int` subclasses, and to `True` elsewhere.
+          signed integer rather than an unsigned one. Defaults to
+          `self.is_signed` on `Int` subclasses, and to `True` elsewhere.
         - bin_format (Optional[str], optional): The format for signed
-            integers. It can be "twos_complement", "signed_magnitude", or
-            "ones_complement". Default is "twos_complement".
+          integers. It can be "twos_complement", "signed_magnitude", or
+          "ones_complement". Default is "twos_complement".
 
         Returns:
+
         - int: The integer representation of the bits.
         """
 
@@ -230,17 +232,19 @@ class Int(BitType[int]):
         Convert an integer to a bitstring.
 
         Parameters:
+
         - self (Int | int): The integer to convert. Call it on an instance
-            as ``x.to_bitstring()``, or directly as
-            ``Int.to_bitstring(5, ...)``.
+          as ``x.to_bitstring()``, or directly as
+          ``Int.to_bitstring(5, ...)``.
         - signed (bool, optional): Whether the integer should be treated as
-            signed. Default is True.
+          signed. Default is True.
         - bit_length (int, optional): The length of the bitstring.
         - rep_format (Optional[str], optional): The format for signed
-            integers. It can be "twos_complement", "signed_magnitude", or
-            "ones_complement". Default is "twos_complement".
+          integers. It can be "twos_complement", "signed_magnitude", or
+          "ones_complement". Default is "twos_complement".
 
         Returns:
+
         - str: The bitstring representation of the integer.
         """
 
@@ -566,10 +570,12 @@ class Int(BitType[int]):
 
 class SignedConfig:
     """
-    A class to change the default representation and conversion
-        for all non-user-implemented or non-user-specified signed integers
-            simultaneously.
-        If this is unadjusted, the default signed integer format is two's complement.
+    A class to change the default representation and conversion for all
+    non-user-implemented or non-user-specified signed integers
+    simultaneously.
+
+    If this is unadjusted, the default signed integer format is two's
+    complement.
     """
 
     signed_int_format: Literal[
@@ -687,12 +693,12 @@ class SInt(Int):
         """
         Produce a subclass of SInt with the specified number of bits.
 
-        If a packing format letter is provided, the subclass will also be a
-            StructPackedBitType
-            and use struct's packing/unpacking functions with the provided letter.
+        If a packing format letter is provided, the subclass will also be
+        a StructPackedBitType and use struct's packing/unpacking functions
+        with the provided letter.
 
-        If name_ is provided, the subclass will have that name internally after class
-            creation. Otherwise, the subclass will be named _SInt.
+        If ``name_`` is provided, the subclass will have that name
+        internally after class creation. Otherwise, the subclass will be named _SInt.
 
         Args:
             num_bits_ (int): The number of bits in integers of this type.
@@ -871,12 +877,12 @@ class UInt(Int):
         """
         Produce a subclass of UInt with the specified number of bits.
 
-        If a packing format letter is provided, the subclass will also be a
-            StructPackedBitType
-            and use struct's packing/unpacking functions with the provided letter.
+        If a packing format letter is provided, the subclass will also be
+        a StructPackedBitType and use struct's packing/unpacking functions
+        with the provided letter.
 
-        If name_ is provided, the subclass will have that name internally after class
-            creation. Otherwise, the subclass will be named _UInt.
+        If ``name_`` is provided, the subclass will have that name
+        internally after class creation. Otherwise, the subclass will be named _UInt.
 
         Args:
             num_bits_ (int): The number of bits in integers of this type.

@@ -422,8 +422,8 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
         """
         Create a BitVector from a string in a given base.
         The string may contain any of '_', '-', ' ', or ':'.
-        In the case of bases 2, 8, and 16,
-            the string may start with "0b", "0o", or "0x" respectively.
+        In the case of bases 2, 8, and 16, the string may start with
+        "0b", "0o", or "0x" respectively.
 
         Args:
             string (str): The string to convert
@@ -548,8 +548,8 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
     def hex(self, sep: Optional[str] = None, bytes_per_sep: int = 1) -> str:
         """
         Convert the BitVector to a hexadecimal string prefixed by 0x.
-        If `sep` is not None, the string is split into chunks of `bytes_per_sep` bytes
-           punctuated by `sep`.
+        If `sep` is not None, the string is split into chunks of
+        `bytes_per_sep` bytes, punctuated by `sep`.
 
         Args:
             sep (Optional[str]): The separator to use
@@ -565,8 +565,8 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
     def oct(self, sep: Optional[str] = None, bytes_per_sep: int = 1) -> str:
         """
         Convert the BitVector to an octal string prefixed by 0o.
-        If `sep` is not None, the string is split into chunks of `bytes_per_sep` bytes
-           punctuated by `sep`.
+        If `sep` is not None, the string is split into chunks of
+        `bytes_per_sep` bytes, punctuated by `sep`.
 
         Args:
             sep (Optional[str]): The separator to use
@@ -581,8 +581,8 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
     def bin(self, sep: Optional[str] = None, bytes_per_sep: int = 1) -> str:
         """
         Convert the BitVector to a binary string prefixed by 0b.
-        If `sep` is not None, the string is split into chunks of `bytes_per_sep` bytes
-           punctuated by `sep`.
+        If `sep` is not None, the string is split into chunks of
+        `bytes_per_sep` bytes, punctuated by `sep`.
 
         Args:
             sep (Optional[str]): The separator to use
@@ -596,8 +596,8 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
     def to01(self, sep: Optional[str] = None, bytes_per_sep: int = 1) -> str:
         """
         Convert the BitVector to an unprefixed binary string.
-        If `sep` is not None, the string is split into chunks of `bytes_per_sep` bytes
-           punctuated by `sep`.
+        If `sep` is not None, the string is split into chunks of
+        `bytes_per_sep` bytes, punctuated by `sep`.
         """
 
         to01_without_sep = self._bits.translate(_BITS_TO_01_TABLE).decode("ascii")
@@ -1491,7 +1491,7 @@ class BitVector(MutableSequence[LaxLiteral01], BitsCastable):
     ) -> Self:
         """
         Generates a new BitVector with occurrences of the sequences of
-            old bits replaced by the new bits.
+        old bits replaced by the new bits.
         If count is provided, only the first `count` occurrences are replaced.
 
         Args:
