@@ -2,8 +2,10 @@
 
 These are the value types a coverage audit produces: resolved
 :class:`Region` footprints, :class:`Overlap` pairs, unclaimed :class:`Gap`
-runs, and :class:`PointerRef` classifications. :meth:`Space.coverage` builds
-them, and they hold no buffer and no space of their own.
+runs, and :class:`PointerRef` classifications.
+
+:meth:`Space.coverage` builds them. They hold no buffer and no space of
+their own.
 """
 
 from dataclasses import dataclass
@@ -56,9 +58,10 @@ class Overlap:
 class Gap:
     """A run of bytes no resolved entry claims.
 
-    Gaps are the complement of a coverage report, and they are the question
-    a mapping session actually runs on: not "how much have I got" but "what
-    is left, and where is the big one".
+    Gaps are the complement of a coverage report. A mapping session needs
+    them more than it needs a coverage percentage, because the useful
+    questions are what is still undescribed and where the largest unmapped
+    run sits.
     """
 
     start: int
@@ -74,8 +77,10 @@ class Gap:
 
 
 def _enumerate_values(value):
-    """Return ``(index, one)`` pairs for a scalar, a list, or None,
-    normalizing the three shapes a Ptr-carrying read can produce."""
+    """Return ``(index, one)`` pairs for a scalar, a list, or None.
+
+    This normalizes the three shapes a Ptr-carrying read can produce.
+    """
     if value is None:
         return ()
     if isinstance(value, (list, tuple)):
@@ -87,7 +92,7 @@ def _overlaps(regions) -> tuple:
     """Return every pair of resolved regions that claims the same bytes.
 
     The sweep runs in start order, so an entry overlapping three others
-    reports three pairs rather than one vague complaint.
+    reports three pairs rather than a single vague one.
     """
     live = sorted(
         (r for r in regions if r.resolved and r.size),
@@ -115,18 +120,20 @@ class PointerRef:
     index: Any
     value: int
     #: One of "claimed", "unclaimed", "outside", or "null". A pointer that
-    #: declares a record target can also earn one of two verified-defect
-    #: verdicts: "mistargeted", when it lands in a region mapped as a
-    #: different record type, or "misaligned", when the type is right but
-    #: the address is off a record boundary.
+    #: declares a record target can also get one of two verified-defect
+    #: verdicts. "mistargeted" means it lands in a region mapped as a
+    #: different record type. "misaligned" means the record type is right
+    #: but the address is off a record boundary.
     verdict: str
     claimed_by: Optional[str] = None
 
     @property
     def is_dangling(self) -> bool:
-        """True when the pointer lands outside the space entirely, which is
-        the verdict that is always a bug — unless it points into RAM, and
-        then the map should say so."""
+        """True when the pointer lands outside the space entirely.
+
+        This verdict is always a bug, with one exception. The address may
+        point into RAM, and in that case the map should say so.
+        """
         return self.verdict == "outside"
 
     def describe(self) -> str:
@@ -147,7 +154,7 @@ class CoverageReport:
     double-claims, and where its pointers land.
 
     :attr:`claimed_bytes` and :meth:`gaps` are the two halves of one
-    partition of the space; :attr:`overlaps` and :attr:`pointers` report the
+    partition of the space. :attr:`overlaps` and :attr:`pointers` report the
     two ways a map can be wrong about bytes it does claim.
     """
 
@@ -157,8 +164,9 @@ class CoverageReport:
     regions: tuple
     overlaps: tuple
     pointers: tuple
-    #: False when no pointer audit ran, so an empty :attr:`pointers` is not
-    #: mistaken for "every pointer checked out".
+    #: False when no pointer audit ran. It is reported separately so that
+    #: an empty :attr:`pointers` is not read as "every pointer checked
+    #: out".
     pointers_audited: bool = True
 
     @cached_property
@@ -166,16 +174,18 @@ class CoverageReport:
         """Resolved footprints merged into maximal disjoint ``(start, end)``
         runs, in address order, clipped to the space.
 
-        What the map claims and what it does not are both read off this one
-        list, which is what makes them two views of a single partition:
-        ``claimed_bytes + unclaimed_bytes == space_size``, always. The
-        clipping only bites for a report assembled by hand —
-        :meth:`Space.coverage` never resolves a region outside its own
-        bounds — but without it a stray region would inflate the claim and
-        stretch a gap past the end of the space it describes.
+        What the map claims and what it does not are both read off this
+        one list. That is what makes them two views of a single partition,
+        so ``claimed_bytes + unclaimed_bytes == space_size`` always holds.
 
-        Cached because the report is frozen, and a single ``render()``
-        reads this several times over what can be thousands of regions.
+        The clipping only matters for a report assembled by hand, because
+        :meth:`Space.coverage` never resolves a region outside its own
+        bounds. Without the clipping, a stray region would inflate the claim
+        and stretch a gap past the end of the space it describes.
+
+        The result is cached because the report is frozen, and because a
+        single ``render()`` reads it several times over what can be
+        thousands of regions.
         """
         low = self.space_base
         high = low + self.space_size
@@ -195,24 +205,24 @@ class CoverageReport:
 
     @property
     def claimed_bytes(self) -> int:
-        """Distinct bytes claimed by at least one resolved entry (overlaps
-        counted once)."""
+        """Distinct bytes claimed by at least one resolved entry, counting
+        overlaps once."""
         return sum(end - start for start, end in self._merged_spans)
 
     def gaps(self, min_size: int = 1) -> tuple:
         """Return the runs of at least ``min_size`` bytes that no resolved
         entry claims, as :class:`Gap` values in address order.
 
-        Gaps are the complement of :attr:`claimed_bytes` and the direction a
-        map actually grows in: a percentage says how far along you are,
-        while a gap says where to look next — especially paired with the
-        ``unclaimed`` pointer verdicts, which name addresses something
-        already points at.
+        Gaps are the complement of :attr:`claimed_bytes`, and they show
+        where a map grows next. A percentage only says how far along you
+        are, while a gap says where to look. Gaps are most useful paired
+        with the ``unclaimed`` pointer verdicts, which name addresses that
+        something already points at.
 
         An UNRESOLVED region claims nothing, so its bytes read as gap. That
-        is deliberate, because the entry may be right about the address and
-        wrong about the length, and a report must not credit a length it
-        could not resolve; :attr:`unresolved` names those entries and why.
+        is deliberate. The entry may be right about the address and wrong
+        about the length, and a report must not credit a length it could not
+        resolve. :attr:`unresolved` names those entries and why each failed.
         """
         gaps = []
         cursor = self.space_base
@@ -230,10 +240,10 @@ class CoverageReport:
         """``space_size - claimed_bytes``, which is also the total size of
         the runs :meth:`gaps` returns.
 
-        The two agree because both are read off :attr:`_merged_spans`, whose
-        spans are clipped to the space. A test pins that equality against
-        the gap sum, so this can stay the cheap arithmetic form rather than
-        allocating a Gap per run just to add up its sizes.
+        The two agree because both are read off :attr:`_merged_spans`,
+        whose spans are clipped to the space. A test pins that equality
+        against the gap sum. This can therefore stay the cheap arithmetic
+        form rather than allocating a Gap per run just to add up its sizes.
         """
         return self.space_size - self.claimed_bytes
 
@@ -254,8 +264,8 @@ class CoverageReport:
     def render(self, max_pointers: int = 20, max_gaps: int = 10) -> str:
         """Return the report as text.
 
-        The pointer and gap listings are truncated, and the report says by
-        how much, because a silent cap would read as "all clear".
+        The pointer and gap listings are truncated. The report says by how
+        much, because a silent cap would read as "all clear".
         """
         label = self.space_name or "space"
         lines = [
@@ -275,10 +285,10 @@ class CoverageReport:
                 )
         gaps = self.gaps()
         if gaps:
-            # Listed LARGEST first, unlike gaps() itself, because on a real
-            # map the first gaps by address are the least interesting (a ROM
-            # starts with code) and the question being asked is where the
-            # big unmapped region is.
+            # Listed LARGEST first, unlike gaps() itself. On a real map
+            # the first gaps by address are the least interesting, because a
+            # ROM starts with code, and the question being asked is where
+            # the big unmapped region is.
             lines.append(
                 f"  gaps ({len(gaps)}): {self.unclaimed_bytes} bytes"
                 f" unclaimed, largest first"
@@ -307,6 +317,6 @@ class CoverageReport:
                 )
         elif not self.pointers_audited:
             # Saying nothing here would read as "no pointer lands anywhere
-            # odd", which is a different claim from "nobody looked".
+            # odd", which is a different claim from "no pointer audit ran".
             lines.append("  pointers: not audited")
         return "\n".join(lines)

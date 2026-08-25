@@ -1,18 +1,19 @@
 """One front door for schema size and shape questions.
 
-Every schema object already answers ``num_bits`` uniformly — Struct
-classes and instances, Array objects, BitType classes and boxes, Plans —
-but nothing said so, and the ``uN``/``sN`` aliases (being ``Annotated``
-forms) answer nothing at all. Users ended up writing their own size
-helpers that plan-hopped between ``plan.num_bytes`` and
-``len(bytes(element(0)))`` and broke on exactly those aliases.
+Every schema object already answers ``num_bits`` uniformly: Struct
+classes and instances, Array objects, BitType classes and boxes, and Plans.
+Nothing said so, though, and the ``uN``/``sN`` aliases are ``Annotated``
+forms, so they answer nothing at all. Users ended up writing their own size
+helpers that hopped between ``plan.num_bytes`` and
+``len(bytes(element(0)))``, and those helpers broke on exactly those
+aliases.
 
 * :func:`bitsizeof` / :func:`sizeof` — the width of ANY schema object,
-  in bits / whole bytes (sub-byte widths round up, matching
-  ``len(bytes(box))``).
+  in bits / whole bytes. Sub-byte widths round up, matching
+  ``len(bytes(box))``.
 * :func:`fields_of` — a Struct's top-level layout as
-  ``(name, type, bit_offset, bit_width, adapter, endian)`` tuples, offsets
-  and byte order from the compiled plan.
+  ``(name, type, bit_offset, bit_width, adapter, endian)`` tuples, with
+  offsets and byte order taken from the compiled plan.
 * :func:`offset_of` / :func:`span_of` — where one named field starts, and
   how far it runs, in whole bytes.
 * :func:`layout` — the same layout rendered for a human to read, so the
@@ -137,12 +138,13 @@ def fields_of(struct) -> Tuple[FieldInfo, ...]:
 def offset_of(struct, field: str) -> int:
     """Byte offset of ``field`` within its record.
 
-    This is the typed replacement for a hand-counted ``+0x0A``: the number
+    This is the typed replacement for a hand-counted ``+0x0A``. The number
     comes from the same compiled layout the codec uses, so reordering or
-    resizing the fields ahead of it moves it automatically. ``field`` may be
-    dotted (``"header.count"``). Raises ``ValueError`` for a field that does
-    not start on a byte boundary, because a byte address cannot name half a
-    byte.
+    resizing the fields ahead of it moves the offset automatically.
+
+    ``field`` may be dotted, as in ``"header.count"``. A field that does not
+    start on a byte boundary raises ``ValueError``, because a byte address
+    cannot name half a byte.
     """
     cls = _record_class(struct, "offset_of")
     return cls.plan.byte_offset(field)
@@ -152,8 +154,9 @@ def span_of(struct, field: str) -> Tuple[int, int]:
     """``(byte offset, byte width)`` of ``field`` within its record.
 
     :func:`offset_of` says where the field starts, while this also says how
-    far it runs, which is what it takes to address the field's bytes on
-    their own. Raises ``ValueError`` unless the field occupies whole bytes.
+    far it runs. Both numbers together are what it takes to address the
+    field's bytes on their own. Raises ``ValueError`` unless the field
+    occupies whole bytes.
     """
     cls = _record_class(struct, "span_of")
     return cls.plan.byte_span(field)

@@ -23,8 +23,9 @@ from bytemaker.typing_redirect import (
 
 def unwrap_alias(obj):
     """Unwrap a ``u16``/``s5`` field alias to the codec inside it, so that
-    ``Annotated[int, UInt16]`` becomes ``UInt16``; anything else passes
-    through untouched.
+    ``Annotated[int, UInt16]`` becomes ``UInt16``.
+
+    Anything else passes through untouched.
 
     The aliases exist so record declarations read like C, and people then
     reach for the same name anywhere a codec is wanted. That is a natural

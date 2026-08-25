@@ -1,9 +1,12 @@
 """Typed addresses: :class:`Ptr`, :class:`PtrValue`, :class:`PtrAdapter`.
 
-A pointer field decodes to a :class:`PtrValue` — an ``int`` that knows what
-it points at, so it can ``.deref(space)`` itself and a coverage audit can
-check where it lands. Nothing is lazy: dereferencing is always an explicit
-call, and records stay detached values.
+A pointer field decodes to a :class:`PtrValue`, an integer that retains the
+adapter for its target. That adapter is what gives the value a
+``.deref(space)`` method, and it is what lets a coverage audit check where
+the address lands.
+
+Nothing here is lazy. Dereferencing is always an explicit call, and records
+stay detached values.
 """
 
 import sys
@@ -22,19 +25,22 @@ def _identity(value):
 
 
 class PtrAdapter(Adapter):
-    """The :class:`Adapter` half of a :class:`Ptr`: it carries the pointee's
-    codec so a record can be dereferenced without a lookup table.
+    """The :class:`Adapter` half of a :class:`Ptr`.
 
-    Living on the adapter (rather than on the wire type) is what makes this
-    work: :class:`Adapted` codecs are split into base + adapter at class
-    definition time, so the adapter is the half that survives into
+    It stores the pointee's codec, so a record can be dereferenced without a
+    lookup table.
+
+    The codec has to live on the adapter rather than on the wire type.
+    :class:`Adapted` codecs are split into a base and an adapter at class
+    definition time, and the adapter is the half that survives into
     ``_bm_adapters`` and :func:`~bytemaker.introspect.fields_of`.
     """
 
     __slots__ = ("_target", "inner", "module")
 
-    #: The target as GIVEN: a codec, a name/callable awaiting resolution, or
-    #: None. Read it through :attr:`target`, which resolves and memoizes.
+    #: The target as GIVEN: a codec, a name or callable awaiting
+    #: resolution, or None. Read it through :attr:`target`, which resolves
+    #: the deferred forms and memoizes the result.
     _target: Any
     inner: Optional[Adapter]
     module: Optional[str]
@@ -53,9 +59,9 @@ class PtrAdapter(Adapter):
         inner_load = inner.load if inner is not None else _identity
         store = inner.store if inner is not None else _identity
         label = name or _default_ptr_name(target)
-        # Every read path — record fields, array elements, Space.read of a
-        # bare Ptr — goes through this load, so wrapping HERE is what makes
-        # value.deref(space) available everywhere with one seam.
+        # Every read path goes through this load: record fields, array
+        # elements, and Space.read of a bare Ptr. Wrapping HERE is what
+        # makes value.deref(space) available everywhere from one seam.
         load = partial(_ptr_value_load, adapter=self, inner_load=inner_load)
         super().__init__(load, store, PtrValue, label)
         object.__setattr__(self, "_target", target)
@@ -68,8 +74,8 @@ class PtrAdapter(Adapter):
 
         A string or zero-argument callable is resolved once and then
         memoized, so a pointer can name a record that does not exist yet.
-        Linked lists, tree nodes, and mutually-referencing tables all force
-        that shape.
+        Linked lists, tree nodes, and mutually-referencing tables all
+        require that ordering.
         """
         target = self._target
         if target is None or _is_codec(target):
@@ -89,15 +95,15 @@ class PtrAdapter(Adapter):
         namespace = getattr(sys.modules.get(self.module or ""), "__dict__", {})
         if target in namespace:
             return namespace[target]
-        # Cross-module fallback: every concrete Struct registers itself by
+        # Cross-module fallback. Every concrete Struct registers itself by
         # name, so a map split over several files can say Ptr("RoomHeader")
         # without importing the class into the declaring module. Only an
         # UNAMBIGUOUS match resolves, because two live records with the same
-        # name pose a question only the author can answer (module=).
+        # name pose a question only the author can answer with module=.
         candidates = _structs_named(target)
-        # Prefer classes their own module still binds, which filters out
-        # stale redefinitions (REPL or reload) without guessing between real
-        # duplicates.
+        # Prefer classes their own module still binds. That filters out
+        # stale redefinitions left by a REPL or a reload, without guessing
+        # between real duplicates.
         current = tuple(
             c for c in candidates
             if getattr(sys.modules.get(c.__module__ or ""), target, None) is c
@@ -127,8 +133,9 @@ class PtrAdapter(Adapter):
         return not (self._target is None or _is_codec(self._target))
 
     def __reduce__(self):
-        # Pickle the RAW target: a deferred one stays deferred (and picklable,
-        # since it is just a string) instead of forcing resolution here.
+        # Pickle the RAW target, so a deferred one stays deferred instead
+        # of being resolved here. A deferred name is just a string, so it
+        # pickles as it stands.
         return (PtrAdapter, (self._target, self.inner, self.name, self.module))
 
 
@@ -137,26 +144,31 @@ def _ptr_value_load(wire, adapter, inner_load):
 
 
 class PtrValue(int):
-    """A decoded pointer: an ``int`` that knows what it points at.
+    """An integer pointer value that retains the adapter for its target.
 
-    Every read through a :class:`Ptr` mints one, so the address a record
-    field (or a pointer-table element) hands you can follow itself::
+    Every read through a :class:`Ptr` returns a ``PtrValue``, whether the
+    pointer is a record field, an element of a pointer table, or a bare
+    ``space.read``.
+
+    A ``PtrValue`` behaves like an ordinary integer for equality, hashing,
+    formatting, and truthiness. Two things are added. Its repr is
+    hexadecimal, because this is a ROM library. It also stores the
+    :class:`PtrAdapter` that ``deref`` and ``space.coverage`` consult.
+
+    The value is not a proxy, and it reads nothing on its own. Calling
+    ``deref(space)`` performs the actual read; creating a ``PtrValue`` does
+    not. The ``Space`` remains an explicit argument because records are
+    detached from their source buffer.
+
+    Arithmetic returns a plain ``int`` rather than a ``PtrValue``, which is
+    deliberate. ``ptr + 4`` is an offset address, so it no longer retains
+    the adapter that said what ``ptr`` pointed at.
+
+    For example::
 
         room = warp.room_ptr.deref(rom)
         while node.next:                     # PtrValue(0) is falsy, like 0
             node = node.next.deref(rom)
-
-    It behaves exactly like the address it is, since equality, hashing,
-    formatting, and truthiness all match ``int``. Two things are added: it
-    reprs in hex, because this is a ROM library, and it carries the
-    :class:`PtrAdapter` that ``deref`` and ``space.coverage`` consult. It is
-    still not a proxy and still not lazy: nothing is read until ``deref`` is
-    called, and the Space stays an explicit argument because records are
-    detached from their buffer.
-
-    Arithmetic collapses to a plain ``int`` on purpose: ``ptr + 4`` is an
-    offset address, and no longer carries the original claim about what
-    lives there.
     """
 
     _adapter: PtrAdapter
@@ -176,12 +188,18 @@ class PtrValue(int):
 
     @property
     def target(self):
-        """The pointee's codec (resolving a deferred name), or None."""
+        """The pointee's codec, or None when the target is unmodelled.
+
+        A deferred name or callable resolves on first access.
+        """
         return self._adapter.target
 
     def deref(self, space: "Space", extent: Any = 1) -> Any:
-        """Follow this address in ``space``, using the target the schema
-        declared. Sugar for ``space.deref_value(self, ...)``."""
+        """Read what this address points at in ``space``, decoding it with
+        the target the schema declared.
+
+        This is shorthand for ``space.deref_value(self, ...)``.
+        """
         return space.deref_value(self, self._adapter, extent)
 
     def __repr__(self):
@@ -194,10 +212,14 @@ class PtrValue(int):
 class Ptr(Adapted):
     """A typed address: a wire integer that points at ``target``.
 
-    The decoded value is a :class:`PtrValue`, an ``int`` subclass that
-    carries its adapter so it can follow itself. It is not a proxy and not a
-    lazy record: nothing is read until you ask for it, and the Space stays
-    an explicit argument::
+    A ``Ptr`` is an :class:`~bytemaker.adapters.Adapted` codec, so it works
+    everywhere a scalar wire type does: as an annotation, in ``field()``, as
+    an array element, and in ``space.read``. No extra plumbing is needed.
+
+    Reads produce a :class:`PtrValue`, an ``int`` subclass that retains this
+    adapter and therefore provides ``deref``. A pointer field is not a proxy
+    and not a lazy record. Nothing is read until you ask for it, and the
+    Space stays an explicit argument::
 
         class WarpPoint(Struct, endian="little"):
             sector: UInt8
@@ -207,24 +229,23 @@ class Ptr(Adapted):
         w.room_ptr                         # 0x08520B08 -- just an int
         rom.deref(w, "room_ptr")           # the RoomHeader it points at
 
-    A pointer is an :class:`~bytemaker.adapters.Adapted` codec, so it works
-    everywhere a scalar wire type does (annotation, ``field()``, array
-    element, ``space.read``) with no extra plumbing.
+    ``adapt=`` composes a value convention on top of the address. For
+    instance ``Ptr(Anim, adapt=THUMB_PTR)`` is a function pointer whose bit 0
+    selects the THUMB instruction set, so the decoded address is the real,
+    even one.
 
-    ``adapt=`` composes a value convention on top — ``Ptr(Anim,
-    adapt=THUMB_PTR)`` is a function pointer whose bit 0 selects the THUMB
-    instruction set, so the decoded address is the real (even) one.
-
-    ``Ptr(None)`` means "this is an address, but the pointee is not modelled
-    yet": :meth:`Space.coverage` still audits it, and :meth:`Space.deref`
-    refuses it by name.
+    ``Ptr(None)`` declares an address whose pointee is not modelled yet.
+    :meth:`Space.coverage` still audits such a pointer, while
+    :meth:`Space.deref` refuses it by name.
 
     **Deferred targets.** Pass the class itself whenever it is bound at the
-    declaration, because that is the normal form: a typo fails at import
-    time, the IDE can follow it, and nothing resolves at runtime. A *string*
-    (or a zero-argument callable) exists for the declarations that
-    evaluation order forbids — a self-referential node, mutually-referencing
-    records, a cross-module cycle — and resolves on first deref::
+    declaration, because that is the normal form. A typo then fails at
+    import time, the IDE can follow the reference, and nothing has to
+    resolve at runtime.
+
+    A *string* or a zero-argument callable exists for the declarations that
+    evaluation order forbids: a self-referential node, mutually-referencing
+    records, or a cross-module cycle. Either form resolves on first deref::
 
         NextNode = Annotated[int, Ptr("Node")]   # resolved later, by name
 
@@ -238,17 +259,19 @@ class Ptr(Adapted):
             n = rom.deref(n, "next")             # walk the list
 
     A bare forward name cannot work, because ``Ptr(Node)`` inside ``Node``'s
-    own body is evaluated before the class exists — even under
+    own body is evaluated before the class exists. That holds even under
     ``from __future__ import annotations``, since the metaclass resolves
-    hints during class creation. The string defers past that point.
+    hints during class creation. The string defers resolution past that
+    point.
 
-    Resolution looks in two places, in order: the module the ``Ptr`` was
-    built in, then, if the name is not bound there, the set of all live
-    concrete Struct classes, but only when exactly ONE bears that name. So a
-    map split across several files can say ``Ptr("RoomHeader")`` without
-    importing the class into the declaring module, while two live records
-    with the same name refuse and list the modules. Use ``module=__name__``
-    (or a callable) to be explicit when it matters.
+    Resolution looks in two places, in order. It starts with the module the
+    ``Ptr`` was built in. If the name is not bound there, it falls back to
+    all live concrete Struct classes, and it accepts a match only when
+    exactly ONE class bears that name. A map split across several files can
+    therefore say ``Ptr("RoomHeader")`` without importing the class into the
+    declaring module. Two live records with the same name are refused
+    instead, and the error lists their modules. Use ``module=__name__``, or
+    a callable, to be explicit when it matters.
     """
 
     __slots__ = ()
@@ -270,17 +293,20 @@ class Ptr(Adapted):
 
     @property
     def _ptr_adapter(self) -> PtrAdapter:
-        """The adapter, narrowed. Every Ptr constructor installs a PtrAdapter
-        (``__init__`` and ``_rebuild_ptr`` are the only two), so the cast
-        states an invariant for the type checker rather than hiding a
-        doubt."""
+        """The adapter, narrowed to :class:`PtrAdapter` for the type checker.
+
+        ``__init__`` and ``_rebuild_ptr`` are the only two Ptr constructors,
+        and both install a ``PtrAdapter``. The cast therefore states an
+        invariant rather than hiding a doubt.
+        """
         return cast(PtrAdapter, self.adapter)
 
     @property
     def target(self):
         """The codec this address points at, or None when unmodelled.
 
-        Resolves a deferred target (a name or callable) on first access.
+        A deferred target, given as a name or a callable, resolves on
+        first access.
         """
         return self._ptr_adapter.target
 
@@ -290,11 +316,12 @@ class Ptr(Adapted):
         return self._ptr_adapter.deferred
 
     def __repr__(self):
-        # The RAW target throughout: a repr must never trigger resolution, nor
-        # fail because a deferred name is not importable yet.
+        # Use the RAW target throughout. A repr must never trigger
+        # resolution, and it must not fail because a deferred name is not
+        # importable yet.
         raw = self._ptr_adapter._target
         head = f"Ptr({_codec_name(raw)}->{self.base.__name__}"
-        # Show a composed value convention: two pointer tables that differ
+        # Show a composed value convention. Two pointer tables that differ
         # only in whether bit 0 is an instruction-set selector must not read
         # identically in a map listing.
         if (
@@ -318,9 +345,12 @@ def _rebuild_ptr(base, adapter) -> Ptr:
 
 
 def _is_codec(obj) -> bool:
-    """True for anything that can decode bytes at an address. The duck test
-    (``num_bits``) is the same one :mod:`bytemaker.introspect` uses, and it
-    is what distinguishes a real codec from a deferred name or callable."""
+    """True for anything that can decode bytes at an address.
+
+    The test is the presence of ``num_bits``, the same duck test
+    :mod:`bytemaker.introspect` uses. It is what distinguishes a real codec
+    from a deferred name or callable.
+    """
     return isinstance(getattr(obj, "num_bits", None), int)
 
 
@@ -337,12 +367,15 @@ def _codec_name(codec) -> str:
 
 
 def _checkable_target(adapter) -> Optional[StructMeta]:
-    """The adapter's declared record type, when there is one to check: a
-    PtrAdapter whose target is (or resolves to) a concrete Struct class.
+    """The adapter's declared record type, when there is one to check.
 
-    Resolution failure is NOT an audit failure, because an unresolvable name
-    only means unverifiable, while the address classification stands on its
-    own.
+    There is one when the adapter is a :class:`PtrAdapter` whose target
+    either is a concrete Struct class or resolves to one. Anything else
+    returns None.
+
+    Resolution failure is NOT an audit failure. An unresolvable name only
+    means the target is unverifiable, while the address classification
+    stands on its own.
     """
     if not isinstance(adapter, PtrAdapter):
         return None
@@ -354,8 +387,8 @@ def _checkable_target(adapter) -> Optional[StructMeta]:
 
 
 def _ptr_adapter_of(obj) -> Optional[PtrAdapter]:
-    """The :class:`PtrAdapter` behind a Ptr codec, an adapter, or an Array of
-    pointers — else None."""
+    """The :class:`PtrAdapter` behind a Ptr codec, an adapter, or an Array
+    of pointers, or None when there is no PtrAdapter behind it."""
     if isinstance(obj, PtrAdapter):
         return obj
     if isinstance(obj, Adapted):
