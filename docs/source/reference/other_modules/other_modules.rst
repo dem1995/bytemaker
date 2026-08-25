@@ -7,9 +7,10 @@ The `typing_redirect` module allows usage of Python 3.12 features
 without breaking support for 3.8 or requiring a dependency on `typing-extensions`.
 
 .. automodule:: bytemaker.typing_redirect
-   :members:
-   :undoc-members:
-   :show-inheritance:
+
+(The members are the standard :py:mod:`typing` /
+`typing_extensions <https://pypi.org/project/typing-extensions/>`_ names,
+re-exported; see the Python documentation for their APIs.)
 
 
 utils

@@ -1,63 +1,87 @@
 API Reference
-=================
+=============
 
-The `bytemaker` package provides a set of tools for working with various bit types, bit vectors, and data conversions.
+``bytemaker``'s API is layered. Records (:mod:`~bytemaker.structs`) are the
+headline; the :mod:`~bytemaker.rom` package says where records live;
+:mod:`~bytemaker.adapters` state per-field encoding conventions; and
+:mod:`~bytemaker.introspect` answers shape and size questions about any of
+it. Underneath, :mod:`~bytemaker.bittypes` boxes single C-style values and
+:class:`~bytemaker.bitvector.BitVector` handles sub-byte data.
 
-.. toctree::
-   :maxdepth: 4
-   :caption: Subpackages
+Records
+-------
 
-   bittypes
-   bitvector
-
-
-Subpackages
-------------------------
-
-
-bitvector
-^^^^^^^^^^
-
-The `bitvector` subpackage provides classes and functions for handling bit vectors and their optimizations.
+:class:`~bytemaker.structs.Struct` record classes, the layout plans compiled
+for them, and the ``u8``/``s16`` field aliases.
 
 .. toctree::
    :maxdepth: 3
 
-   bitvector/bitvector
+   structs/structs
 
-bittypes
-^^^^^^^^^^
+Address spaces and patches
+--------------------------
 
-The `bittypes` subpackage provides classes and functions for handling various bit types, buffers, floats, integers, and strings.
+:class:`~bytemaker.rom.Space`, :class:`~bytemaker.rom.Entry`,
+:class:`~bytemaker.rom.Patch`, :class:`~bytemaker.rom.Ptr` and coverage
+reporting — reading and editing records in place (ROM images, save files,
+memory dumps).
+
+.. toctree::
+   :maxdepth: 3
+
+   rom/rom
+
+Encoding conventions
+--------------------
+
+Declarative wire ↔ user transforms, applied per field or fused onto a wire
+type.
+
+.. toctree::
+   :maxdepth: 3
+
+   adapters/adapters
+
+Introspection
+-------------
+
+``sizeof``, ``layout``, ``offset_of`` and friends, for any schema object.
+
+.. toctree::
+   :maxdepth: 3
+
+   introspect/introspect
+
+Bit-level foundations
+---------------------
+
+:mod:`~bytemaker.bittypes` provides boxed C-like values (ints, floats,
+strings, buffers) backed by bit representations;
+:mod:`~bytemaker.bitvector` is the ``bytes``/``bytearray`` analogue for
+sub-byte bit quantities.
 
 .. toctree::
    :maxdepth: 3
 
    bittypes/bittypes
+   bitvector/bitvector
 
-Direct Modules
------------------
+Legacy conversions
+------------------
 
-Conversions
-^^^^^^^^^^^^^
-The `conversions` modules provide utilities for converting between various aggregate types, C types, and Python types.
+The original ``@dataclass`` aggregate API and the C-type/Python-type
+conversion helpers it builds on. Still supported.
 
 .. toctree::
    :maxdepth: 3
 
    conversions/conversions
 
-
-Other Modules
---------------
+Other modules
+-------------
 
 .. toctree::
    :maxdepth: 2
 
    other_modules/other_modules
-
-
-
-.. toctree::
-   :maxdepth: -1
-   :caption: Contents:

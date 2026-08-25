@@ -3,11 +3,6 @@ Conversions
 
 The `conversions` modules provide utilities for converting between various aggregate types, C types, and Python types.
 
-.. toctree::
-   :maxdepth: 2
-
-   conversions
-
 Modules
 -------
 

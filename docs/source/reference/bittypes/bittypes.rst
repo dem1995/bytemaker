@@ -4,9 +4,6 @@ bittypes package
 The `bittypes` package contains modules for handling various bit types.
 
 .. automodule:: bytemaker.bittypes
-   :members:
-   :undoc-members:
-   :show-inheritance:
 
 Modules
 -------
