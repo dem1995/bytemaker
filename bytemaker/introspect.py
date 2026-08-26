@@ -155,8 +155,10 @@ def span_of(struct, field: str) -> Tuple[int, int]:
 
     :func:`offset_of` says where the field starts, while this also says how
     far it runs. Both numbers together are what it takes to address the
-    field's bytes on their own. Raises ``ValueError`` unless the field
-    occupies whole bytes.
+    field's bytes on their own: a ``UInt16`` after a ``UInt32`` spans
+    ``(4, 2)``, and its end is their sum, 6 — the second number is a width,
+    not an end offset. Raises ``ValueError`` unless the field occupies
+    whole bytes.
     """
     cls = _record_class(struct, "span_of")
     return cls.plan.byte_span(field)
