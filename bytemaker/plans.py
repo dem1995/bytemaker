@@ -23,11 +23,17 @@ Two engines exist, chosen at compile time:
 
 Bit order (shift/mask tier only; the aligned tier is unaffected):
 
-* ``"lsb"`` (default): bit offset 0 is the least-significant bit of byte 0,
+* ``"lsb"``: bit offset 0 is the least-significant bit of byte 0,
   matching little-endian C bitfield allocation (e.g. ARM/GBA).
 * ``"msb"``: bit offset 0 is the most-significant bit of byte 0, matching the
   stream order of ``to_bits_aggregate`` (each field's canonical bits
   concatenated in declaration order).
+
+The default follows the record's endian: "lsb" under ``endian="little"``
+and "msb" under ``endian="big"``, which is how C compilers allocate
+bitfields on a target of the same endianness. A format that mixes the two
+(the GBA's LZ77 token is MSB-first on a little-endian machine) states
+``bit_order`` explicitly.
 
 Multi-byte fields whose byte order disagrees with the record's natural
 integer orientation are handled with a post-extract byte swap folded into the

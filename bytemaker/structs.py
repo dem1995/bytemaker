@@ -28,6 +28,9 @@ the engine/tier rules):
   width) exactly once, at the store -- including ``__init__``. ``parse``
   bypasses the descriptors (decoded values cannot be out of range).
 * ``endian`` and ``bit_order`` are per-class, compile-time parameters.
+  ``bit_order`` defaults to match ``endian`` ("lsb" under little, "msb"
+  under big), the way C compilers allocate bitfields on a target of the
+  same endianness. A format that mixes the two states it explicitly.
 * A Struct class is itself a **codec**: ``num_bits``, ``parse``, ``pack``
   (see :class:`Codec`). It deliberately is NOT a BitType subclass: the
   BitType contract (boxed ``.value``, mutable ``bits`` setter,
@@ -1346,7 +1349,7 @@ class StructMeta(type):
             endian = "big"
         validate_endianness(endian, name=f"{name}: endian", exc=PlanCompileError)
         if bit_order is None:
-            bit_order = "lsb"
+            bit_order = "msb" if endian == "big" else "lsb"
         if bit_order not in ("lsb", "msb"):
             raise PlanCompileError(f"{name}: bit_order must be 'lsb' or 'msb'")
 
@@ -1428,7 +1431,8 @@ class Struct(metaclass=StructMeta):
     """Base class for fixed-layout records; see the module docstring.
 
     Subclasses declare fields as annotations and may pass ``endian`` /
-    ``bit_order`` as class keywords::
+    ``bit_order`` as class keywords; ``bit_order`` defaults to match
+    ``endian`` (LSB-first under little, MSB-first under big)::
 
         class Header(Struct, endian="little"):
             magic:   UInt32

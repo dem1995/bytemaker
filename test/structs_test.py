@@ -1512,6 +1512,57 @@ def test_a_sub_byte_child_is_still_refused_and_the_error_says_sub_byte():
     assert "same bit_order" in str(caught.value)
 
 
+# --------------------------------------------- bit_order default (bitorder-1)
+def test_bit_order_default_follows_endian():
+    """C compilers allocate bitfields LSB-first on little-endian targets and
+    MSB-first on big-endian ones; the default tracks endian the same way, so
+    a big-endian format's natural declaration parses right. Found porting
+    cvaos's GBA LZ77 codec: the token's length is the HIGH nibble of its
+    first byte, and the old always-lsb default read the wrong bits."""
+
+    class TokenBE(Struct, endian="big"):  # GBA LZ77 backreference token
+        length: UInt4
+        disp: int = field(UInt.specialize(12))
+
+    assert TokenBE.plan.bit_order == "msb"
+    tok = TokenBE.parse(bytes([0x20, 0x02]))
+    assert (tok.length, tok.disp) == (0x2, 0x002)
+
+    class PairLE(Struct, endian="little"):
+        low: UInt4
+        high: UInt4
+
+    assert PairLE.plan.bit_order == "lsb"
+    assert PairLE.parse(bytes([0x93])).low == 3  # low nibble first, as before
+
+    class Bare(Struct):  # endian defaults to big, so msb rides along
+        hi: UInt4
+        lo: UInt4
+
+    assert Bare.plan.bit_order == "msb"
+    assert (Bare.parse(bytes([0x2A])).hi, Bare.parse(bytes([0x2A])).lo) == (0x2, 0xA)
+
+
+def test_bit_order_explicit_still_beats_the_endian_default():
+    """The old pairing stays one keyword away; the coupled default only
+    fills silence."""
+
+    class BeLsb(Struct, endian="big", bit_order="lsb"):
+        a: UInt4
+        b: int = field(UInt.specialize(12))
+
+    assert BeLsb.plan.bit_order == "lsb"
+    rec = BeLsb.parse(bytes([0x20, 0x02]))
+    assert (rec.a, rec.b) == (0, 34)  # the pre-change layout, pinned
+
+    class LeMsb(Struct, endian="little", bit_order="msb"):
+        hi: UInt4
+        lo: UInt4
+
+    assert LeMsb.plan.bit_order == "msb"
+    assert LeMsb.parse(bytes([0x2A])).hi == 0x2
+
+
 def test_the_array_guard_error_names_the_field_not_element_zero():
     with pytest.raises(PlanCompileError, match=r"ArrOuter\.rows: ") as caught:
 
