@@ -54,6 +54,14 @@ import os
 import struct as _pystruct
 import typing
 import weakref
+# Straight from typing, not through typing_redirect: pyright's
+# dataclass_transform field collection does not follow a re-exported alias of
+# ClassVar. Routed through the redirect, Struct's ClassVars below become
+# synthesized __init__ parameters, and every field a user declares reports
+# "fields without default values cannot appear after fields with default
+# values" in their editor. mypy follows the alias correctly, so the mypy gate
+# cannot see a regression here; test/typing_regression_test.py pins the import.
+from typing import ClassVar
 
 from bytemaker.adapters import Adapted, Adapter
 from bytemaker.bitvector import BitVector
@@ -73,7 +81,6 @@ from bytemaker.plans import Plan, PlanCompileError, _classify_scalar, compile_pl
 from bytemaker.typing_redirect import (
     Annotated,
     Any,
-    ClassVar,
     Dict,
     Iterator,
     List,

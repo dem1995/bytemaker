@@ -10,6 +10,12 @@ and it must report the two ``reveal_type`` notes below and **no errors**
 except the ones marked ``# type: ignore[...]`` (which are the negative
 cases -- ``--warn-unused-ignores`` proves the checker really rejects them).
 
+This contract is mypy's. pyright agrees with it, but it diverges on one
+thing mypy cannot see: a re-exported ``ClassVar`` stops reading as a
+ClassVar to pyright's ``dataclass_transform`` field collection, which
+silently turns ``Struct``'s own class attributes into fields. That one is
+pinned in ``typing_regression_test.py`` instead.
+
 Covers both checker-friendly declaration styles:
 - annotation-carried: ``uN``/``sN``/``fN`` for scalars, bare for nested
   Struct, ``Annotated[list[T], Elem * N]`` for arrays;

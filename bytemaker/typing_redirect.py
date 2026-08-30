@@ -10,6 +10,12 @@ so every pre-3.13 branch here imports it unconditionally. A missing name is
 then an ImportError naming the missing distribution. The alternative would
 be a shim that silently degrades the type to ``Any``, which would also
 discard the checker's guarantees.
+
+``ClassVar`` is deliberately absent. Import it from ``typing`` directly:
+pyright's ``dataclass_transform`` field collection does not follow a
+re-exported alias of it, so a redirected ``ClassVar`` on a Struct-like base
+turns that base's class attributes into synthesized ``__init__`` parameters.
+It needs no version agnosticism anyway.
 """
 
 import sys
@@ -45,7 +51,6 @@ else:
 
 from collections.abc import Hashable
 from typing import (
-    ClassVar,
     Dict,
     Final,
     ForwardRef,
@@ -84,7 +89,6 @@ __all__ = [
     "Any",
     "Buffer",
     "Callable",
-    "ClassVar",
     "Concatenate",
     "Dict",
     "Final",

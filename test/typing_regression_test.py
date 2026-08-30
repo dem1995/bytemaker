@@ -18,6 +18,7 @@ when the installed mypy matches the baseline's recorded major.minor —
 otherwise it skips and asks for a regen.
 """
 
+import ast
 import re
 import subprocess
 import sys
@@ -170,6 +171,40 @@ def test_both_sides_of_the_gate_normalize_identically(tmp_path, monkeypatch):
     monkeypatch.undo()
     _, real_keys = _read_baseline()
     assert all(_normalize(k) == k for k in real_keys)
+
+
+def test_classvar_reaches_structs_straight_from_typing():
+    """The one import site the mypy gate above cannot police.
+
+    pyright's ``dataclass_transform`` field collection does not follow a
+    re-exported alias of ``ClassVar``, though mypy does. Import it through
+    ``bytemaker.typing_redirect`` and every ``ClassVar`` on ``Struct``
+    (``plan``, ``num_bits``, ``_bm_fields``, ...) is collected as a field, so
+    the synthesized ``__init__`` grows eight phantom parameters and every
+    field a user declares reports "fields without default values cannot
+    appear after fields with default values" in VS Code -- on a package that
+    ships ``py.typed``, in the editor most users read it in.
+
+    Both halves are pinned: the redirect must not offer ``ClassVar`` at all,
+    and structs.py must take it from ``typing``.
+    """
+    from bytemaker import typing_redirect
+
+    assert not hasattr(typing_redirect, "ClassVar"), (
+        "bytemaker.typing_redirect re-exports ClassVar again; a module that"
+        " imports it from there silently loses ClassVar-ness under pyright"
+    )
+
+    source = (ROOT / "bytemaker" / "structs.py").read_text(encoding="utf-8")
+    modules = {
+        node.module
+        for node in ast.walk(ast.parse(source))
+        if isinstance(node, ast.ImportFrom)
+        and any(alias.name == "ClassVar" for alias in node.names)
+    }
+    assert modules == {"typing"}, (
+        f"structs.py must import ClassVar from typing directly, got {modules}"
+    )
 
 
 if __name__ == "__main__":
