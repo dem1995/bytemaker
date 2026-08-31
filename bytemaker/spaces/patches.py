@@ -14,13 +14,13 @@ from bytemaker.structs import BytesLike
 from bytemaker.typing_redirect import List, Optional
 
 class PatchVerifyError(ValueError):
-    """Bytes are not what they were said to be.
+    """The bytes found are not the bytes that were expected.
 
-    Two situations raise it. Applying a patch to a buffer that does not
-    hold the originals it recorded raises it, and so does a write with
-    ``expect=`` that finds something else already there.
+    Two situations raise this. One is applying a patch to a buffer that does
+    not hold the originals it recorded. The other is a write with
+    ``expect=`` that finds different bytes already in place.
 
-    Both are the same mistake caught at different moments. The cause is
+    Both are the same mistake caught at different moments, and the cause is
     almost always the wrong build, or a table that moved.
     """
 
@@ -34,8 +34,9 @@ class PatchUnverifiable(ValueError):
     them for every byte it claims.
 
     :meth:`Patch.invert` and :meth:`Patch.guards` both raise it, because
-    neither can guess. Undoing an edit means restoring what was there, and a
-    compare-and-swap guard means naming what the bytes must still be.
+    neither can reconstruct those bytes. Undoing an edit means restoring
+    what was there, and a compare-and-swap guard means naming what the bytes
+    must still be.
     """
 
 
@@ -143,21 +144,21 @@ class Patch:
         pins = {e.name: e.addr for e in ROM_MAP}      # name -> address
 
     Internally a patch is a sparse byte map rather than a list of edits.
-    That is what makes the algebra total, because overlapping writes then
-    have no ambiguity.
+    Overlapping writes then have one unambiguous result, which is what makes
+    the two operations below total.
 
-    * :meth:`write` is an imperative edit, so **later writes win**. The
-      patch keeps the EARLIEST ``old`` for each byte, so verify and
-      :meth:`invert` still refer to the pristine buffer. That matches the
-      natural read-modify-write flow of tweaking a field and then tweaking
-      it again.
+    * :meth:`write` is an imperative edit, so **a later write to a byte
+      replaces an earlier one**. The patch keeps the EARLIEST ``old`` for
+      each byte, so verify and :meth:`invert` still refer to the pristine
+      buffer. That matches the natural read-modify-write flow of tweaking a
+      field and then tweaking it again.
     * ``a | b`` composes two INDEPENDENT patches. It raises
       :class:`PatchConflict` when they disagree about a byte, because with
       no ordering between them a disagreement is a mistake rather than an
       update.
 
     :attr:`edits` coalesces the byte map back into maximal contiguous runs,
-    so the export format and :meth:`summary` see whole edits.
+    so the export format and :meth:`summary` work on whole edits.
     """
 
     __slots__ = ("_old", "_new", "name")
@@ -175,16 +176,17 @@ class Patch:
     ) -> None:
         """Record that ``offset`` becomes ``new``, replacing ``old``.
 
-        Later writes win per byte, while the earliest ``old`` is kept, so
-        the patch always describes a transition from the pristine buffer.
+        A later write to a byte replaces an earlier one, while the earliest
+        ``old`` is kept, so the patch always describes a transition from the
+        pristine buffer.
 
         Omitting ``old`` records a **blind** write, meaning the original
         bytes are not known. That happens when the patch is built before the
         target image is in hand, which is the normal case at generation
         time. A blind write applies and composes like any other edit, but
         the patch stops being :attr:`verifiable`, so :meth:`invert` and
-        :meth:`guards` then refuse it. Writing the same byte again with a
-        known original upgrades it, since more information wins over less.
+        :meth:`guards` raise on it. Writing the same byte again with a known
+        original fills that original in.
         """
         new_b = bytes(new)
         old_b = None if old is None else bytes(old)
@@ -233,8 +235,9 @@ class Patch:
         order.
 
         A run also breaks where knowledge of the original breaks, so every
-        edit is either wholly verifiable or wholly blind. A mixed run would
-        be one that neither :meth:`invert` nor a reader could make sense of.
+        edit is either wholly verifiable or wholly blind. A run that mixed
+        the two could not be inverted, and would not describe one coherent
+        edit either.
         """
         runs: List[List[int]] = []  # [first, last] byte offsets, inclusive
         for at in sorted(self._new):
@@ -313,13 +316,13 @@ class Patch:
         Each triple says to write ``new`` at ``offset``, but only while the
         bytes there still equal ``expected``. That is the compare-and-swap
         form a live target needs, because a running game's memory can change
-        under a read. The guard is what makes the difference between a
-        correct update and a lost one.
+        between the read and the write. Without the guard, such a change is
+        overwritten silently.
 
-        A blind patch has nothing to compare against, so this refuses one.
-        The result is a tuple rather than a generator, which means that
-        refusal happens when you call ``guards()`` rather than once you
-        start iterating. A tuple can also be counted and reused.
+        A blind patch has nothing to compare against, so this raises. The
+        result is a tuple rather than a generator, so that the refusal
+        happens when you call ``guards()`` rather than once you start
+        iterating. A tuple can also be counted and reused.
         """
         self._require_verifiable("guards()")
         return tuple((e.offset, e.old, e.new) for e in self.edits)

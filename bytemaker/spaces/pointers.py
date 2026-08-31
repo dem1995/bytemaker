@@ -1,9 +1,9 @@
 """Typed addresses: :class:`Ptr`, :class:`PtrValue`, :class:`PtrAdapter`.
 
 A pointer field decodes to a :class:`PtrValue`, an integer that retains the
-adapter for its target. That adapter is what gives the value a
-``.deref(space)`` method, and it is what lets a coverage audit check where
-the address lands.
+adapter for its target. That adapter provides the value's ``.deref(space)``
+method. It also tells a coverage audit what the address is supposed to
+point at.
 
 Nothing here is lazy. Dereferencing is always an explicit call, and records
 stay detached values.
@@ -152,7 +152,7 @@ class PtrValue(int):
 
     A ``PtrValue`` behaves like an ordinary integer for equality, hashing,
     formatting, and truthiness. Two things are added. Its repr is
-    hexadecimal, because this is a ROM library. It also stores the
+    hexadecimal, since addresses are read that way. It also stores the
     :class:`PtrAdapter` that ``deref`` and ``space.coverage`` consult.
 
     The value is not a proxy, and it reads nothing on its own. Calling
@@ -214,12 +214,12 @@ class Ptr(Adapted):
 
     A ``Ptr`` is an :class:`~bytemaker.adapters.Adapted` codec, so it works
     everywhere a scalar wire type does: as an annotation, in ``field()``, as
-    an array element, and in ``space.read``. No extra plumbing is needed.
+    an array element, and in ``space.read``.
 
     Reads produce a :class:`PtrValue`, an ``int`` subclass that retains this
-    adapter and therefore provides ``deref``. A pointer field is not a proxy
-    and not a lazy record. Nothing is read until you ask for it, and the
-    Space stays an explicit argument::
+    adapter and therefore provides ``deref``. A pointer field is neither a
+    proxy nor a lazy record. Nothing is read until ``deref`` is called, and
+    the Space stays an explicit argument::
 
         class WarpPoint(Struct, endian="little"):
             sector: u8
@@ -236,16 +236,17 @@ class Ptr(Adapted):
 
     ``Ptr(None)`` declares an address whose pointee is not modelled yet.
     :meth:`Space.coverage` still audits such a pointer, while
-    :meth:`Space.deref` refuses it by name.
+    :meth:`Space.deref` raises and names it.
 
-    **Deferred targets.** Pass the class itself whenever it is bound at the
-    declaration, because that is the normal form. A typo then fails at
-    import time, the IDE can follow the reference, and nothing has to
-    resolve at runtime.
+    **Deferred targets.** Pass the class itself whenever it is already bound
+    at the declaration, since that is the normal form. A typo then fails at
+    import time, an IDE can follow the reference, and nothing has to resolve
+    at runtime.
 
-    A *string* or a zero-argument callable exists for the declarations that
-    evaluation order forbids: a self-referential node, mutually-referencing
-    records, or a cross-module cycle. Either form resolves on first deref::
+    A *string* or a zero-argument callable covers the declarations that
+    evaluation order forbids. Those are a self-referential node, mutually
+    referencing records, and a cross-module cycle. Either form resolves on
+    first deref::
 
         NextNode = Annotated[int, Ptr("Node")]   # resolved later, by name
 
@@ -266,12 +267,12 @@ class Ptr(Adapted):
 
     Resolution looks in two places, in order. It starts with the module the
     ``Ptr`` was built in. If the name is not bound there, it falls back to
-    all live concrete Struct classes, and it accepts a match only when
-    exactly ONE class bears that name. A map split across several files can
-    therefore say ``Ptr("RoomHeader")`` without importing the class into the
-    declaring module. Two live records with the same name are refused
-    instead, and the error lists their modules. Use ``module=__name__``, or
-    a callable, to be explicit when it matters.
+    all live concrete Struct classes, and accepts a match only when exactly
+    ONE class has that name. A map split across several files can therefore
+    say ``Ptr("RoomHeader")`` without importing the class into the declaring
+    module. Two live records with the same name raise instead, and the error
+    lists their modules. Pass ``module=__name__``, or a callable, to be
+    explicit when it matters.
     """
 
     __slots__ = ()

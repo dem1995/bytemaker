@@ -1,10 +1,10 @@
 """Map a binary image as an address space: :class:`Space`, extents, :class:`Entry`.
 
 A :class:`Struct` says what a record looks like. It says nothing about
-*where* records live, how many there are, or how to get at them. So every
-project that maps a binary image reinvents the same three things: subtract
-the base address, slice, and decide how the table ends. That reinvention is
-where the bugs are.
+*where* records live, how many there are, or how to get at them. Every
+project that maps a binary image therefore rewrites the same three things:
+subtract the base address, slice, and decide how the table ends. Each of
+those is easy to get subtly wrong.
 
 :class:`Space` is that layer, declared once::
 
@@ -17,7 +17,7 @@ where the bugs are.
     rewards = rom.read(0x08526390, BossRushReward, 3)   # 3 records
     rooms   = rom.read(0x0850E968, ThumbPtr, until(0))  # scan to the 0 entry
 
-Three ideas carry the module:
+Three ideas define the layer:
 
 * **The space supplies the byte order.** ``endian`` is a required keyword
   on :class:`Space`, so a scalar read never guesses and no declaration
@@ -26,8 +26,8 @@ Three ideas carry the module:
   :class:`~bytemaker.structs.Array` objects.
 * **Extents are values, not conventions.** ``count(n)``,
   ``until(sentinel)``, ``span(end_addr)`` and ``unknown()`` cover the four
-  things anyone actually knows about a table's length, so how long a table
-  is stops being a comment and becomes part of the declaration.
+  things anyone actually knows about a table's length. A table's length is
+  then part of its declaration rather than a comment beside it.
 * **An :class:`Entry` is a declaration, not a reader.** An entry can be
   written with no buffer at all and bound to a :class:`Space` later with
   :meth:`Entry.bind`, so a map module stays importable without the ROM.
@@ -42,17 +42,17 @@ Two layers build on that base:
   ``space.write(..., patch=p)`` records the edit instead of mutating, so
   the edits can be verified against the original bytes, inverted, composed,
   and exported as IPS.
-* :class:`Ptr` is a typed address, and :meth:`Space.coverage` reports on
-  the map as a whole. A ``Ptr`` decodes to a :class:`PtrValue`, an integer
-  address that retains its adapter and provides ``deref(space)``. The
-  report says what a map accounts for, what it double-claims, and where its
-  pointers land. Wherever a pointer declares its pointee, the report also
-  verifies the record type and the alignment of the address it lands on.
+* :class:`Ptr` is a typed address. It decodes to a :class:`PtrValue`, an
+  integer address that retains its adapter and provides ``deref(space)``.
+* :meth:`Space.coverage` reports on the map as a whole: what it accounts
+  for, what it double-claims, and which addresses its pointers resolve to.
+  Wherever a pointer declares its pointee, the report also verifies the
+  record type and the alignment of that address.
   :meth:`CoverageReport.gaps` lists what the map leaves unaccounted for,
-  which is where a map has room to grow.
+  which is where the map has room to grow.
 
-Writing comes in three shapes, and picking the wrong one is the mistake
-this layer exists to prevent.
+Writing comes in three shapes, and they are not interchangeable. Choosing
+the wrong one is the mistake this layer is built to prevent.
 
 **1. Edit an image you have.** Read, change, record. The patch claims only
 the bytes that differ, so two features editing different fields of one
@@ -94,9 +94,9 @@ also works, and it is the only option when a feature mutates the buffer by
 other means. It is strictly weaker, though. It costs a scan of the whole
 image, and it **drops every byte written back to the value it already
 held**. For a table relocated into zero-filled free space, that can be most
-of the table. The resulting patch then applies without complaint to an image
-that differs exactly there. :meth:`Space.recording` claims the whole span
-written, so prefer it.
+of the table. The resulting patch then applies cleanly to an image that
+differs at exactly those bytes. :meth:`Space.recording` claims the whole
+span written, so prefer it.
 
 For a live target, the bytes come from a transport the caller owns::
 

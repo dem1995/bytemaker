@@ -213,7 +213,7 @@ class Space:
 
     Address math, entries, declaration-level :meth:`coverage` and
     patch-recording writes all work on such a space. Anything that would
-    read bytes refuses and says why.
+    read bytes raises, with a message that says why.
 
     Two situations call for it, and neither has an image to hand. The first
     is building writes *before* the target file exists. The second is
@@ -306,16 +306,17 @@ class Space:
         *drops every byte written back to the value it already held*. For a
         table relocated into zero-filled free space, that can be most of
         the table. The resulting patch then applies cleanly to an image
-        that differs exactly there, and it silently produces the wrong
-        bytes.
+        that differs at exactly those bytes, and produces the wrong result
+        there without reporting anything.
 
         A write through a recording space claims **the whole span
-        written**, not just the bytes that changed. The changed-bytes-only
-        rule exists for ``patch=`` writes because those leave the buffer
-        alone: a later whole-record write would otherwise stamp an earlier
-        edit back to the value it read (see :meth:`write`). A recording
-        write updates the buffer and later reads see it, so that reason
-        does not apply and full fidelity is worth more::
+        written**, not just the bytes that changed. ``patch=`` writes claim
+        only the changed bytes, because those writes leave the buffer
+        alone. Without that rule, a later whole-record write would read the
+        pristine bytes and record them as the original, undoing an earlier
+        edit (see :meth:`write`). A recording write updates the buffer, so
+        later reads see it and the rule is unnecessary. Claiming the full
+        span is worth more here::
 
             work = Space(bytearray(rom), base=0x08000000, endian="little")
             p = Patch(name="all features")
@@ -487,14 +488,14 @@ class Space:
         ``write(addr, 5, expect=32)`` says "this was 32, make it 5".
         Against bytes in hand the guard is checked immediately. Against a
         patch it becomes the edit's recorded original, so applying the
-        patch checks it later. Either way the write refuses to land
-        somewhere it does not recognise, which is what catches a wrong
+        patch checks it later. Either way the write fails when the target
+        does not already hold ``expect``, which is what catches a wrong
         build or a moved table.
 
         A recorded ``expect`` claims the **full stated span**, and it is
-        exempt from the changed-bytes-only rule below. The guard the caller
-        states is the guard the caller gets: ``guards()`` covers the whole
-        value, and writing the expected value back still records a
+        exempt from the changed-bytes-only rule below. The caller stated a
+        guard over that whole value, so ``guards()`` covers the whole value
+        too. Writing the expected value back therefore still records a
         verifying no-op edit rather than nothing.
 
         A value too large for its codec **wraps**, silently, because that
@@ -524,13 +525,14 @@ class Space:
         only what it actually *changes*: writing a whole record to tweak
         one field claims that field, not the record. That is what lets two
         patches touching different fields of one record compose under
-        ``|``. The buffer is untouched by definition, so reads never see
-        pending edits. That is exactly why only the changed bytes are
-        claimed: a later whole-record write can then no longer stamp an
-        earlier edit back to the value it read. A flow whose later steps
-        must see what the earlier ones wrote should write through
-        :meth:`recording` instead, which updates the buffer and records the
-        whole span of every write.
+        ``|``.
+
+        The rule is safe here because the buffer is untouched, so reads
+        never see pending edits. Without it, a later whole-record write
+        would read the pristine bytes and record them as the original,
+        undoing an earlier edit. A flow whose later steps must see what the
+        earlier ones wrote should write through :meth:`recording` instead,
+        which updates the buffer and records the whole span of every write.
         """
         codec = unwrap_alias(codec) if codec is not None else self._infer_codec(value)
         data = self._encode(value, codec)
