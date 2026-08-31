@@ -625,9 +625,9 @@ class Space:
         array inherits the space's byte order for the same reason an unset
         array FIELD inherits its record's.
 
-        Without this step a standalone unset array would resolve to the
-        historical big default and raise the explicit-endian guard, even
-        though the space's byte order is known. A scalar ``UInt16`` at the
+        Without this step a standalone unset array would raise the
+        explicit-endian guard, even though the space's byte order is
+        known. A scalar ``UInt16`` at the
         same address is unaffected, because the scalar paths build their
         array from ``self._endian``.
         """

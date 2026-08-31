@@ -9,15 +9,15 @@ their own. A hand-written helper that reads ``plan.num_bytes`` or
 accept every one of these forms, and unwrap an alias before reading its
 width.
 
-* :func:`bitsizeof` / :func:`sizeof` — the width of any schema object, in
-  bits or in whole bytes. Sub-byte widths round up, matching
+* :func:`bitsizeof` / :func:`sizeof` give the width of any schema object,
+  in bits or in whole bytes. Sub-byte widths round up, matching
   ``len(bytes(box))``.
-* :func:`fields_of` — a Struct's top-level layout as
+* :func:`fields_of` returns a Struct's top-level layout as
   ``(name, type, bit_offset, bit_width, adapter, endian)`` tuples. The
   offsets and byte order come from the compiled plan.
-* :func:`offset_of` / :func:`span_of` — where one named field starts, and
-  how far it runs, in whole bytes.
-* :func:`layout` — the same layout rendered as text, so the offsets in a
+* :func:`offset_of` / :func:`span_of` say where one named field starts
+  and how far it runs, in whole bytes.
+* :func:`layout` renders the same layout as text, so the offsets in a
   map's comments do not have to be counted by hand.
 """
 

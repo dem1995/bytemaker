@@ -1,9 +1,9 @@
-"""One mapped thing: :class:`Entry` — an address, a codec, and an extent.
+"""One mapped thing: :class:`Entry` ties an address to a codec and an extent.
 
 An entry is a declaration rather than a reader: a map module full of them
 imports with no binary in hand. :meth:`Entry.bind` attaches a declaration
-to a :class:`~bytemaker.spaces.spaces.Space` when there are bytes — or a
-live target — to work against.
+to a :class:`~bytemaker.spaces.spaces.Space` when there are bytes, or a
+live target, to work against.
 
 See :mod:`bytemaker.spaces` for the layer's overview.
 """

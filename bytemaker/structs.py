@@ -31,7 +31,7 @@ the engine/tier rules):
 
 * Fields hold **plain** ``int``/``float`` values in ``__slots__``; a data
   descriptor per field narrows integer stores C-style (wrap, at any bit
-  width) exactly once, at the store -- including ``__init__``. ``parse``
+  width) exactly once, at the store, including ``__init__``. ``parse``
   bypasses the descriptors (decoded values cannot be out of range).
 * ``endian`` and ``bit_order`` are per-class, compile-time parameters.
   ``bit_order`` defaults to match ``endian`` ("lsb" under little, "msb"
@@ -178,8 +178,8 @@ class Codec(Protocol):
 
 #: Builtin exception families an attributed wrapper preserves, most-derived
 #: first. A caller who wrote ``except KeyError`` around a table adapter must
-#: still catch after attribution — losing the family is losing the caller's
-#: error handling. ValueError is the default for anything unlisted.
+#: still catch after attribution, because losing the family is losing
+#: the caller's error handling. ValueError is the default for anything unlisted.
 _EXC_FAMILIES = (
     TypeError,
     KeyError,
@@ -236,7 +236,7 @@ def _unreadable(exc, prefix: str) -> str:
     A repr must never raise, but reading a field can. An adapter's ``load``
     runs over whatever the bytes say, so one value the schema does not
     describe, such as ``enum_(E)`` over an undocumented wire byte, would
-    otherwise break the repr of the whole record — and with it
+    otherwise break the repr of the whole record, and with it
     ``print(records)``, the first thing anyone does with a table they are
     still figuring out. The readable fields still render, and the
     unreadable one becomes this marker, which names the reason.
@@ -344,7 +344,7 @@ class _FloatField:
 
     def __set__(self, obj, value):
         # Narrow through the codec so the stored value is exactly what pack()
-        # serializes (D1) -- a Float32 field must not read back a full-width
+        # serializes (D1): a Float32 field must not read back a full-width
         # double. Float64 narrowing is a no-op (native width).
         try:
             v = self._ftype(float(value)).value
@@ -539,8 +539,8 @@ class NarrowingList(list):
     ``append``/``extend``/``insert``/``pop``/``remove``/``clear``/``del``/
     ``+=``/``*=`` and length-changing slice assignment raise. The field hands
     out this live object, so ``s.colors[0] = 70000`` narrows to ``4464`` in
-    place -- a C lvalue, and a read never returns a value ``pack()`` would
-    not serialize. Reordering in place (``reverse``/``sort``) is allowed:
+    place, like a C lvalue, and a read never returns a value ``pack()``
+    would not serialize. Reordering in place (``reverse``/``sort``) is allowed:
     it preserves length and the already-narrowed contents.
     """
 
@@ -655,9 +655,9 @@ class _ArrayField:
         self._slot = slot
         self._arr = arr
         #: "Record.field", derived ONCE, at the descriptor's construction in
-        #: StructMeta. Every other consumer — the generated
-        #: from_tuple/to_tuple env, _elem_loader/_elem_storer, and every
-        #: NarrowingList this field hands out — reads it from here.
+        #: StructMeta. Every other consumer (the generated from_tuple
+        #: and to_tuple env, _elem_loader/_elem_storer, and every
+        #: NarrowingList this field hands out) reads it from here.
         self._label = label
 
     def __get__(self, obj, objtype=None):
@@ -671,9 +671,9 @@ class _ArrayField:
         except Exception as exc:  # noqa: BLE001 - store may be user code
             # Exception, not a shortlist: _coerce_one runs the element
             # adapter's store, and a table adapter raises KeyError on the
-            # value this attribution exists for — the same reach as
-            # _AdaptedField (whole-list assignment and __init__ are just the
-            # bulk spellings of the same store).
+            # value this attribution exists for. The reach matches
+            # _AdaptedField's, since whole-list assignment and __init__ are
+            # just the bulk spellings of the same store.
             _raise_named(self._slot, obj, exc)
         self._slot.__set__(obj, NarrowingList(self._arr, coerced, self._label))
 
@@ -683,7 +683,7 @@ class _ArrayField:
 # hasattr-over-bases check (which auto-covers future API) or the _bm_ prefix.
 _RESERVED_FIELD_NAMES = frozenset({"plan", "num_bits", "num_bytes"})
 
-#: Every concrete Struct class, by class NAME, weakly — so REPL/test classes
+#: Every concrete Struct class, by class NAME, weakly, so REPL/test classes
 #: vanish with their last reference. This is what :mod:`bytemaker.spaces`'s
 #: deferred ``Ptr("Name")`` targets fall back on when the name is not bound
 #: in the Ptr's own module: the cross-module case a map split over several
@@ -932,7 +932,7 @@ def _generate_methods(cls, field_defs, defaults) -> None:
             if ftype._adapter is not None:
                 # An adapted array field stores USER-plane values, so the
                 # tuple boundary is where the element adapter runs (scalar
-                # elements only -- an adapted Struct-element array is
+                # elements only; an adapted Struct-element array is
                 # refused at Array construction).
                 adapted_array_of[n] = (f"_ald{i}", f"_ast{i}")
                 # The label is READ off the field's descriptor (installed
@@ -966,7 +966,7 @@ def _generate_methods(cls, field_defs, defaults) -> None:
             # in __init__.__defaults__; storing it by reference would alias
             # every default-constructed record to it (the classic mutable-
             # default footgun: mutate one, corrupt all). Detach-copy at bind
-            # time -- but only when the parameter was actually left at its
+            # time, but only when the parameter was actually left at its
             # default, which the _MISSING sentinel detects exactly, so
             # explicitly passing even the default object keeps a live
             # reference. Same for Struct *elements* of an array default
@@ -1231,17 +1231,15 @@ class StructMeta(type):
             # setattr, so a colliding name would silently shadow the Struct
             # API (or, for the _bm_ slot prefix, cross-wire field storage).
             # The invariant this buys: if the class compiles, documented
-            # attributes mean what the docs say — for everyone.
+            # attributes mean what the docs say, for everyone.
             # A field's storage slot is "_bm_<name>", so a field can collide
             # with the Struct API from TWO directions: its own name, and its
-            # slot's. The second was silent -- a field named "repr_of" put an
-            # int where Struct._bm_repr_of (the repr helper) was, so the
-            # record parsed, packed and read correctly and only repr() broke;
-            # "adapters" shadowed the dict rom.Space.deref consults, and
-            # "fields"/"endian"/"concrete"/"field_types" surfaced as
-            # AttributeError: 'tuple' object has no attribute '__set__' at
-            # construction. All six now fail at class definition, naming the
-            # slot, which is the only place the collision is explainable.
+            # slot's. Both fail here at class definition, naming the slot,
+            # which is the only place the collision is explainable. The slot
+            # direction is the quiet one: left to run, a field named
+            # "repr_of" would put an int where Struct._bm_repr_of expects a
+            # method, so the record would parse, pack and read correctly
+            # and only repr() would break.
             slot_taken = any(hasattr(b, "_bm_" + n) for b in bases)
             if (
                 n.startswith("_bm_")
@@ -1271,8 +1269,8 @@ class StructMeta(type):
                 else:
                     defaults[n] = val  # a plain default value
                     has_default = True
-            # A required field (no default) may not follow a defaulted one —
-            # the generated __init__ would put a non-default param after a
+            # A required field (no default) may not follow a defaulted one,
+            # since the generated __init__ would put a non-default param after a
             # defaulted one. A spec-without-default is required even though it
             # has a class-body assignment, so key this off has_default.
             if has_default:
@@ -1414,7 +1412,7 @@ class StructMeta(type):
         # adapter on the Array (its codegen converts at the tuple boundary and
         # it must NOT be wrapped in _AdaptedField), so it is added only now.
         # Introspection cares that the field is adapted, not where the engine
-        # keeps the transform — fields_of() would otherwise report None for an
+        # keeps the transform. fields_of() would otherwise report None for an
         # adapted array and callers reading the schema would miss it.
         cls._bm_adapters = {
             **adapters,
@@ -1856,7 +1854,7 @@ class BoundField(typing.Generic[V]):
 
 
 class BoundBits:
-    """Live bits of a bound field — a view of a view.
+    """Live bits of a bound field: a view of a view.
 
     Holds only the :class:`BoundField`; every operation re-derives the
     current bits from the struct's slot at call time, so held handles never
@@ -1967,7 +1965,7 @@ class BoundBits:
         # Mirrors the BitVector contract (None = last bit; negative
         # indices count from the end, as in list.pop). Forward the default
         # only when the caller gave one, so an omitted default still raises
-        # IndexError (a passed default=None returns None) — and the backend's
+        # IndexError (a passed default=None returns None), and the backend's
         # own _MISSING sentinel governs the raise.
         b = self._cur()
         value = b.pop(index) if default is _MISSING else b.pop(index, default)
@@ -2094,7 +2092,7 @@ class Array(typing.Generic[V]):
     # Immutable value object: the byte order is compiled into the scalar
     # codec and the size into num_bits at construction, so the identity
     # attributes are read-only (and instances are shared via Array.of).
-    # Mutating one would desync the cached codec from a live read -- build
+    # Mutating one would desync the cached codec from a live read; build
     # a new Array to change any of them.
     __slots__ = (
         "_element", "_count", "_endian", "_endian_set", "_num_bits",
@@ -2112,8 +2110,8 @@ class Array(typing.Generic[V]):
         if not isinstance(count, int) or count <= 0:
             raise PlanCompileError(f"Array count must be a positive int, got {count!r}")
         # A fused element codec (adapter @ BitType) is the same thing as
-        # adapt= on the array: split it here so nothing downstream — the
-        # scalar classification, the plan, the parse/pack paths — ever sees
+        # adapt= on the array: split it here so nothing downstream (the
+        # scalar classification, the plan, the parse/pack paths) ever sees
         # an Adapted. Array.of's cache still keys on the Adapted object, so
         # a module-level fused alias shares one Array as usual.
         # u16 and UInt16 both mean the scalar: the field aliases read like C
@@ -2136,7 +2134,7 @@ class Array(typing.Generic[V]):
         self._adapter = adapt
         # ``endian=None`` means "unset": standalone parse/pack resolve it to
         # big (the historical default), but as a Struct FIELD an unset array
-        # inherits the record's byte order (like a C array -- see
+        # inherits the record's byte order (like a C array; see
         # compile_plan). An explicit endian is honored either way.
         self._endian_set = endian is not None
         resolved = (
@@ -2153,7 +2151,7 @@ class Array(typing.Generic[V]):
             # Sub-byte scalar elements are fine as a Struct FIELD (the plan
             # flattens each element into an ordinary sub-byte leaf on the
             # shiftmask tier); only the STANDALONE byte-slicing parse/pack
-            # paths need whole-byte elements — they guard themselves.
+            # paths need whole-byte elements, and they guard themselves.
             # Classify through the plan compiler so Array cannot drift from
             # the Struct decode rules (also rejects e.g. non-IEEE floats).
             try:
@@ -2378,11 +2376,11 @@ class Array(typing.Generic[V]):
                 f" array is supported — the plan flattens its elements"
             )
         # Multi-byte NUMERIC elements have a byte order, and an unset one
-        # silently meant big here while meaning inherit-from-record as a
-        # field — the exact coin flip that byte-reversed a GBA pointer
-        # table. Standalone use now requires saying which. (Text/bytes
-        # and single-byte elements are byte-order-agnostic; Struct and
-        # Array elements carry their own.)
+        # would be a coin flip: big by the standalone default, but
+        # inherit-from-record as a field, and the wrong guess byte-reverses
+        # a GBA pointer table. Standalone use therefore requires saying
+        # which. (Text/bytes and single-byte elements are
+        # byte-order-agnostic; Struct and Array elements carry their own.)
         if (
             not self._endian_set
             and self._scalar_codec is not None
@@ -2428,7 +2426,7 @@ class Array(typing.Generic[V]):
         kind, struct_obj = self._scalar_codec
         if kind == "b":
             # Text/bytes elements are in stream order (no byte order to
-            # apply — same rule as the plan engine's "b" fields and C
+            # apply, matching the plan engine's "b" fields and C
             # char[]; endian governs numeric elements only).
             chunks = [
                 bytes(data[i : i + size])
@@ -2441,7 +2439,7 @@ class Array(typing.Generic[V]):
         # the new Struct/Plan/Array system does not consult SignedConfig
         # (that legacy global governs only the aggregate/BitType layer). This
         # makes a standalone Array and the same schema used as a Struct field
-        # agree byte-for-byte -- see R9 / tracker 13 #17.
+        # agree byte-for-byte; see R9 / tracker 13 #17.
         if struct_obj is not None:
             return list(struct_obj.unpack(data))  # one C-level call
         if kind == "f":
@@ -2525,8 +2523,8 @@ class Array(typing.Generic[V]):
 
 
 # --------------------------------------------------------------------------
-# Checker-friendly field aliases now live in bytemaker.fields (which also
-# resolves arbitrary uN/sN widths lazily — e.g. ``from bytemaker.fields
+# Checker-friendly field aliases live in bytemaker.fields (which also
+# resolves arbitrary uN/sN widths lazily, e.g. ``from bytemaker.fields
 # import u31``); the common names are re-exported here for compatibility.
 # --------------------------------------------------------------------------
 

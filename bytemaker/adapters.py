@@ -262,7 +262,7 @@ THUMB_PTR: "Adapter[int]" = Adapter(_thumb_load, _thumb_store, int, "THUMB_PTR")
 """ARM/THUMB function pointer: bit 0 on the wire selects the THUMB
 instruction set; the user value is the real (even) code address. Reading
 masks bit 0 off; writing sets it (THUMB code, the common case in GBA
-ROMs — for an ARM-code pointer, use the raw field)."""
+ROMs; for an ARM-code pointer, use the raw field)."""
 
 
 def _fixed_load(wire, scale):
