@@ -210,7 +210,9 @@ class PtrValue(int):
 
 
 class Ptr(Adapted):
-    """A typed address: a wire integer that points at ``target``.
+    """A typed address: a wire integer plus the record type it points at.
+
+    The first argument, ``target``, is that record type.
 
     A ``Ptr`` is an :class:`~bytemaker.adapters.Adapted` codec, so it works
     everywhere a scalar wire type does: as an annotation, in ``field()``, as

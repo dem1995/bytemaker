@@ -42,11 +42,14 @@ class PatchUnverifiable(ValueError):
 
 @dataclass(frozen=True)
 class Edit:
-    """One contiguous replacement: ``new`` goes where ``old`` was.
+    """One contiguous byte replacement, held as a value.
 
-    The two are always the same length. An edit that changed a region's
-    size would shift everything after it, which is a different and much
-    larger operation than patching.
+    An edit has three parts. ``offset`` is where it applies, ``new`` is the
+    bytes written there, and ``old`` is the bytes they replace.
+
+    ``new`` and ``old`` are always the same length. An edit that changed a
+    region's size would shift everything after it, which is a different and
+    much larger operation than patching.
 
     ``old`` is ``None`` for a **blind** edit, meaning bytes written without
     the original in hand. That is the normal case when a patch is built
@@ -174,7 +177,8 @@ class Patch:
     def write(
         self, offset: int, new: BytesLike, old: Optional[BytesLike] = None
     ) -> None:
-        """Record that ``offset`` becomes ``new``, replacing ``old``.
+        """Record that the bytes at ``offset`` become ``new``, replacing
+        ``old``.
 
         A later write to a byte replaces an earlier one, while the earliest
         ``old`` is kept, so the patch always describes a transition from the
