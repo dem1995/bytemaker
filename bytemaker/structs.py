@@ -1,24 +1,30 @@
 """
 Struct: fixed-layout records with plain-Python field values.
 
-Declaration looks like a dataclass whose annotations are BitType classes (or
-``Annotated[int, BitTypeClass]`` aliases such as :data:`u16`, which type
-checkers see as plain ``int``), and the runtime values ARE plain ints/floats::
+Declaration looks like a dataclass whose annotations name each field's wire
+type, and the runtime values ARE plain ints/floats::
 
-    from bytemaker.bittypes import SInt16, UInt16, UInt32
-    from bytemaker.structs import Struct
+    from bytemaker import Struct, s16, u16, u32
 
     class WarpDestination(Struct, endian="little"):
-        room_ptr: UInt32
-        x:        UInt16
-        y:        UInt16
-        x_offset: SInt16
-        y_offset: SInt16
+        room_ptr: u32
+        x:        u16
+        y:        u16
+        x_offset: s16
+        y_offset: s16
 
     d = WarpDestination.parse(data)   # slots-backed instance, plain-int fields
     d.x = 0x10005                     # narrows C-style at the store -> 5
     d.pack()                          # trusts the store-time invariant
     table = (WarpDestination * 3).parse(b36)   # -> list[WarpDestination]
+
+The ``uN``/``sN``/``fN`` aliases are ``Annotated[int, BitTypeClass]``, so a
+checker reads each field as the plain value the slot holds. Name a nested
+Struct directly; give text, bytes and arrays a plain annotation plus
+``field(...)`` / ``array(...)``. A bare BitType class (``x: UInt16``) also
+works at runtime, but a checker then types the field as the box rather than
+the value in the slot, and flags ``d.x = 5``. ``test/_typing_repro.py`` is
+the contract.
 
 Key semantics (all decided at class-creation time; see bytemaker.plans for
 the engine/tier rules):
@@ -1442,8 +1448,8 @@ class Struct(metaclass=StructMeta):
     ``endian`` (LSB-first under little, MSB-first under big)::
 
         class Header(Struct, endian="little"):
-            magic:   UInt32
-            version: UInt16 = 1
+            magic:   u32
+            version: u16 = 1
     """
 
     __slots__ = ()

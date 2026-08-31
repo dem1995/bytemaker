@@ -222,7 +222,7 @@ class Ptr(Adapted):
     Space stays an explicit argument::
 
         class WarpPoint(Struct, endian="little"):
-            sector: UInt8
+            sector: u8
             room_ptr: Annotated[int, Ptr(RoomHeader)]
 
         w = rom.read(0x08525FBC, WarpPoint)
