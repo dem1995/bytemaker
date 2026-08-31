@@ -141,15 +141,14 @@ class Patch:
         assert p.invert().apply(patched) == rom.buf
         open("fix.ips", "wb").write(p.to_ips())
 
-    Two useful exports are one-liners rather than methods, because the
-    container a caller wants differs by caller::
+    An export that wants another container is a one-liner rather than a
+    method::
 
         tokens = {e.offset: e.new for e in p.edits}   # offset -> bytes
-        pins = {e.name: e.addr for e in ROM_MAP}      # name -> address
 
-    Internally a patch is a sparse byte map rather than a list of edits.
-    Overlapping writes then have one unambiguous result, which is what makes
-    the two operations below total.
+    Internally a patch is a sparse byte map rather than a list of edits, so
+    overlapping writes have one unambiguous result and the two operations
+    below are defined for every input.
 
     * :meth:`write` is an imperative edit, so **a later write to a byte
       replaces an earlier one**. The patch keeps the EARLIEST ``old`` for
@@ -221,6 +220,13 @@ class Patch:
         step there reads the state the previous ones left, so the edits
         cannot be recorded as they happen. Diffing the two ends recovers a
         verifiable, invertible, exportable value.
+
+        A byte the build wrote back to the value it already held does not
+        differ between the two ends, so the diff neither claims nor guards
+        it. Applied to a base that differs at exactly such a byte, the
+        patch succeeds and produces the wrong result there. When that
+        matters, write through :meth:`Space.recording` instead, which
+        records every write as it happens.
         """
         base_b, edited_b = bytes(base), bytes(edited)
         if len(base_b) != len(edited_b):
@@ -381,8 +387,8 @@ class Patch:
         """Return the patched bytes, checking the recorded originals first
         unless ``verify`` is turned off.
 
-        Leave ``verify`` on, because that check is the whole point of having
-        recorded the originals.
+        Leave ``verify`` on, because the check is what catches a wrong
+        build or an already-patched buffer.
         """
         out = bytearray(buf)
         self.apply_into(out, verify=verify)
