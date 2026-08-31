@@ -1,4 +1,4 @@
-"""bytemaker.rom typed pointers and coverage (rom-3)."""
+"""bytemaker.spaces typed pointers and coverage (rom-3)."""
 
 import copy
 import pickle
@@ -9,7 +9,7 @@ import pytest
 from bytemaker.adapters import THUMB_PTR, Adapted
 from bytemaker.bittypes import UInt8, UInt16, UInt32
 from bytemaker.introspect import fields_of, sizeof
-from bytemaker.rom import (
+from bytemaker.spaces import (
     CoverageReport,
     Entry,
     Ptr,
@@ -204,7 +204,7 @@ def test_deref_value_follows_one_address():
 
 
 def test_deref_reports_a_wild_address_as_an_address_error():
-    from bytemaker.rom import AddressError
+    from bytemaker.spaces import AddressError
 
     s = space()
     with pytest.raises(AddressError, match="outside the space"):
@@ -446,7 +446,7 @@ def test_unresolvable_deferred_target_says_where_it_looked():
     p = Ptr("NoSuchRecord")
     with pytest.raises(TypeError, match="not in module"):
         p.target
-    with pytest.raises(TypeError, match="rom_ptr_test"):
+    with pytest.raises(TypeError, match="pointers_test"):
         p.target
     # ... and says the registry was searched too, so the reader knows both
     # lookups happened before giving up
@@ -519,7 +519,7 @@ def test_registry_resolves_a_name_the_ptr_module_lacks():
     """The cross-module case: the Ptr is declared in a module that never
     imported the record. Module lookup misses; the registry, holding every
     concrete Struct by name, resolves it — because exactly one exists."""
-    p = Ptr("XModuleRoom", module="bytemaker.rom")  # name not in rom's globals
+    p = Ptr("XModuleRoom", module="bytemaker.spaces")  # name not in the package's globals
     assert p.deferred
     assert p.target is XModuleRoom
 
@@ -536,7 +536,7 @@ def test_ambiguous_registry_names_refuse_with_the_module_list():
     # current-binding filter cannot break the tie).
     dup_a = StructMeta("XDupRec", (Struct,), {"__annotations__": {"a": UInt8}})
     dup_b = StructMeta("XDupRec", (Struct,), {"__annotations__": {"a": UInt16}})
-    p = Ptr("XDupRec", module="bytemaker.rom")
+    p = Ptr("XDupRec", module="bytemaker.spaces")
     with pytest.raises(TypeError, match="ambiguous"):
         p.target
     with pytest.raises(TypeError, match="module="):
@@ -550,7 +550,7 @@ def test_current_binding_filter_prefers_the_class_the_module_still_binds():
     stale = StructMeta(
         "XModuleRoom", (Struct,), {"__annotations__": {"a": UInt8}}
     )
-    p = Ptr("XModuleRoom", module="bytemaker.rom")
+    p = Ptr("XModuleRoom", module="bytemaker.spaces")
     assert p.target is XModuleRoom  # the module-bound one, not `stale`
     del stale
 
@@ -910,7 +910,7 @@ def test_claimed_and_unclaimed_partition_the_space_even_when_hand_built():
     same list. A hand-assembled report (the dataclass is public) with a region
     hanging off the end used to inflate the claim AND stretch a gap past the
     space's own end."""
-    from bytemaker.rom import CoverageReport, Region
+    from bytemaker.spaces import CoverageReport, Region
 
     s = space()
     past_end = Entry(BASE + len(BUF) - 4, UInt8, count(4), name="tail").bind(s)

@@ -89,7 +89,7 @@ def test_adapters_are_importable_from_the_root():
     assert enum_ is not None
     assert bytemaker.__doc__ is not None
     assert "bytemaker.adapters" in bytemaker.__doc__
-    assert "bytemaker.rom" in bytemaker.__doc__
+    assert "bytemaker.spaces" in bytemaker.__doc__
 
 
 def test_the_layout_compiler_is_not_part_of_the_public_surface():

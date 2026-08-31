@@ -1,9 +1,9 @@
-"""bytemaker.rom patch algebra: Edit, Patch, IPS export (rom-2)."""
+"""bytemaker.spaces patch algebra: Edit, Patch, IPS export (rom-2)."""
 
 import pytest
 
 from bytemaker.bittypes import UInt8, UInt16, UInt32
-from bytemaker.rom import (
+from bytemaker.spaces import (
     IPS_EOF_OFFSET,
     Edit,
     Patch,

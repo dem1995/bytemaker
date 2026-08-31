@@ -7,7 +7,7 @@ Overview
 
 * :py:class:`~bytemaker.structs.Struct` for declaring binary records —
   the headline API
-* :py:mod:`bytemaker.rom` for whole address spaces: reading and editing
+* :py:mod:`bytemaker.spaces` for whole address spaces: reading and editing
   records in place, patches, pointers and coverage reports
 * the bit-level layer underneath:
   :py:class:`~bytemaker.bitvector.BitVector` for bit-level manipulation,
@@ -46,7 +46,7 @@ byte order stated once:
 
 .. code-block:: python
 
-    from bytemaker.rom import Space
+    from bytemaker.spaces import Space
 
     rom = Space(data, base=0x08000000, endian="little")
     info = rom.read(0x08000010, SaveInfo)

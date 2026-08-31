@@ -45,7 +45,7 @@ gives the convention a name and declares it once::
         multiplier: float = field(Mult)         # checker-visible
         table:      list  = array(ThumbPtr, 8)  # as an Array element
 
-:class:`bytemaker.rom.Ptr` also fuses an adapter onto a wire integer, and
+:class:`bytemaker.spaces.Ptr` also fuses an adapter onto a wire integer, and
 one rule decides between it and this module: **if the value is an address,
 use** ``Ptr``. ``Ptr`` additionally records what the address points at, so
 ``space.deref`` can follow it and ``space.coverage`` can audit it. Use

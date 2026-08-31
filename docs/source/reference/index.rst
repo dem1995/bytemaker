@@ -2,7 +2,7 @@ API Reference
 =============
 
 ``bytemaker``'s API is layered. Records (:mod:`~bytemaker.structs`) are the
-headline; the :mod:`~bytemaker.rom` package says where records live;
+headline; the :mod:`~bytemaker.spaces` package says where records live;
 :mod:`~bytemaker.adapters` state per-field encoding conventions; and
 :mod:`~bytemaker.introspect` answers shape and size questions about any of
 it. Underneath, :mod:`~bytemaker.bittypes` boxes single C-style values and
@@ -22,15 +22,15 @@ for them, and the ``u8``/``s16`` field aliases.
 Address spaces and patches
 --------------------------
 
-:class:`~bytemaker.rom.Space`, :class:`~bytemaker.rom.Entry`,
-:class:`~bytemaker.rom.Patch`, :class:`~bytemaker.rom.Ptr` and coverage
+:class:`~bytemaker.spaces.Space`, :class:`~bytemaker.spaces.Entry`,
+:class:`~bytemaker.spaces.Patch`, :class:`~bytemaker.spaces.Ptr` and coverage
 reporting — reading and editing records in place (ROM images, save files,
 memory dumps).
 
 .. toctree::
    :maxdepth: 3
 
-   rom/rom
+   spaces/spaces
 
 Encoding conventions
 --------------------

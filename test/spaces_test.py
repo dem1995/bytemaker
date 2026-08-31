@@ -1,4 +1,4 @@
-"""bytemaker.rom: Space, extents, Entry (rom-1).
+"""bytemaker.spaces: Space, extents, Entry (rom-1).
 
 Synthetic buffers only — no binaries in test/. The addresses use a GBA-style
 0x08000000 base because that is the case the layer exists for, but nothing
@@ -9,7 +9,7 @@ import pytest
 
 from bytemaker.adapters import THUMB_PTR, fixed
 from bytemaker.bittypes import UInt8, UInt16, UInt32
-from bytemaker.rom import (
+from bytemaker.spaces import (
     AddressError,
     Edit,
     Entry,
@@ -889,7 +889,7 @@ def test_the_module_docstrings_three_write_flows_actually_run():
     """The overview shows three ways to write, and picking between them is
     the point of the section. An example that has drifted from the code
     teaches the wrong one, so all three are executed here."""
-    import bytemaker.rom as rom_pkg
+    import bytemaker.spaces as spaces_pkg
     from test.conftest import docstring_example
 
     class EnemyDNA(Struct, endian="little"):
@@ -931,7 +931,7 @@ def test_the_module_docstrings_three_write_flows_actually_run():
         "original": original, "features": [Feature(BASE + 4), Feature(BASE + 8)],
     }
     for marker in ("rom = Space(data", "gba = Space(", "work = Space("):
-        block = docstring_example(rom_pkg.__doc__, marker)
+        block = docstring_example(spaces_pkg.__doc__, marker)
         exec(compile(block, f"<rom docstring: {marker}>", "exec"), ns)
 
     assert ns["ips"].startswith(b"PATCH")

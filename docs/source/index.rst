@@ -46,10 +46,10 @@ What can you do with it?
 - Declare :py:class:`~bytemaker.structs.Struct` records with C-style fields
   of any bit width (``u8``, ``s16``, ``u31``, …), nested records, arrays,
   strings with custom encodings, and per-field endianness.
-- Work with whole address spaces via :py:mod:`bytemaker.rom`: a
-  :py:class:`~bytemaker.rom.Space` reads and writes records by address, a
-  :py:class:`~bytemaker.rom.Patch` records edits you can verify, invert and
-  export (including IPS), a :py:class:`~bytemaker.rom.Ptr` is a typed
+- Work with whole address spaces via :py:mod:`bytemaker.spaces`: a
+  :py:class:`~bytemaker.spaces.Space` reads and writes records by address, a
+  :py:class:`~bytemaker.spaces.Patch` records edits you can verify, invert and
+  export (including IPS), a :py:class:`~bytemaker.spaces.Ptr` is a typed
   address you can follow, and coverage reports show claims, overlaps and
   gaps.
 - State encoding conventions once, in the schema, with

@@ -32,11 +32,11 @@ import away.
           reward_id:  int   = field(UInt8, adapt=biased(1))  # wire = id + 1
           multiplier: float = field(UInt16, adapt=fixed(4))  # 0x10 == 1.0
 
-* **Where records live** — :mod:`bytemaker.rom`, imported separately as
-  ``from bytemaker.rom import Space, Ptr``. A :class:`~bytemaker.rom.Space`
+* **Where records live** — :mod:`bytemaker.spaces`, imported separately as
+  ``from bytemaker.spaces import Space, Ptr``. A :class:`~bytemaker.spaces.Space`
   is a base-mapped address space, so reads are by address and the byte
-  order is stated once. A :class:`~bytemaker.rom.Ptr` is a typed address
-  that can be followed and audited. A :class:`~bytemaker.rom.Patch` turns
+  order is stated once. A :class:`~bytemaker.spaces.Ptr` is a typed address
+  that can be followed and audited. A :class:`~bytemaker.spaces.Patch` turns
   an edit into a value you can verify, invert and export::
 
       rom  = Space(data, base=0x08000000, endian="little")

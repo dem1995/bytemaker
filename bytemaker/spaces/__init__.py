@@ -8,7 +8,7 @@ where the bugs are.
 
 :class:`Space` is that layer, declared once::
 
-    from bytemaker.rom import Space, count, until, span
+    from bytemaker.spaces import Space, count, until, span
 
     rom = Space(open("game.gba", "rb").read(), base=0x08000000,
                 endian="little", name="AoS")
@@ -108,12 +108,12 @@ For a live target, the bytes come from a transport the caller owns::
         await conn.guarded_write(at, list(new), list(expected), "EWRAM")
 
 The layer is four modules, all re-exported here. Import from
-``bytemaker.rom`` and the split stays an implementation detail:
+``bytemaker.spaces`` and the split stays an implementation detail:
 
-* :mod:`~bytemaker.rom.spaces` — :class:`Space`, the extents, :class:`Entry`
-* :mod:`~bytemaker.rom.patches` — :class:`Edit`, :class:`Patch`, IPS export
-* :mod:`~bytemaker.rom.pointers` — :class:`Ptr`, :class:`PtrValue`
-* :mod:`~bytemaker.rom.coverage` — :class:`CoverageReport` and its parts
+* :mod:`~bytemaker.spaces.spaces` — :class:`Space`, the extents, :class:`Entry`
+* :mod:`~bytemaker.spaces.patches` — :class:`Edit`, :class:`Patch`, IPS export
+* :mod:`~bytemaker.spaces.pointers` — :class:`Ptr`, :class:`PtrValue`
+* :mod:`~bytemaker.spaces.coverage` — :class:`CoverageReport` and its parts
 """
 
 from .coverage import CoverageReport, Gap, Overlap, PointerRef, Region

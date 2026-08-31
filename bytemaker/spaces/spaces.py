@@ -5,7 +5,7 @@ that scalar reads and writes use. The extents ``count``, ``until``, ``span``
 and ``unknown`` say how far a table runs. An :class:`Entry` declares one
 mapped thing, and it can be written with no buffer in hand.
 
-See :mod:`bytemaker.rom` for the layer's overview.
+See :mod:`bytemaker.spaces` for the layer's overview.
 """
 
 from typing import cast

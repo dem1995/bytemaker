@@ -684,7 +684,7 @@ class _ArrayField:
 _RESERVED_FIELD_NAMES = frozenset({"plan", "num_bits", "num_bytes"})
 
 #: Every concrete Struct class, by class NAME, weakly — so REPL/test classes
-#: vanish with their last reference. This is what :mod:`bytemaker.rom`'s
+#: vanish with their last reference. This is what :mod:`bytemaker.spaces`'s
 #: deferred ``Ptr("Name")`` targets fall back on when the name is not bound
 #: in the Ptr's own module: the cross-module case a map split over several
 #: files hits constantly.
