@@ -1,9 +1,9 @@
 """The address space itself: :class:`Space`, extents, :class:`Entry`.
 
 :class:`Space` maps a buffer at a base address and supplies the byte order
-that scalar reads and writes use. The extents ``count``, ``until``, ``span``
-and ``unknown`` say how far a table runs. An :class:`Entry` declares one
-mapped thing, and it can be written with no buffer in hand.
+that scalar reads and writes use. The extents ``count``, ``until``,
+``through`` and ``unknown`` say how far a table runs. An :class:`Entry`
+declares one mapped thing, and it can be written with no buffer in hand.
 
 See :mod:`bytemaker.spaces` for the layer's overview.
 """
@@ -110,25 +110,27 @@ class until(Extent):
         self.max_count = max_count
 
 
-class span(Extent):
-    """Items from the entry's address through ``end``.
+class through(Extent):
+    """Items from the entry's address through ``last``, inclusive.
 
-    The end address is **inclusive**, because that is the form a disassembly
-    listing gives you. The item width must divide the region exactly, so a
-    remainder means the address, the end, or the record shape is wrong.
+    ``last`` is the address of the table's final byte, because that is the
+    form a disassembly listing gives you. (``until`` excludes its sentinel;
+    ``through`` includes its last address.) The item width must divide the
+    region exactly, so a remainder means the address, the last address, or
+    the record shape is wrong.
     """
 
-    __slots__ = ("end",)
+    __slots__ = ("last",)
 
-    def __init__(self, end: int):
-        if not isinstance(end, int):
-            raise ValueError(f"span(end) needs an int address, got {end!r}")
-        self.end = end
+    def __init__(self, last: int):
+        if not isinstance(last, int):
+            raise ValueError(f"through(last) needs an int address, got {last!r}")
+        self.last = last
 
     def __repr__(self):
-        # The end is always an address, and an address in decimal is
-        # unreadable. count's n is a quantity, so it stays decimal.
-        return f"span(end=0x{self.end:08X})"
+        # The last address in decimal is unreadable. count's n is a
+        # quantity, so it stays decimal.
+        return f"through(last=0x{self.last:08X})"
 
 
 class unknown(Extent):
@@ -175,7 +177,7 @@ def _as_extent(extent) -> Extent:
     if isinstance(extent, int) and not isinstance(extent, bool):
         return count(extent)
     raise TypeError(
-        f"extent must be an int or an Extent (count/until/span/unknown),"
+        f"extent must be an int or an Extent (count/until/through/unknown),"
         f" got {extent!r}"
     )
 
@@ -445,7 +447,7 @@ class Space:
             raise ValueError(
                 f"{self._label()}: the extent at 0x{addr:08X} is unknown()"
                 f" — pass a count at the call site, or declare"
-                f" count(n)/until(sentinel)/span(end_addr)"
+                f" count(n)/until(sentinel)/through(last_addr)"
                 + (f" ({extent.note})" if extent.note else "")
             )
         if isinstance(extent, until):
@@ -873,19 +875,19 @@ class Space:
     def _resolve_count(self, addr: int, extent: Extent, stride: int) -> int:
         if isinstance(extent, count):
             return extent.n
-        if isinstance(extent, span):
-            if extent.end < addr:
+        if isinstance(extent, through):
+            if extent.last < addr:
                 raise ValueError(
-                    f"{self._label()}: span end 0x{extent.end:08X} is before"
-                    f" the start address 0x{addr:08X}"
+                    f"{self._label()}: through(last=0x{extent.last:08X}) is"
+                    f" before the start address 0x{addr:08X}"
                 )
-            total = extent.end - addr + 1
+            total = extent.last - addr + 1
             if total % stride:
                 raise ValueError(
-                    f"{self._label()}: span 0x{addr:08X}-0x{extent.end:08X} is"
-                    f" {total} bytes, not a whole number of {stride}-byte"
-                    f" items — the address, the end, or the record shape is"
-                    f" wrong"
+                    f"{self._label()}: 0x{addr:08X} through 0x{extent.last:08X}"
+                    f" is {total} bytes, not a whole number of {stride}-byte"
+                    f" items — the address, the last address, or the record"
+                    f" shape is wrong"
                 )
             return total // stride
         raise TypeError(f"{self._label()}: unsupported extent {extent!r}")
@@ -1224,8 +1226,8 @@ class Entry:
         extent = self.extent
         if isinstance(extent, count):
             return extent.n
-        if isinstance(extent, span):
-            total = extent.end - self.addr + 1
+        if isinstance(extent, through):
+            total = extent.last - self.addr + 1
             return total // self.stride if total > 0 else None
         return None
 
@@ -1382,7 +1384,7 @@ class Entry:
         if size is None:
             raise ValueError(
                 f"{self._name()}: how many bytes to fetch is not known"
-                f" ({self.extent!r}); declare count(n)/span(end) or reserve="
+                f" ({self.extent!r}); declare count(n)/through(last) or reserve="
             )
         return self._space().offset(self.addr), size
 

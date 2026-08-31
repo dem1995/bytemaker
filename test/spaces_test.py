@@ -17,7 +17,7 @@ from bytemaker.spaces import (
     PatchVerifyError,
     Space,
     count,
-    span,
+    through,
     unknown,
     until,
 )
@@ -220,25 +220,25 @@ def test_slice_is_a_bounds_checked_view():
 
 
 # ----------------------------------------------------------------- extents
-def test_span_resolves_an_inclusive_end_address():
+def test_through_resolves_an_inclusive_last_address():
     s = space()
-    assert s.read(BASE, UInt8, span(BASE + 3)) == [7, 6, 8, 9]
-    assert s.read(BASE + 0x030, Reward, span(BASE + 0x047)) == s.read(
+    assert s.read(BASE, UInt8, through(BASE + 3)) == [7, 6, 8, 9]
+    assert s.read(BASE + 0x030, Reward, through(BASE + 0x047)) == s.read(
         BASE + 0x030, Reward, 3
     )
-    # a span of exactly one item still returns a list (shape follows the
-    # declaration, not the data)
-    assert s.read(BASE, UInt8, span(BASE)) == [7]
+    # a through of exactly one item still returns a list (shape follows
+    # the declaration, not the data)
+    assert s.read(BASE, UInt8, through(BASE)) == [7]
 
 
-def test_span_must_divide_evenly_and_run_forwards():
+def test_through_must_divide_evenly_and_run_forwards():
     s = space()
     with pytest.raises(ValueError, match="not a whole number"):
-        s.read(BASE, UInt32, span(BASE + 5))
+        s.read(BASE, UInt32, through(BASE + 5))
     with pytest.raises(ValueError, match="before the start"):
-        s.read(BASE + 4, UInt8, span(BASE))
+        s.read(BASE + 4, UInt8, through(BASE))
     with pytest.raises(ValueError, match="int address"):
-        span("0x100")
+        through("0x100")
 
 
 def test_until_scans_to_the_sentinel():
@@ -302,7 +302,7 @@ def test_unknown_refuses_to_read_and_says_what_to_do():
 def test_extents_are_value_objects():
     assert count(4) == count(4) and count(4) != count(5)
     assert until(0) == until(0) and until(0) != until(0, max_count=8)
-    assert span(1) == span(1) and count(1) != span(1)
+    assert through(1) == through(1) and count(1) != through(1)
     assert len({count(4), count(4), count(5)}) == 2
     assert repr(count(4)) == "count(n=4)"
     with pytest.raises(ValueError, match="non-negative"):
@@ -390,7 +390,7 @@ def test_entry_derives_stride_count_size_and_span():
     e = Entry(BASE + 0x030, Reward, count(3))
     assert e.stride == 8 and e.item_count == 3 and e.size == 24
     assert e.byte_span == (BASE + 0x030, BASE + 0x047)
-    sp = Entry(BASE, UInt8, span(BASE + 3))
+    sp = Entry(BASE, UInt8, through(BASE + 3))
     assert sp.item_count == 4 and sp.size == 4
     for unresolvable in (Entry(BASE, UInt8, until(0)), Entry(BASE, UInt8, unknown())):
         assert unresolvable.item_count is None

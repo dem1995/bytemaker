@@ -89,7 +89,7 @@ The main goal of the project is to ease development of projects working with com
 #### Major changes
 - **`bytemaker.spaces` — mapping a binary, not just describing a record.** A `Struct` says what a record looks like and nothing about where it lives. Every project that maps a ROM, a save file, or a firmware image therefore rewrites the same three things: subtract the base address, slice, and decide how the table ends. That code now lives here.
 
-  A `Space` is a buffer at a base address, and it owns the byte order so scalar reads never guess. Passing `None` with `size=` instead of bytes gives the same address plane with nothing behind it, which is what building writes for an image you do not have yet requires, and what describing a running game's memory requires. Extents are values rather than conventions — `count(n)`, `until(sentinel)`, `span(end)`, `unknown(note)` — so "how long is it" stops being a comment.
+  A `Space` is a buffer at a base address, and it owns the byte order so scalar reads never guess. Passing `None` with `size=` instead of bytes gives the same address plane with nothing behind it, which is what building writes for an image you do not have yet requires, and what describing a running game's memory requires. Extents are values rather than conventions — `count(n)`, `until(sentinel)`, `through(last)`, `unknown(note)` — so "how long is it" stops being a comment.
 
   An `Entry` is a declaration you can write with no buffer in hand, which keeps a map module importable without the binary. Entries derive further entries: `table.item(54)` is a row, and `.field("soul_rate")` is one field of it, addressed through the compiled layout so a magic offset cannot go stale.
 

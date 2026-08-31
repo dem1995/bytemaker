@@ -8,7 +8,7 @@ those is easy to get subtly wrong.
 
 :class:`Space` is that layer, declared once::
 
-    from bytemaker.spaces import Space, count, until, span
+    from bytemaker.spaces import Space, count, until, through
 
     rom = Space(open("game.gba", "rb").read(), base=0x08000000,
                 endian="little", name="AoS")
@@ -25,9 +25,9 @@ Three ideas define the layer:
   :class:`~bytemaker.structs.Struct` classes and
   :class:`~bytemaker.structs.Array` objects.
 * **Extents are values, not conventions.** ``count(n)``,
-  ``until(sentinel)``, ``span(end_addr)`` and ``unknown()`` cover the four
-  things anyone actually knows about a table's length. A table's length is
-  then part of its declaration rather than a comment beside it.
+  ``until(sentinel)``, ``through(last_addr)`` and ``unknown()`` cover the
+  four things anyone actually knows about a table's length. A table's
+  length is then part of its declaration rather than a comment beside it.
 * **An :class:`Entry` is a declaration, not a reader.** An entry can be
   written with no buffer at all and bound to a :class:`Space` later with
   :meth:`Entry.bind`, so a map module stays importable without the ROM.
@@ -132,7 +132,7 @@ from .spaces import (
     Extent,
     Space,
     count,
-    span,
+    through,
     unknown,
     until,
 )
@@ -157,7 +157,7 @@ __all__ = [
     "Region",
     "Space",
     "count",
-    "span",
+    "through",
     "unknown",
     "until",
 ]
