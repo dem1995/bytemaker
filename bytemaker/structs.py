@@ -207,8 +207,8 @@ def _attributed(exc, label: str):
       survives: an ``AttributeError`` minted by the interpreter carries
       ``.name`` and ``.obj`` outside ``args``, so the wrapper's are None.
       The original's are intact on ``__cause__``, which is the fidelity
-      channel throughout. Rebuilding every exception this way broke twice.
-      A multi-arg builtin makes the constructor fail, because
+      channel throughout. Rebuilding any wider class of exception is
+      unsafe. A multi-arg builtin makes the constructor fail, because
       ``UnicodeEncodeError`` takes five arguments. A user subclass that
       captures constructor args as attributes gets them silently replaced
       by the message string.
@@ -236,10 +236,10 @@ def _unreadable(exc, prefix: str) -> str:
     A repr must never raise, but reading a field can. An adapter's ``load``
     runs over whatever the bytes say, so one value the schema does not
     describe, such as ``enum_(E)`` over an undocumented wire byte, would
-    otherwise take out the repr of the whole record. That would also break
-    ``print(records)``, which is the first thing anyone does with a table
-    they are still figuring out. The readable fields are exactly what
-    they need to see, and the unreadable one says so and names the reason.
+    otherwise break the repr of the whole record — and with it
+    ``print(records)``, the first thing anyone does with a table they are
+    still figuring out. The readable fields still render, and the
+    unreadable one becomes this marker, which names the reason.
 
     This runs from the ``except`` path only, so its work costs nothing when
     every field reads. That includes stripping ``prefix``, the
@@ -427,7 +427,7 @@ class _AdaptedField:
     descriptors.
 
     Both directions attribute their failures. A ``load`` can fail on data
-    the schema does not describe; the shipped example is ``enum_(E)`` over
+    the schema does not describe; the canonical example is ``enum_(E)`` over
     a wire byte that is not a member. That failure surfaces on a plain
     attribute read, arbitrarily far from the ``parse`` that accepted the
     bytes, because parse fills slots wire-plane and never calls ``load``.
@@ -495,9 +495,9 @@ def _elem_storer(store, label: str):
     An adapted array's slot is user-plane, so ``pack()`` re-encodes every
     element through ``store`` inside the generated ``_bm_to_tuple``. A
     mutable user value can have drifted since it was last stored into a
-    state ``store`` refuses, which makes pack one of the five places an
-    element type can be tripped. Anonymous there, it named neither the
-    record nor the field.
+    state ``store`` refuses, so pack is one of the five places an element
+    store can fail. Without this wrapper the failure would name neither
+    the record nor the field.
     """
 
     def store_elems(values):
@@ -539,8 +539,8 @@ class NarrowingList(list):
     ``append``/``extend``/``insert``/``pop``/``remove``/``clear``/``del``/
     ``+=``/``*=`` and length-changing slice assignment raise. The field hands
     out this live object, so ``s.colors[0] = 70000`` narrows to ``4464`` in
-    place -- a C lvalue, and a read that never lies about what ``pack()``
-    will serialize. Reordering in place (``reverse``/``sort``) is allowed:
+    place -- a C lvalue, and a read never returns a value ``pack()`` would
+    not serialize. Reordering in place (``reverse``/``sort``) is allowed:
     it preserves length and the already-narrowed contents.
     """
 
@@ -573,9 +573,9 @@ class NarrowingList(list):
         five are attributed. Whole-list assignment and ``__init__`` go
         through :class:`_ArrayField`. Parse-time loads go through
         :func:`_elem_loader`, and pack-time stores through
-        :func:`_elem_storer`. The element store lands here. It was the last
-        of the five to be named: ``s.fns[0] = 99`` reported "99 is not a
-        valid Terrain" and nothing more.
+        :func:`_elem_storer`. The element store lands here. Without the
+        attribution, ``s.fns[0] = 99`` reports "99 is not a valid Terrain"
+        and nothing more.
         """
         try:
             return self._arr._coerce_one(value)
@@ -1481,7 +1481,7 @@ class Struct(metaclass=StructMeta):
         This is the inverse of :meth:`to_tuple` and the record half of
         :meth:`Plan.unpack_tuple <bytemaker.plans.Plan.unpack_tuple>`. The
         values are in the plan's flat field order, with nested Structs and
-        array elements splatted in place, exactly as ``plan.unpack_tuple``
+        array elements flattened in place, exactly as ``plan.unpack_tuple``
         yields them.
 
         The values are trusted, as in :meth:`parse`. The narrowing
@@ -1556,12 +1556,14 @@ class Struct(metaclass=StructMeta):
 
     @property
     def sizedview(self) -> _SizedView:
-        """Width-carrying live view of this record's fields.
+        """A live, width-carrying view of this record's fields.
 
-        ``t.sizedview.<field>`` returns a :class:`BoundField` — a live lvalue
-        handle. The handle and its ``.bits`` are live; width is invariant;
-        reads promote to plain values, stores narrow, width-breaking
-        mutations raise; ``.boxed()`` detaches a snapshot.
+        ``t.sizedview.<field>`` returns a :class:`BoundField`, a live
+        handle with C lvalue semantics: reading it promotes to the plain
+        value, and assigning to it narrows through the field descriptor.
+        Its ``.bits`` channel writes through to the record, but width is
+        invariant, so a mutation that would change it raises. ``.boxed()``
+        detaches a snapshot.
         """
         return _SizedView(self)
 
@@ -1676,25 +1678,25 @@ class BoundField(typing.Generic[V]):
         return self._ftype.num_bits
 
     def boxed(self) -> "BitType[V]":
-        """A detached BitType snapshot in the field's wire byte order, which
-        survives later mutation of the struct.
+        """Return a detached BitType snapshot of this field, in its wire
+        byte order. The snapshot survives later mutation of the struct.
 
         The box is wire-plane. For an adapted field it holds the slot's
         wire value, because the box is a serialization object. The
         user-plane number is ``.value``.
 
         The byte order comes from the field's plan leaf rather than the
-        record. A ``field(T, endian=...)`` override must serialize from the
-        box exactly as ``pack()`` writes it, or the one object documented
-        as the wire-inspection path would misreport the wire.
+        record, because the box is the documented way to inspect the wire:
+        a ``field(T, endian=...)`` override must serialize from the box
+        exactly as ``pack()`` writes it.
 
         Byte-payload fields, meaning String and Buffer with plan kind
         ``"b"``, have no byte order. ``pack()`` writes them in stream order
         whatever the record declares, and their leaf endian exists only for
         tier selection. Their box is therefore minted big-endian, whose
-        serialization is stream order. Under the old record-endian stamp, a
-        String box in a little-endian record byte-reversed on ``bytes()``,
-        which put the wire backwards.
+        serialization is stream order. A record-endian box would
+        byte-reverse a String field of a little-endian record on
+        ``bytes()``, putting the wire backwards.
         """
         leaf = type(self._owner).plan._find(self._name)
         endianness = "big" if leaf.kind == "b" else leaf.endian
