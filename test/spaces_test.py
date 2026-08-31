@@ -888,10 +888,10 @@ def test_space_write_uses_the_in_place_path_for_records():
 
 
 # ------------------------------------------ the module's own examples (rom-17)
-def test_the_module_docstrings_three_write_flows_actually_run():
-    """The overview shows three ways to write, and picking between them is
-    the point of the section. An example that has drifted from the code
-    teaches the wrong one, so all three are executed here."""
+def test_the_module_docstrings_core_example_actually_runs():
+    """The overview opens with ONE worked example — declare, bind, read,
+    write into a patch. An example that has drifted from the code teaches
+    the wrong thing, so it is executed here, chunk by chunk."""
     import bytemaker.spaces as spaces_pkg
     from test.conftest import docstring_example
 
@@ -900,47 +900,27 @@ def test_the_module_docstrings_three_write_flows_actually_run():
         soul_rate: int = field(UInt8)
         flags: int = field(UInt8)
 
-    class Pickup(Struct, endian="little"):
-        kind: int = field(UInt8)
-        subtype: int = field(UInt8)
-        item: int = field(UInt16)
-
-    class Loc:
-        def __init__(self, addr, item):
-            self.addr, self.item = addr, item
-
-    class Feature:
-        """Reads the current state, then writes -- the pipeline shape."""
-
-        def __init__(self, at):
-            self.at = at
-
-        def apply(self, work):
-            work.write(self.at, work.read(self.at, UInt8) + 1, UInt8)
-
     data = bytearray(0xF0000)
     rate_at = 0xE9644 + 54 * 4 + 2  # enemies[54].soul_rate
     data[rate_at] = 32
-    other = Patch(name="other")
-    other.write(0x10, b"\x07", bytes(1))
-    original = bytes(range(256))
+    data[0xE1CD0:0xE1CD4] = bytes([7, 6, 8, 9])
 
-    ns = {
-        "Space": Space, "Patch": Patch, "count": count,
-        "UInt8": UInt8, "UInt16": UInt16,
-        "EnemyDNA": EnemyDNA, "Pickup": Pickup, "UInt32": UInt32,
-        "data": bytes(data), "other_feature_patch": other,
-        "locations": [Loc(0x08000100, 7), Loc(0x08000200, 9)],
-        "original": original, "features": [Feature(BASE + 4), Feature(BASE + 8)],
-    }
-    for marker in ("rom = Space(data", "gba = Space(", "work = Space("):
+    ns = {"EnemyDNA": EnemyDNA, "UInt8": UInt8, "data": bytes(data)}
+    for marker in (
+        "from bytemaker.spaces import",
+        "ENEMIES =",
+        "rom = Space(data",
+        "enemies = ENEMIES",
+        "p = Patch",
+    ):
         block = docstring_example(spaces_pkg.__doc__, marker)
-        exec(compile(block, f"<rom docstring: {marker}>", "exec"), ns)
+        exec(compile(block, f"<spaces docstring: {marker}>", "exec"), ns)
 
-    assert ns["ips"].startswith(b"PATCH")
-    assert ns["tokens"] == {0x100: b"\x04\x02\x07\x00", 0x200: b"\x04\x02\x09\x00"}
-    assert ns["p"].verifiable  # flow 3's diff knows the originals
-    assert ns["p"].apply(original)[4] == 5 and ns["p"].apply(original)[8] == 9
+    assert ns["palette"] == [7, 6, 8, 9]
+    assert ns["weakest"].soul_rate == 32  # read happened before the write
+    # the patch claims exactly the one byte that changed, and applies
+    assert [(e.offset, e.new) for e in ns["p"].edits] == [(rate_at, b"\x05")]
+    assert ns["patched"][rate_at] == 5
 
 
 # ------------------------------------------ alias codecs (rom-23)
