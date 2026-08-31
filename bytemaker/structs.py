@@ -153,10 +153,10 @@ class Codec(Protocol):
     the instance, so ``S.pack(s)`` is ``s.pack()``. :class:`Array` objects
     satisfy it too, and their values are lists.
 
-    Scalar BitType classes do not. They carry ``num_bits``, but they
+    Scalar BitType classes do not. They define ``num_bits``, but they
     serialize through the constructor and ``bytes()``, so
-    ``isinstance(UInt16, Codec)`` is False. Compose scalars through a
-    Struct or an Array, both of which are codecs of them.
+    ``isinstance(UInt16, Codec)`` is False. Wrap a scalar in a Struct or an
+    Array, both of which are codecs.
 
     ``runtime_checkable`` checks attribute presence only, so a Struct
     instance also passes ``isinstance``. Its bound ``pack()`` takes no
@@ -1604,21 +1604,28 @@ V = typing.TypeVar("V")
 
 
 class BoundField(typing.Generic[V]):
-    """Live lvalue handle to one Struct field (any scalar kind).
+    """A live handle to one scalar field of a Struct instance.
 
-    Stores no data — only ``(owner, field name, field's BitType)``; the only
-    storage is the struct's slot, so handles are live in both directions and
-    never go stale. Semantics are a C lvalue's: rvalue use promotes to the
-    plain value; stores narrow through the field descriptor; compound
-    assignment is read-promote / full-width compute / narrowing store.
+    A handle holds only the owning record, the field name, and the field's
+    BitType. The value stays in the struct's slot, so a handle reads and
+    writes through to the record and never goes stale.
 
-    Operators exist only where the design leaves one lawful meaning.
-    ``__index__`` and the bitwise family (``& | ^ << >> ~``) are deliberately
-    absent: on a value/bits seam each has two lawful meanings, so the code
-    names the plane instead — ``f.value & m`` (value plane), ``f.bits & bv``
-    (bit plane), ``f"{f:#x}"`` / ``f.value`` where an int is required.
-    Handles are unhashable (their value mutates under them); key with
-    ``f.value`` or ``f.boxed()``.
+    Handles follow C lvalue semantics. Reading one promotes to the plain
+    value. Assigning to it narrows through the field descriptor. Compound
+    assignment reads the promoted value, computes at full width, and narrows
+    again on the way back into the slot.
+
+    ``__index__`` and the bitwise operators (``& | ^ << >> ~``) are
+    deliberately absent. A handle has both a value plane and a bit plane, so
+    each of those operators would have two defensible meanings. Name the
+    plane instead::
+
+        f.value & mask      # value plane
+        f.bits & bv         # bit plane
+        f"{f:#x}"           # formatting reads the value
+
+    Handles are unhashable, because the value behind one can change. Key on
+    ``f.value``, or on the detached box ``f.boxed()`` returns.
     """
 
     __slots__ = ("_owner", "_name", "_ftype")
