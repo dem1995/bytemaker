@@ -208,35 +208,40 @@ def _offset_text(bit_offset: int) -> str:
 
 
 def layout(struct) -> str:
-    """A record's whole compiled shape, rendered as text::
+    """Return a record's compiled layout as text, for a person to read.
+
+    Takes a Struct class or an instance, and raises :class:`TypeError` for
+    anything else. Use :func:`fields_of` to work with the same information
+    in code, since this output is meant for reading rather than parsing.
+
+    Given this record::
+
+        class FontPixelEntry(Struct, endian="little"):
+            char_number: int = field(UInt16, endian="big")
+            pixels: bytes = field(Buffer.of(nbytes=0xC))
+
+    ``layout(FontPixelEntry)`` returns::
 
         FontPixelEntry  (14 bytes, tier=shiftmask, little-endian, lsb-first)
           +0x00  16b  char_number  UInt16  endian=big
           +0x02  96b  pixels       Bufferx12
 
-    That example is this docstring's own output, asserted by
-    ``test_layout_docstring_example_is_real_output``, so the example and
-    the renderer cannot disagree.
+    The header line names the record, then gives the facts that belong to
+    the record as a whole: its size in bytes, its plan tier, and its two
+    compile-time order parameters. ``bit_order`` is one of them because a
+    sub-byte offset means nothing without it, as ``+0x04.4`` names a
+    different nibble under ``lsb`` than under ``msb``.
 
-    The header line gives the record-level facts: size, plan tier, and both
-    compile-time order parameters. ``bit_order`` is included because a
-    sub-byte offset has no meaning without it. ``+0x04.4`` names a
-    different nibble under ``lsb`` than under ``msb``. ``bit_order`` is a
-    property of the record rather than of any one field, which is why
-    :class:`FieldInfo` has no such member.
+    Each row below the header describes one field: byte offset, bit width,
+    name, and wire type. An offset gains a ``.bit`` suffix when the field
+    does not start on a byte boundary. A nested Struct or an array takes ONE
+    row covering all of its leaves, so call ``layout`` again on that field's
+    type to expand it.
 
-    Each row below the header is one :func:`fields_of` entry: byte offset,
-    bit width, name, and wire type. A nested Struct or an array is ONE row
-    spanning its leaves; call ``layout(info.type)`` to open one up. The
-    offset gains a ``.bit`` suffix when the field is not byte-aligned.
-
-    Two notes are printed only where they apply. ``endian=`` appears when a
-    field's byte order differs from the record's own, and ``endian=mixed``
-    when its leaves disagree. ``adapt=`` names the field's value
-    convention.
-
-    Accepts a Struct class or an instance, and raises :class:`TypeError`
-    otherwise.
+    Two notes appear only where they apply. ``endian=`` marks a field whose
+    byte order differs from the record's, and ``endian=mixed`` marks a
+    composite field whose leaves disagree. ``adapt=`` names the field's
+    value convention.
     """
     cls = _record_class(struct, "layout")
     infos = fields_of(cls)
