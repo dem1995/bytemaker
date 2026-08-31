@@ -17,7 +17,7 @@ def test_contains_honors_bool_contract():
     assert (5 in BitVector("0b10")) is False  # non-bit int
 
 
-# ------------------------------------------------------------- missing docstrings (pattern 4)
+# ------------------------------------------------------- missing docstrings (pattern 4)
 def test_public_api_now_documented():
     assert LegacyRecordPlan.parse.__doc__
     assert LegacyRecordPlan.pack.__doc__
@@ -25,7 +25,7 @@ def test_public_api_now_documented():
     assert String.specialize.__doc__
 
 
-# ------------------------------------------------------------- phantom params (pattern 1)
+# ----------------------------------------------------------- phantom params (pattern 1)
 def test_phantom_params_removed():
     assert "- integer (int)" not in Int.to_bitstring.__doc__
     assert "- self" in Int.to_bitstring.__doc__
@@ -36,7 +36,7 @@ def test_phantom_params_removed():
     )
 
 
-# ------------------------------------------------------------- broken sentences (pattern 2/3/6)
+# ----------------------------------------------------- broken sentences (pattern 2/3/6)
 def test_broken_sentences_repaired():
     assert "differing internal bit representations" in BitType.__eq__.__doc__
     assert "differing internal bit representations" in BitType.__ne__.__doc__

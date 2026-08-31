@@ -184,10 +184,10 @@ def test_iter_records_yields_detached_records():
 class Packed(Struct, endian="little", bit_order="lsb"):
     """Unaligned widths force the shiftmask tier; the iso must hold there."""
 
-    lo: UInt8.specialize(3, name_="U3")  # type: ignore[misc]
-    mid: UInt8.specialize(5, name_="U5")  # type: ignore[misc]
-    hi: UInt16.specialize(12, name_="U12")  # type: ignore[misc]
-    pad: UInt8.specialize(4, name_="U4")  # type: ignore[misc]
+    lo: UInt8.specialize(3, name_="U3")  # type: ignore[misc]  # noqa: F821
+    mid: UInt8.specialize(5, name_="U5")  # type: ignore[misc]  # noqa: F821
+    hi: UInt16.specialize(12, name_="U12")  # type: ignore[misc]  # noqa: F821
+    pad: UInt8.specialize(4, name_="U4")  # type: ignore[misc]  # noqa: F821
 
 
 def test_iso_holds_on_the_shiftmask_tier():

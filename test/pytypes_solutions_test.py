@@ -54,7 +54,7 @@ def test_bits_path_option_c():
         to_bits_aggregate(Rec("ABC", 5))  # declared-width overflow (56 vs 40)
 
 
-# ------------------------------------------------------------- option (c): bytes path (lows-code-7)
+# ------------------------------------------------- option (c): bytes path (lows-code-7)
 def test_bytes_path_option_c():
     assert to_bytes_aggregate("hi") == b"hi"  # bare -> per-char (carve-out)
     packed = to_bytes_aggregate(Rec("A", 5))

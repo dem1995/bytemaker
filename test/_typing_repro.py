@@ -178,7 +178,7 @@ aa.scales[0] = "x"  # type: ignore  # elements are float
 
 
 # --- pointers: PtrValue is the runtime type; the annotation picks the view -
-from bytemaker.spaces import Ptr, PtrValue, Space
+from bytemaker.spaces import Ptr, PtrValue, Space  # noqa: E402
 
 space = Space(b"\x00" * 8, base=0, endian="little")
 

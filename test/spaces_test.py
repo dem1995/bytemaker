@@ -35,8 +35,8 @@ class Reward(Struct, endian="little"):
 
 
 class Nibbles(Struct, endian="little", bit_order="lsb"):
-    lo: UInt8.specialize(4, name_="N4a")  # type: ignore[misc]
-    hi: UInt8.specialize(4, name_="N4b")  # type: ignore[misc]
+    lo: UInt8.specialize(4, name_="N4a")  # type: ignore[misc]  # noqa: F821
+    hi: UInt8.specialize(4, name_="N4b")  # type: ignore[misc]  # noqa: F821
 
 
 def make_buf():
@@ -444,8 +444,8 @@ class Aligned(Struct, endian="little"):
 
 
 class Unaligned(Struct, endian="little", bit_order="lsb"):
-    lo: UInt8.specialize(3, name_="U3r")  # type: ignore[misc]
-    mid: UInt8.specialize(5, name_="U5r")  # type: ignore[misc]
+    lo: UInt8.specialize(3, name_="U3r")  # type: ignore[misc]  # noqa: F821
+    mid: UInt8.specialize(5, name_="U5r")  # type: ignore[misc]  # noqa: F821
     hi: UInt16
 
 

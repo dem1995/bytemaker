@@ -134,10 +134,7 @@ def test_differential_plain_values(seed, endianness):
 def test_differential_signed_magnitude_config(endianness):
     """With a non-default global signed format the one-call struct shortcut is
     ineligible; the boxed coercion path must still match the oracle."""
-    cls, fields = make_dataclass("RecSM", [("a", SInt16), ("b", SInt8)]), [
-        ("a", SInt16),
-        ("b", SInt8),
-    ]
+    cls = make_dataclass("RecSM", [("a", SInt16), ("b", SInt8)])
     old_format = SignedConfig.signed_int_format
     SignedConfig.signed_int_format = "signed_magnitude"
     try:

@@ -38,7 +38,7 @@ def test_reflected_array_sugar():
     assert repr(4 * UInt8) == repr(UInt8 * 4)
 
 
-# ------------------------------------------------------------- pattern 3 (mint validation)
+# ---------------------------------------------------------- pattern 3 (mint validation)
 def test_min_bit_length_rejects_unknown_format():
     with pytest.raises(ValueError, match="Unsupported format"):
         Int.min_bit_length(5, signed=True, bin_format="garbage")
@@ -50,7 +50,7 @@ def test_of_rejects_unknown_encoding_at_mint():
     assert String.of(nbytes=4, encoding="utf-8")("hi").value == "hi"
 
 
-# ------------------------------------------------------------- pattern 4 (teaching lookups)
+# --------------------------------------------------------- pattern 4 (teaching lookups)
 def test_plan_find_lists_fields():
     class R(Struct, endian="big"):
         a: UInt8
