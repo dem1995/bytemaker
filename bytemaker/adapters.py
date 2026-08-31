@@ -1,7 +1,7 @@
 """Per-field value adapters: declarative wire <-> user transforms.
 
-An :class:`Adapter` attaches an encoding convention to a schema instead of
-leaking it into every call site::
+An :class:`Adapter` states an encoding convention once, in the schema,
+rather than repeating it at every call site::
 
     from bytemaker import Struct, UInt8, UInt16, UInt32, field
     from bytemaker.adapters import THUMB_PTR, biased, fixed
@@ -11,31 +11,33 @@ leaking it into every call site::
         multiplier: float = field(UInt16, adapt=fixed(4))    # 0x10 == 1.0
         reward_id:  int   = field(UInt8,  adapt=biased(1))   # stored id+1
 
-``load`` maps the wire value to the user value the field reads as. The wire
-value is whatever the plan engine stores in the slot. ``store`` is the
-inverse of ``load``, applied on assignment before the usual C-style
-narrowing of the wire value. The serialized bytes always carry the wire
-value, so ``parse -> pack`` stays the identity even for values a lossy
-``store`` would canonicalize.
+An adapted field has two planes. The wire value is what the plan engine
+stores in the slot, and the user value is what the field reads as.
+``load`` maps wire to user on read and parse. ``store`` is its inverse,
+applied on assignment before the usual C-style narrowing.
 
-Both planes remain visible on a :class:`~bytemaker.structs.BoundField`
-handle. ``.value`` reads and writes the user plane. ``.bits`` and
-``.boxed()`` are the wire plane, and the box is a serialization object.
+The serialized bytes always hold the wire value. ``parse -> pack`` is
+therefore the identity even when a lossy ``store`` would canonicalize the
+value.
+
+Both planes stay available on a :class:`~bytemaker.structs.BoundField`
+handle. ``.value`` reads and writes the user plane, while ``.bits`` and
+``.boxed()`` are the wire plane.
 
 Adapters also apply element-wise to an :class:`Array`, either standalone
 (``Array.of(UInt32, n, adapt=THUMB_PTR)``) or as a Struct field
 (``array(THUMB_PTR @ UInt32, n)``). Arrays and scalars differ in one way
 worth knowing. An array field's slot holds user-plane elements, so its
-loads run eagerly when the record is built and its elements re-encode
-through ``store`` on ``pack``; a wire value the adapter cannot represent
-exactly is canonicalized. A scalar adapted field keeps the wire value in
-its slot instead, so its load is deferred to the read and ``parse -> pack``
-is byte-exact whether or not ``store`` is lossy. See
+loads run when the record is built, and its elements re-encode through
+``store`` on ``pack``. A wire value the adapter cannot represent exactly
+is canonicalized as a result. A scalar adapted field keeps the wire value
+in its slot instead, so its load is deferred to the read, and
+``parse -> pack`` is byte-exact whether or not ``store`` is lossy. See
 :class:`~bytemaker.structs.Array` for the full note.
 
 An adapter can also be fused onto a wire type with ``@``. The result is an
-:class:`Adapted` codec, usable anywhere a scalar BitType class is, which
-gives the convention a name and declares it once::
+:class:`Adapted` codec, usable anywhere a scalar BitType class is, and it
+names the convention once::
 
     ThumbPtr = THUMB_PTR @ UInt32
     Mult     = fixed(4)  @ UInt16
@@ -47,16 +49,15 @@ gives the convention a name and declares it once::
 
 :class:`bytemaker.spaces.Ptr` also fuses an adapter onto a wire integer, and
 one rule decides between it and this module: **if the value is an address,
-use** ``Ptr``. ``Ptr`` additionally records what the address points at, so
+use** ``Ptr``. A ``Ptr`` also records what the address points at, so
 ``space.deref`` can follow it and ``space.coverage`` can audit it. Use
 ``adapter @ base`` for value conventions such as fixed-point, bias and
-enums. Use ``Ptr(target, adapt=...)`` to compose a convention onto an
-address, for instance a THUMB function pointer. An address fused with
-plain ``@`` still decodes correctly, but it is invisible to the pointer
-audit.
+enums. Use ``Ptr(target, adapt=...)`` to put a convention on an address,
+such as a THUMB function pointer. An address fused with plain ``@`` still
+decodes correctly, but the pointer audit will not see it.
 
-Ship functions, not lambdas. Schema objects travel through copy and pickle,
-and ``Array.__reduce__`` carries its adapter, so ``load`` and ``store``
+Pass functions rather than lambdas. Schema objects are copied and pickled,
+and ``Array.__reduce__`` includes its adapter, so ``load`` and ``store``
 should be module-level callables or a ``functools.partial`` of one. The
 factories in this module are written that way.
 """
@@ -140,7 +141,7 @@ class Adapted(Generic[U]):
     """A scalar wire type with an :class:`Adapter` fused on.
 
     Built with ``adapter @ BitTypeClass``. The result names the convention
-    once and is then usable everywhere a scalar BitType class is: as a
+    once, and is then usable everywhere a scalar BitType class is: as a
     field annotation, inside ``Annotated[...]``, as ``field()``'s wire
     type, as an :class:`~bytemaker.structs.Array` element, and as an
     argument to ``sizeof``/``bitsizeof``::
@@ -151,27 +152,24 @@ class Adapted(Generic[U]):
             update_fn: Annotated[int, ThumbPtr]   # the real (even) address
             frames:    list = array(ThumbPtr, 4)
 
-    This is pure sugar over ``adapt=``. ``field(THUMB_PTR @ UInt32)`` and
-    ``field(UInt32, adapt=THUMB_PTR)`` compile to the identical layout,
+    This is sugar over ``adapt=``. ``field(THUMB_PTR @ UInt32)`` and
+    ``field(UInt32, adapt=THUMB_PTR)`` compile to the same layout,
     descriptors and bytes. The engine unwraps an ``Adapted`` at class
-    definition time, so the plan layer never sees one.
+    definition time, so the plan layer never receives one.
 
-    **Type-checking a fused field.** A fused codec is a value, not a class.
-    The terse ``update_fn: ThumbPtr`` spelling therefore works at runtime
-    but is not a valid type to a checker. Arrays make the same trade-off
-    with ``Elem * N``. A subscript hook would not help either:
-    ``ThumbPtr[int]`` could be made to work at runtime, but a checker never
-    evaluates a variable in a type position, so the field would silently go
-    untyped. bytemaker deliberately does not offer that spelling.
+    **Type-checking a fused field.** A fused codec is a value rather than a
+    class. The terse ``update_fn: ThumbPtr`` spelling therefore works at
+    runtime but is not a valid type to a checker. Arrays make the same
+    trade-off with ``Elem * N``.
 
     The two checked forms are ``Annotated[<plain type>, ThumbPtr]`` and
-    ``field(ThumbPtr)`` with the plain annotation. The plain type is the
-    adapter's user-plane type, which is ``int`` for ``THUMB_PTR`` and
-    ``float`` for ``fixed(4)``. ``field()`` verifies it as well.
+    ``field(ThumbPtr)`` with a plain annotation. The plain type is the
+    adapter's user-plane type: ``int`` for ``THUMB_PTR``, ``float`` for
+    ``fixed(4)``. ``field()`` verifies that annotation.
 
     For a convention used more than once, bind the annotation to a
-    module-level alias, the array analog of ``Colors8``. That spelling is
-    both the terse form and the checked one::
+    module-level alias. That spelling is both the terse form and the
+    checked one::
 
         ThumbPtr = THUMB_PTR @ UInt32          # the codec
         FnAddr   = Annotated[int, ThumbPtr]    # the field annotation
@@ -180,12 +178,15 @@ class Adapted(Generic[U]):
             update_fn: FnAddr                  # reads as int
             next_fn:   FnAddr
 
-    See ``test/_typing_repro.py`` for the mypy contract.
+    bytemaker deliberately offers no ``ThumbPtr[int]`` subscript. It could
+    be made to work at runtime, but a checker never evaluates a variable in
+    a type position, so the field would silently go untyped. See
+    ``test/_typing_repro.py`` for the mypy contract.
 
-    Equality and hashing are by identity. An :class:`Adapter` compares by
-    identity too, because two ``fixed(4)`` calls build distinct transform
-    pairs. Bind the fused codec to a module-level name and reuse it, so
-    that ``Array.of``'s cache shares one Array object across every
+    Equality and hashing are by identity, and an :class:`Adapter` compares
+    by identity too, because two ``fixed(4)`` calls build distinct
+    transform pairs. Bind a fused codec to a module-level name and reuse
+    it, so ``Array.of``'s cache shares one Array object across every
     declaration that uses it.
     """
 
