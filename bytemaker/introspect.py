@@ -1,23 +1,24 @@
-"""One front door for schema size and shape questions.
+"""Size and shape questions about a schema, answered in one place.
 
-Every schema object already answers ``num_bits`` uniformly: Struct
-classes and instances, Array objects, BitType classes and boxes, and Plans.
-Nothing said so, though, and the ``uN``/``sN`` aliases are ``Annotated``
-forms, so they answer nothing at all. Users ended up writing their own size
-helpers that hopped between ``plan.num_bytes`` and
-``len(bytes(element(0)))``, and those helpers broke on exactly those
-aliases.
+Every schema object defines ``num_bits``. That covers Struct classes and
+instances, Array objects, BitType classes and boxes, and Plans.
 
-* :func:`bitsizeof` / :func:`sizeof` — the width of ANY schema object,
-  in bits / whole bytes. Sub-byte widths round up, matching
+The ``uN``/``sN`` aliases are ``Annotated`` forms with no attributes of
+their own. A hand-written helper that reads ``plan.num_bytes`` or
+``len(bytes(element(0)))`` therefore fails on them. The functions below
+accept every one of these forms, and unwrap an alias before reading its
+width.
+
+* :func:`bitsizeof` / :func:`sizeof` — the width of any schema object, in
+  bits or in whole bytes. Sub-byte widths round up, matching
   ``len(bytes(box))``.
 * :func:`fields_of` — a Struct's top-level layout as
-  ``(name, type, bit_offset, bit_width, adapter, endian)`` tuples, with
-  offsets and byte order taken from the compiled plan.
+  ``(name, type, bit_offset, bit_width, adapter, endian)`` tuples. The
+  offsets and byte order come from the compiled plan.
 * :func:`offset_of` / :func:`span_of` — where one named field starts, and
   how far it runs, in whole bytes.
-* :func:`layout` — the same layout rendered for a human to read, so the
-  offsets in a map's comments stop being counted by hand.
+* :func:`layout` — the same layout rendered as text, so the offsets in a
+  map's comments do not have to be counted by hand.
 """
 
 from typing import NamedTuple
@@ -44,8 +45,11 @@ __all__ = [
 
 
 def _unwrap(obj):
-    """``Annotated[int, UInt16]`` (the ``u16`` alias) -> ``UInt16``;
-    everything else passes through."""
+    """Return the BitType inside a ``uN``/``sN`` alias.
+
+    ``Annotated[int, UInt16]``, the ``u16`` alias, gives ``UInt16``. Any
+    other object is returned unchanged.
+    """
     if get_origin(obj) is Annotated:
         for meta in get_args(obj)[1:]:
             if isinstance(getattr(meta, "num_bits", None), int):
@@ -54,10 +58,12 @@ def _unwrap(obj):
 
 
 def bitsizeof(obj) -> int:
-    """The bit width of any schema object: a Struct class or instance, a
-    BitType class or box, an :class:`~bytemaker.structs.Array`, a
-    :class:`~bytemaker.plans.Plan`, a ``uN``/``sN``/``fN`` alias, or a
-    sized field handle."""
+    """The bit width of any schema object.
+
+    Accepts a Struct class or instance, a BitType class or box, an
+    :class:`~bytemaker.structs.Array`, a :class:`~bytemaker.plans.Plan`, a
+    ``uN``/``sN``/``fN`` alias, or a sized field handle.
+    """
     num_bits = getattr(_unwrap(obj), "num_bits", None)
     if isinstance(num_bits, int):
         return num_bits
@@ -69,8 +75,10 @@ def bitsizeof(obj) -> int:
 
 
 def sizeof(obj) -> int:
-    """:func:`bitsizeof` in whole bytes; sub-byte widths round up, matching
-    ``len(bytes(box))``."""
+    """:func:`bitsizeof` in whole bytes.
+
+    Sub-byte widths round up, matching ``len(bytes(box))``.
+    """
     return (bitsizeof(obj) + 7) // 8
 
 
@@ -81,25 +89,25 @@ class FieldInfo(NamedTuple):
     type: Any
     bit_offset: int
     bit_width: int
-    #: The field's Adapter, or None. Present for every adapted field however
-    #: it was declared -- ``adapt=``, a fused ``adapter @ BitType``, or an
-    #: adapted Array, whose entry is the ELEMENT adapter.
+    #: The field's Adapter, or None. All three declaration forms fill this
+    #: in: ``adapt=``, a fused ``adapter @ BitType``, and an adapted Array.
+    #: For an adapted Array it is the ELEMENT adapter.
     adapter: Optional[Any]
-    #: The field's wire byte order, from the compiled plan -- so a
-    #: ``field(T, endian=...)`` override, or a nested record's own
-    #: declaration, is visible where every other layout fact is. None
-    #: whenever the field's leaves disagree, which a field spanning several
-    #: leaves can do in more than one way: a nested record of mixed orders,
-    #: or an ARRAY whose element records are internally mixed.
+    #: The field's wire byte order, taken from the compiled plan. A
+    #: ``field(T, endian=...)`` override and a nested record's own
+    #: declaration both appear here, next to every other layout fact.
+    #: The value is None when the field's leaves disagree, which happens
+    #: for a nested record of mixed orders, and for an ARRAY whose element
+    #: records are mixed.
     endian: Optional[str]
 
 
 def _record_class(struct, caller: str) -> StructMeta:
     """The concrete Struct class behind a class or an instance.
 
-    Shared by every function here that reads a compiled layout, so each
-    reports the failure under ITS own name rather than the name of whatever
-    it delegated to.
+    Every function here that reads a compiled layout calls this and passes
+    its own name. A failure is then reported under the function the caller
+    actually called.
     """
     cls = struct if isinstance(struct, type) else type(struct)
     if not (isinstance(cls, StructMeta) and getattr(cls, "_bm_concrete", False)):
@@ -110,10 +118,12 @@ def _record_class(struct, caller: str) -> StructMeta:
 
 
 def fields_of(struct) -> Tuple[FieldInfo, ...]:
-    """A Struct's top-level fields as :class:`FieldInfo` tuples, in wire
-    order, with bit offsets and byte order from the compiled plan (nested
-    Structs and arrays appear as ONE entry spanning all their leaves;
-    recurse with ``fields_of(info.type)`` for nested records)."""
+    """A Struct's top-level fields as :class:`FieldInfo` tuples, in wire order.
+
+    Bit offsets and byte order come from the compiled plan. A nested Struct
+    or an array is ONE entry spanning all its leaves. Call
+    ``fields_of(info.type)`` to open a nested record up.
+    """
     cls = _record_class(struct, "fields_of")
     first_leaf_offset: dict = {}
     leaf_endians: dict = {}
@@ -138,13 +148,13 @@ def fields_of(struct) -> Tuple[FieldInfo, ...]:
 def offset_of(struct, field: str) -> int:
     """Byte offset of ``field`` within its record.
 
-    This is the typed replacement for a hand-counted ``+0x0A``. The number
-    comes from the same compiled layout the codec uses, so reordering or
-    resizing the fields ahead of it moves the offset automatically.
+    This replaces a hand-counted ``+0x0A``. The number comes from the same
+    compiled layout the codec uses, so reordering or resizing the fields
+    ahead of it updates the offset.
 
     ``field`` may be dotted, as in ``"header.count"``. A field that does not
     start on a byte boundary raises ``ValueError``, because a byte address
-    cannot name half a byte.
+    cannot refer to half a byte.
     """
     cls = _record_class(struct, "offset_of")
     return cls.plan.byte_offset(field)
@@ -153,21 +163,24 @@ def offset_of(struct, field: str) -> int:
 def span_of(struct, field: str) -> Tuple[int, int]:
     """``(byte offset, byte width)`` of ``field`` within its record.
 
-    :func:`offset_of` says where the field starts, while this also says how
-    far it runs. Both numbers together are what it takes to address the
-    field's bytes on their own: a ``UInt16`` after a ``UInt32`` spans
-    ``(4, 2)``, and its end is their sum, 6 — the second number is a width,
-    not an end offset. Raises ``ValueError`` unless the field occupies
-    whole bytes.
+    :func:`offset_of` gives the start. This gives the start and the width,
+    which together address the field's bytes on their own.
+
+    The second number is a width, not an end offset. A ``UInt16`` after a
+    ``UInt32`` spans ``(4, 2)``, and its end is the sum, 6.
+
+    Raises ``ValueError`` unless the field occupies whole bytes.
     """
     cls = _record_class(struct, "span_of")
     return cls.plan.byte_span(field)
 
 
 def _sole(values):
-    """The one member of ``values``, or None if it holds more than one. A
-    field spans one plan leaf or many (an array, a nested record); a single
-    byte order describes it only when its leaves agree."""
+    """The one member of ``values``, or None if it holds more than one.
+
+    A field covers one plan leaf or several, as an array or a nested record
+    does. A single byte order describes it only when its leaves agree.
+    """
     return next(iter(values)) if len(values) == 1 else None
 
 
@@ -175,12 +188,13 @@ def _type_name(ftype) -> str:
     """A field type's display name.
 
     An :class:`~bytemaker.structs.Array` renders as its declaration
-    spelling, ``UInt16 * 3``, rather than its repr: the repr also carries
-    the Array's own ``endian`` and ``adapt``, which in a layout row would
-    duplicate the row's notes — and would print ``endian=unset`` for an
-    array field that inherits the record's order perfectly well (unset is
-    a STANDALONE Array's concern; as a field the plan has already resolved
-    it, and the row's ``endian=`` note reports the resolved value).
+    spelling, ``UInt16 * 3``, rather than as its repr.
+
+    The repr also includes the Array's own ``endian`` and ``adapt``, which
+    would duplicate the row's notes. It would print ``endian=unset`` for an
+    array field that inherits the record's order. Unset applies only to a
+    standalone Array: as a field, the plan has already resolved the order,
+    and the row's ``endian=`` note reports the resolved value.
     """
     if isinstance(ftype, Array):
         return f"{_type_name(ftype.element)} * {ftype.count}"
@@ -194,32 +208,35 @@ def _offset_text(bit_offset: int) -> str:
 
 
 def layout(struct) -> str:
-    """A record's layout as text — the whole compiled shape in one look::
+    """A record's whole compiled shape, rendered as text::
 
         FontPixelEntry  (14 bytes, tier=shiftmask, little-endian, lsb-first)
           +0x00  16b  char_number  UInt16  endian=big
           +0x02  96b  pixels       Bufferx12
 
     That example is this docstring's own output, asserted by
-    ``test_layout_docstring_example_is_real_output`` — a rendering example
-    that drifts from the renderer is worse than none.
+    ``test_layout_docstring_example_is_real_output``, so the example and
+    the renderer cannot disagree.
 
-    The header carries the record-level facts: size, plan tier, and BOTH
-    compile-time order parameters. ``bit_order`` is there because it is what
-    gives a sub-byte offset its meaning — ``+0x04.4`` names a different
-    nibble under ``lsb`` than under ``msb`` — so the ``.bit`` suffix below
-    would be ambiguous without it. It is a property of the record, not of a
-    field, which is why :class:`FieldInfo` has no such member.
+    The header line gives the record-level facts: size, plan tier, and both
+    compile-time order parameters. ``bit_order`` is included because a
+    sub-byte offset has no meaning without it. ``+0x04.4`` names a
+    different nibble under ``lsb`` than under ``msb``. ``bit_order`` is a
+    property of the record rather than of any one field, which is why
+    :class:`FieldInfo` has no such member.
 
-    Then one row per :func:`fields_of` entry (so a nested Struct or an array
-    is ONE row spanning its leaves; call ``layout(info.type)`` to open it
-    up): byte offset — with a ``.bit`` suffix where a field is not
-    byte-aligned — bit width, name, wire type, and two notes only when they
-    are worth reading. ``endian=`` appears when a field's byte order differs
-    from the record's own (or ``endian=mixed`` when its leaves disagree),
-    and ``adapt=`` names the field's value convention.
+    Each row below the header is one :func:`fields_of` entry: byte offset,
+    bit width, name, and wire type. A nested Struct or an array is ONE row
+    spanning its leaves; call ``layout(info.type)`` to open one up. The
+    offset gains a ``.bit`` suffix when the field is not byte-aligned.
 
-    Accepts a Struct class or an instance; :class:`TypeError` otherwise.
+    Two notes are printed only where they apply. ``endian=`` appears when a
+    field's byte order differs from the record's own, and ``endian=mixed``
+    when its leaves disagree. ``adapt=`` names the field's value
+    convention.
+
+    Accepts a Struct class or an instance, and raises :class:`TypeError`
+    otherwise.
     """
     cls = _record_class(struct, "layout")
     infos = fields_of(cls)
