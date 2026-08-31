@@ -56,12 +56,11 @@ class Overlap:
 
 @dataclass(frozen=True)
 class Gap:
-    """A run of bytes no resolved entry claims.
+    """A run of bytes that no resolved entry claims.
 
-    Gaps are the complement of a coverage report. A mapping session needs
-    them more than it needs a coverage percentage, because the useful
-    questions are what is still undescribed and where the largest unmapped
-    run sits.
+    Gaps are the complement of the bytes a report claims. They answer the
+    two questions a mapping session actually has: what is still
+    undescribed, and where the largest unmapped run sits.
     """
 
     start: int
@@ -129,10 +128,10 @@ class PointerRef:
 
     @property
     def is_dangling(self) -> bool:
-        """True when the pointer lands outside the space entirely.
+        """True when the pointer's address falls outside the space entirely.
 
-        This verdict is always a bug, with one exception. The address may
-        point into RAM, and in that case the map should say so.
+        That is almost always a bug. The one legitimate case is an address
+        that points into RAM, which the map should declare.
         """
         return self.verdict == "outside"
 
@@ -151,7 +150,7 @@ class PointerRef:
 @dataclass(frozen=True)
 class CoverageReport:
     """What a map accounts for, what it leaves unaccounted for, what it
-    double-claims, and where its pointers land.
+    double-claims, and what its pointers resolve to.
 
     :attr:`claimed_bytes` and :meth:`gaps` are the two halves of one
     partition of the space. :attr:`overlaps` and :attr:`pointers` report the
@@ -174,9 +173,9 @@ class CoverageReport:
         """Resolved footprints merged into maximal disjoint ``(start, end)``
         runs, in address order, clipped to the space.
 
-        What the map claims and what it does not are both read off this
-        one list. That is what makes them two views of a single partition,
-        so ``claimed_bytes + unclaimed_bytes == space_size`` always holds.
+        What the map claims and what it does not are both read off this one
+        list. They are therefore two views of a single partition, which is
+        why ``claimed_bytes + unclaimed_bytes == space_size`` always holds.
 
         The clipping only matters for a report assembled by hand, because
         :meth:`Space.coverage` never resolves a region outside its own
@@ -213,9 +212,9 @@ class CoverageReport:
         """Return the runs of at least ``min_size`` bytes that no resolved
         entry claims, as :class:`Gap` values in address order.
 
-        Gaps are the complement of :attr:`claimed_bytes`, and they show
-        where a map grows next. A percentage only says how far along you
-        are, while a gap says where to look. Gaps are most useful paired
+        Gaps are the complement of :attr:`claimed_bytes`, and they are what
+        a mapping session works from next. A percentage says how far along
+        the map is, while a gap says which addresses to look at. Pair them
         with the ``unclaimed`` pointer verdicts, which name addresses that
         something already points at.
 
