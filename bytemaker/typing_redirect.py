@@ -31,7 +31,16 @@ if sys.version_info < (3, 9):
         Sequence,
     )
 
-    from typing_extensions import Annotated
+    # get_origin/get_args/get_type_hints must come from typing_extensions
+    # alongside Annotated itself: 3.8's typing predates Annotated, so its
+    # get_origin returns None for the typing_extensions form and every
+    # alias unwrap in structs/introspect fails at class creation.
+    from typing_extensions import (
+        Annotated,
+        get_args,
+        get_origin,
+        get_type_hints,
+    )
 else:
     from collections.abc import (
         Callable,
@@ -41,7 +50,7 @@ else:
         MutableSequence,
         Sequence,
     )
-    from typing import Annotated
+    from typing import Annotated, get_args, get_origin, get_type_hints
 
 if sys.version_info < (3, 10):
     UnionType = Any  # no typing_extensions equivalent; types.UnionType is 3.10+
@@ -67,9 +76,6 @@ from typing import (
     Type,
     TypeVar,
     Union,
-    get_args,
-    get_origin,
-    get_type_hints,
     overload,
     runtime_checkable,
 )

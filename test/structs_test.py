@@ -1025,7 +1025,7 @@ def test_array_field_annotated_checker_spelling_roundtrips():
     test/_typing_repro.py for the mypy contract) works identically at
     runtime -- the Array metadata is unwrapped exactly like the terse
     `Elem * N`."""
-    from typing import Annotated
+    from bytemaker.typing_redirect import Annotated
 
     Colors = Annotated[list, UInt16 * 3]  # module-alias style
 
@@ -1206,7 +1206,7 @@ def test_field_specifier_default_and_mutable_default():
 
 def test_field_specifier_coexists_with_alias_and_bare():
     """One record mixing every declaration style compiles and round-trips."""
-    from typing import Annotated
+    from bytemaker.typing_redirect import Annotated
 
     class RGB(Struct, endian="little"):
         r: u8

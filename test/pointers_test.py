@@ -2,7 +2,6 @@
 
 import copy
 import pickle
-from typing import Annotated, List
 
 import pytest
 
@@ -21,6 +20,7 @@ from bytemaker.spaces import (
     until,
 )
 from bytemaker.structs import Array, Struct, StructMeta, array, field
+from bytemaker.typing_redirect import Annotated, List
 
 BASE = 0x08000000
 

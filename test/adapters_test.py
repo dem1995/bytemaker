@@ -4,7 +4,6 @@
 import copy
 import enum
 import pickle
-from typing import Annotated, List
 
 import pytest
 
@@ -21,6 +20,7 @@ from bytemaker.bittypes import UInt8, UInt16, UInt32, UTF8String
 from bytemaker.introspect import bitsizeof, fields_of, sizeof
 from bytemaker.plans import PlanCompileError
 from bytemaker.structs import Array, Struct, array, field
+from bytemaker.typing_redirect import Annotated, List
 
 
 # ------------------------------------------------- foreign value override

@@ -1,12 +1,11 @@
 """Tests for bytemaker.fields: the lazy uN/sN alias factory."""
 
-from typing import get_args
-
 import pytest
 
 import bytemaker.fields as fields
 from bytemaker.bittypes import SInt, SInt5, UInt, UInt4
 from bytemaker.structs import Struct
+from bytemaker.typing_redirect import get_args
 
 
 def test_lazy_alias_minting_and_cache():
