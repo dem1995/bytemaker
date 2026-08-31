@@ -1049,6 +1049,30 @@ def test_recording_carries_through_entries_and_field_writes():
     assert p.apply(bytes(pristine)) == bytes(work)
 
 
+def test_expect_through_a_recording_view_verifies_and_claims_whole_span():
+    """expect= and recording() compose: the guard is checked against the
+    bytes in hand at once, and the edit lands in the patch with the full
+    stated span, which is the combination a build pipeline's guarded
+    writes rely on."""
+    work = bytearray(BUF)
+    s = Space(work, base=BASE, endian="little")
+    p = Patch(name="rec")
+    rec = s.recording(p)
+    rec.write(BASE + 0x200, 0x1234, UInt16, expect=0xABCD)
+    assert work[0x200:0x202] == b"\x34\x12"  # mutated in place
+    (edit,) = p.edits
+    assert (edit.offset, edit.new, edit.old) == (0x200, b"\x34\x12", b"\xcd\xab")
+    # a wrong expectation raises before mutating or recording anything
+    with pytest.raises(PatchVerifyError, match="expected"):
+        rec.write(BASE + 0x200, 0x9999, UInt16, expect=0xABCD)
+    assert work[0x200:0x202] == b"\x34\x12" and len(p.edits) == 1
+    # writing the expected value back still records the verifying span,
+    # and the patch keeps the pristine original for the byte
+    rec.write(BASE + 0x200, 0x1234, UInt16, expect=0x1234)
+    (edit,) = p.edits
+    assert edit.old == b"\xcd\xab" and edit.new == b"\x34\x12"
+
+
 def test_recording_refuses_a_second_destination_and_an_unbacked_space():
     s = Space(bytearray(16), base=BASE, endian="little")
     rec = s.recording(Patch(name="mine"))
