@@ -44,8 +44,7 @@ class PatchUnverifiable(ValueError):
 class Edit:
     """A replacement of one contiguous run of bytes.
 
-    An ``Edit`` is immutable data describing a change, not the act of
-    making it. It has three parts: ``offset`` is where the change applies,
+    An ``Edit`` has three parts: ``offset`` is where the change applies,
     ``new`` is the bytes written there, and ``old`` is the bytes they
     replace. A run is at least one byte long, with no upper bound.
 
