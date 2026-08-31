@@ -627,9 +627,9 @@ class Space:
 
         Without this step a standalone unset array would resolve to the
         historical big default and raise the explicit-endian guard, even
-        though the space knows the answer. ``UInt16`` at the same address
-        reads fine, because the scalar paths build their array from
-        ``self._endian``.
+        though the space's byte order is known. A scalar ``UInt16`` at the
+        same address is unaffected, because the scalar paths build their
+        array from ``self._endian``.
         """
         if codec.declared_endian is not None:
             return codec

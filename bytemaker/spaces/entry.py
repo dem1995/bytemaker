@@ -245,9 +245,9 @@ class Entry:
     def field(self, name: str) -> "Entry":
         """One field of this entry's record, as an entry of its own.
 
-        The address comes from the compiled layout, so ``+0x0A`` stops
-        being a constant somebody has to maintain. The codec carries the
-        field's own adapter and byte order.
+        The address comes from the compiled layout rather than from a
+        hand-kept offset constant, so it cannot go stale. The codec
+        carries the field's own adapter and byte order.
 
         This entry must hold ONE record. A 113-row table has no single
         field that a name could refer to, so pick the row first, as in
@@ -295,10 +295,11 @@ class Entry:
     def set(self, patch: Any = None, /, **fields: Any) -> None:
         """Write named fields of this entry's record, and nothing else.
 
-        ``pickup.set(p, kind=4, subtype=2)`` claims those fields' bytes and
-        leaves the rest of the record alone. That is what lets two features
-        edit one record and still compose, and what lets a write land on an
-        image this code has never read.
+        ``pickup.set(p, kind=4, subtype=2)`` writes those fields' bytes and
+        leaves the rest of the record alone. Two features can therefore
+        edit one record and still compose. The write also works on an
+        image this code has never read, because only the named fields'
+        bytes are touched.
 
         ``patch`` is positional so that a field may be named ``patch``.
         Without a patch, the fields are written in place.
@@ -318,8 +319,8 @@ class Entry:
         declared extent".
 
         To read this declaration against some other bytes, bind it first,
-        as in ``entry.bind(space).read()``. :meth:`bind` is the one verb for
-        that, and it serves every method here rather than only this one.
+        as in ``entry.bind(space).read()``. The same applies to every
+        other method here that touches bytes.
         """
         space = self._space()
         if extent is _INHERIT:

@@ -334,8 +334,8 @@ class CoverageReport:
 def compute_coverage(space, entries, *, audit_pointers: bool = True) -> CoverageReport:
     """Build a :class:`CoverageReport` for ``entries`` against ``space``.
 
-    :meth:`Space.coverage` is the public door and delegates here, so the
-    computation lives beside the report it produces.
+    The public caller is :meth:`Space.coverage`, which delegates here so
+    that the computation lives beside the report it produces.
     """
     bound = [e if e.space is not None else e.bind(space) for e in entries]
     regions = tuple(_resolve_region(space, e) for e in bound)
@@ -445,7 +445,7 @@ def _verify_target(addr, region, adapter):
     """Classify an address that landed inside ``region``.
 
     The verdict is ``claimed`` unless the pointer DECLARES a record
-    type that the claiming region disagrees with.
+    type different from the one the region is mapped as.
 
     That check only runs when the region's entry codec is a Struct
     class and the pointer's target is a Struct class, or resolves to
