@@ -42,10 +42,12 @@ class PatchUnverifiable(ValueError):
 
 @dataclass(frozen=True)
 class Edit:
-    """One contiguous byte replacement, held as a value.
+    """One contiguous byte replacement.
 
-    An edit has three parts. ``offset`` is where it applies, ``new`` is the
-    bytes written there, and ``old`` is the bytes they replace.
+    An ``Edit`` is immutable data describing a change, not the act of
+    making it. It has three parts: ``offset`` is where the change applies,
+    ``new`` is the bytes written there, and ``old`` is the bytes they
+    replace.
 
     ``new`` and ``old`` are always the same length. An edit that changed a
     region's size would shift everything after it, which is a different and
