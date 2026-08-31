@@ -124,3 +124,21 @@ def test_the_root_docstrings_example_is_executed_from_the_docstring():
     # the comments in the example claim these two facts; check them
     assert s.to_tuple() == (5, 0x18)
     assert SkillEntry.parse(b"\x05\x10\x00").multiplier == 1.0
+
+
+def test_version_fallback_matches_pyproject():
+    """The literal in __init__'s importlib fallback is what a vendored copy
+    reports as __version__, so it must track pyproject's declared version."""
+    import re
+    from pathlib import Path
+
+    root = Path(bytemaker.__file__).resolve().parent.parent
+    pyproject = root / "pyproject.toml"
+    if not pyproject.is_file():
+        pytest.skip("no pyproject.toml beside the package (vendored layout)")
+    declared = re.search(
+        r'^version = "([^"]+)"$', pyproject.read_text(encoding="utf-8"), re.M
+    ).group(1)
+    source = (root / "bytemaker" / "__init__.py").read_text(encoding="utf-8")
+    fallback = re.search(r'__version__ = "([^"]+)"', source).group(1)
+    assert fallback == declared

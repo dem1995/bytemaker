@@ -186,8 +186,11 @@ try:
     from importlib.metadata import version as _dist_version
 
     __version__ = _dist_version("bytemaker")
-except Exception:  # pragma: no cover - uninstalled source checkout
-    __version__ = "0+unknown"
+except Exception:  # pragma: no cover - vendored copy or source checkout
+    # A literal, not a placeholder: a vendored (frozen-install) copy has no
+    # dist metadata, and it still needs to identify what it ships. Kept in
+    # sync with pyproject.toml by test_version_fallback_matches_pyproject.
+    __version__ = "0.13.0.dev0"
 
 
 _ALIAS_PATTERN = None  # compiled on first miss
