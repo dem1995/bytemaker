@@ -85,8 +85,10 @@ def test_pad_invalid_in_codec_strips_before_decode():
 def test_encode_decode_callable_pair_codec():
     Pair4 = String.of(
         nbytes=4,
-        encoding=(lambda v: v.upper().encode("ascii"),
-                  lambda b: b.decode("ascii").lower()),
+        encoding=(
+            lambda v: v.upper().encode("ascii"),
+            lambda b: b.decode("ascii").lower(),
+        ),
         name="Pair4",
     )
     p = Pair4("hi")
@@ -116,9 +118,7 @@ def test_table_string_longest_match_and_errors():
     assert m.value == "A[PK]B"
     with pytest.raises(ValueError):
         MonName("Z")  # no table entry encodes 'Z'
-    Lenient = String.of(
-        nbytes=2, encoding=MON_TABLE, errors="replace", name="Lenient"
-    )
+    Lenient = String.of(nbytes=2, encoding=MON_TABLE, errors="replace", name="Lenient")
     v = Lenient(bits=BitVector(b"\x80\x07"))
     assert v.value == "A�"  # unmapped byte replaced, position advanced
 
@@ -208,9 +208,7 @@ def test_of_size_spellings_nchars_vs_nbytes():
 
 
 def test_utf16_nchars_sizing_and_unit_strip():
-    U16 = String.of(
-        nchars=3, encoding="utf-16-le", bytes_per_char=2, name="U16"
-    )
+    U16 = String.of(nchars=3, encoding="utf-16-le", bytes_per_char=2, name="U16")
     assert U16.num_bits == 48
     s = U16("ab")  # 4 content bytes + one 0x00 0x00 pad unit
     assert bytes(s.bits) == b"a\x00b\x00\x00\x00"
@@ -256,8 +254,12 @@ def test_terminator_omitted_when_value_fills_field():
 
 def test_terminator_written_in_whole_character_units():
     U16T = String.of(
-        nchars=3, encoding="utf-16-le", bytes_per_char=2,
-        pad=0xFF, terminator=0x00, name="U16T",
+        nchars=3,
+        encoding="utf-16-le",
+        bytes_per_char=2,
+        pad=0xFF,
+        terminator=0x00,
+        name="U16T",
     )
     s = U16T("ab")
     assert bytes(s.bits) == b"a\x00b\x00\x00\x00"  # one 2-byte terminator unit
@@ -294,6 +296,7 @@ def test_sub_byte_text_width_rejected_in_struct():
     Odd._num_bits = 12  # force a non-byte width
 
     with pytest.raises(PlanCompileError):
+
         class Bad(Struct):
             t: Odd
             pad: UInt4

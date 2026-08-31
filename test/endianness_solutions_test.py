@@ -5,8 +5,8 @@ from dataclasses import dataclass
 
 import pytest
 
-from bytemaker.conversions import _legacy_aggregate as legacy
 from bytemaker.bittypes import SInt16, UInt8, UInt16, bytes_to_bittype
+from bytemaker.conversions import _legacy_aggregate as legacy
 from bytemaker.conversions.aggregate_types import (
     from_bytes_aggregate,
     from_bytes_individual,
@@ -155,8 +155,8 @@ def test_field_endian_override_font_shape():
 
 
 def test_field_endian_rejects_orderless_and_composite_types():
-    from bytemaker.structs import field
     from bytemaker.bittypes import UTF8String
+    from bytemaker.structs import field
 
     Name2 = UTF8String.of(nbytes=2, name="Name2E")
     with pytest.raises(PlanCompileError, match="byte-order-agnostic"):

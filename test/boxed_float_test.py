@@ -7,13 +7,11 @@ swap as multi-byte ints."""
 
 import math
 
-import pytest
-
 from bytemaker.bittypes import (
-    BFloat16,
     FP24,
-    Float32,
     TF19,
+    BFloat16,
+    Float32,
     UInt4,
     UInt5,
     UInt8,

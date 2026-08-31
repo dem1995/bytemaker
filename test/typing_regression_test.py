@@ -94,7 +94,7 @@ def _read_baseline():
     keys = set()
     for line in BASELINE.read_text(encoding="utf-8").splitlines():
         if line.startswith(VERSION_PREFIX):
-            version = line[len(VERSION_PREFIX):].strip()
+            version = line[len(VERSION_PREFIX) :].strip()
         elif line and not line.startswith("#"):
             # Normalized on READ as well as on run: a baseline entry added
             # by hand from raw mypy output (literal "on line 280", an
@@ -133,9 +133,10 @@ def test_no_new_mypy_errors():
         )
 
     current, proc = _run_mypy()
-    assert proc.returncode in (0, 1), (
-        f"mypy failed to run (rc={proc.returncode}):\n{proc.stderr}"
-    )
+    assert proc.returncode in (
+        0,
+        1,
+    ), f"mypy failed to run (rc={proc.returncode}):\n{proc.stderr}"
     new = current - baseline
     assert not new, (
         "New mypy errors (not in test/mypy_baseline.txt):\n  "
@@ -202,9 +203,9 @@ def test_classvar_reaches_structs_straight_from_typing():
         if isinstance(node, ast.ImportFrom)
         and any(alias.name == "ClassVar" for alias in node.names)
     }
-    assert modules == {"typing"}, (
-        f"structs.py must import ClassVar from typing directly, got {modules}"
-    )
+    assert modules == {
+        "typing"
+    }, f"structs.py must import ClassVar from typing directly, got {modules}"
 
 
 if __name__ == "__main__":

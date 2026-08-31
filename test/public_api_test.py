@@ -14,9 +14,8 @@ def test_all_names_resolve():
 
 def test_lazy_alias_delegation():
     # uN/sN for any width resolve through bytemaker.fields, cached there
-    from bytemaker import s5, u31
-
     from bytemaker import fields  # the submodule stays importable
+    from bytemaker import s5, u31
 
     assert u31 is fields.u31
     assert s5 is fields.s5
@@ -82,9 +81,7 @@ def test_adapters_are_importable_from_the_root():
     )
 
     assert isinstance(THUMB_PTR, Adapter)
-    assert all(
-        isinstance(f(1), Adapter) for f in (biased, fixed, scaled)
-    )
+    assert all(isinstance(f(1), Adapter) for f in (biased, fixed, scaled))
     assert isinstance(fixed(4) @ bytemaker.UInt16, Adapted)
     assert enum_ is not None
     assert bytemaker.__doc__ is not None

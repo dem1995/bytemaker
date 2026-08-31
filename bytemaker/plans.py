@@ -100,7 +100,13 @@ class FieldSpec:
     """
 
     __slots__ = (
-        "name", "bit_offset", "bit_width", "kind", "letter", "endian", "codec",
+        "name",
+        "bit_offset",
+        "bit_width",
+        "kind",
+        "letter",
+        "endian",
+        "codec",
     )
 
     def __init__(
@@ -203,8 +209,7 @@ class Plan:
             all(f.letter is not None for f in fields)
             and all(f.bit_offset % 8 == 0 for f in fields)
             and all(
-                f.endian == endian or f.kind == "b" or f.bit_width <= 8
-                for f in fields
+                f.endian == endian or f.kind == "b" or f.bit_width <= 8 for f in fields
             )
         )
         if aligned:
@@ -233,11 +238,7 @@ class Plan:
                     and f.bit_width % 8 == 0
                     and f.bit_width > 8
                 )
-                swap = (
-                    f.bit_width // 8
-                    if whole_bytes and f.endian != natural
-                    else 0
-                )
+                swap = f.bit_width // 8 if whole_bytes and f.endian != natural else 0
                 # nbytes > 0 marks a bytes-payload field: its tuple entry is
                 # `bytes`, converted at the int boundary with the tier's own
                 # bit ordering (stream order, matching the int fields).
@@ -305,8 +306,7 @@ class Plan:
         """
         if len(values) != len(self.fields):
             raise ValueError(
-                f"pack_tuple: expected {len(self.fields)} values,"
-                f" got {len(values)}"
+                f"pack_tuple: expected {len(self.fields)} values," f" got {len(values)}"
             )
         if self.tier == "struct":
             try:
@@ -316,9 +316,7 @@ class Plan:
         acc = 0
         shift_masks = self.shift_masks
         assert shift_masks is not None  # shiftmask tier
-        for (shift, mask, sign_bit, swap, nbytes, fconv), v in zip(
-            shift_masks, values
-        ):
+        for (shift, mask, sign_bit, swap, nbytes, fconv), v in zip(shift_masks, values):
             if nbytes:
                 v = int.from_bytes(v, self._int_order)
             elif fconv is not None:
@@ -341,8 +339,7 @@ class Plan:
         """
         if len(values) != len(self.fields):
             raise ValueError(
-                f"pack_into: expected {len(self.fields)} values,"
-                f" got {len(values)}"
+                f"pack_into: expected {len(self.fields)} values," f" got {len(values)}"
             )
         size = self.num_bytes
         avail = buf.nbytes if isinstance(buf, memoryview) else len(buf)
@@ -357,9 +354,7 @@ class Plan:
             except (_struct.error, TypeError):
                 # Same C-narrowing fallback as pack_tuple. A partial write
                 # from the failed attempt is fully overwritten by the retry.
-                self.struct_obj.pack_into(
-                    buf, offset, *self._wrap_values(values)
-                )
+                self.struct_obj.pack_into(buf, offset, *self._wrap_values(values))
             return
         buf[offset : offset + size] = self.pack_tuple(values)
 
@@ -541,7 +536,7 @@ def compile_plan(
     flat: List[FieldSpec] = []
     offset = 0
 
-    def check_bit_order(full: str, ftype, subplan: "Plan") -> None:
+    def check_bit_order(full: str, ftype, subplan: Plan) -> None:
         """Refuse flattening a child compiled under the other bit order.
 
         endian survives flattening because it lives on each leaf. bit_order
@@ -563,10 +558,7 @@ def compile_plan(
         """
         if subplan.bit_order == bit_order:
             return
-        if all(
-            f.bit_offset % 8 == 0 and f.bit_width % 8 == 0
-            for f in subplan.fields
-        ):
+        if all(f.bit_offset % 8 == 0 and f.bit_width % 8 == 0 for f in subplan.fields):
             return
         raise PlanCompileError(
             f"{owner_name}.{full}: nested {ftype.__name__} is compiled"

@@ -30,6 +30,7 @@ if sys.version_info < (3, 9):
         MutableSequence,
         Sequence,
     )
+
     from typing_extensions import Annotated
 else:
     from collections.abc import (

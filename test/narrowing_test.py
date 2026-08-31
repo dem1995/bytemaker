@@ -59,9 +59,9 @@ def test_warning_attributed_to_caller_frame(warn_on):
     s = S(arr=[0, 0, 0])
 
     for trigger in (
-        lambda: UInt8(300),          # constructor chain
+        lambda: UInt8(300),  # constructor chain
         lambda: setattr(UInt8(0), "value", 300),  # box value setter chain
-        lambda: s.arr.__setitem__(0, 70000),      # deep array-field chain
+        lambda: s.arr.__setitem__(0, 70000),  # deep array-field chain
     ):
         with pywarnings.catch_warnings(record=True) as rec:
             pywarnings.simplefilter("always")
@@ -130,7 +130,9 @@ def test_legacy_aggregate_reroutes_and_warns_in_warn_mode():
 
 
 # --------------------------------------------------------------- narrowing-3
-@pytest.mark.parametrize("cls, n", [(SInt8, 8), (SInt16, 16), (SInt32, 32), (SInt64, 64)])
+@pytest.mark.parametrize(
+    "cls, n", [(SInt8, 8), (SInt16, 16), (SInt32, 32), (SInt64, 64)]
+)
 def test_struct_packed_sint_honors_instance_int_format(cls, n):
     """narrowing-3: the standard signed widths gate packing on their own
     int_format, so a per-instance sign-magnitude request is honored (it was

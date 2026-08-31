@@ -456,6 +456,7 @@ def test_adapted_array_field_canonicalizes_noncanonical_wire():
     assert list(a.fns) == [0x0803EBA8, 0x0803EC34]  # same user values
     assert a.pack() != noncanonical  # ... but NOT byte-identical
     assert a.pack() == ANIM_WIRE  # canonicalized: THUMB bit set
+
     # A scalar adapted field keeps slot=wire and exact identity:
     class Scalar(Struct, endian="little"):
         fn: Annotated[int, ThumbPtr]
@@ -516,10 +517,11 @@ def test_fields_of_reports_an_adapted_arrays_element_adapter():
     converts at the tuple boundary), but introspection must still see that
     the field IS adapted -- rom.Space.deref and coverage() read the schema
     through _bm_adapters."""
-    (fns, mults) = fields_of(Anim)
+    fns, mults = fields_of(Anim)
     assert fns.adapter is ThumbPtr.adapter
     assert mults.adapter is Mult.adapter
     assert set(Anim._bm_adapters) == {"fns", "mults"}
+
     # a scalar adapted field and an unadapted one still report as before
     class Mixed(Struct, endian="little"):
         plain: List[int] = array(UInt8, 2)
@@ -630,9 +632,7 @@ def test_repr_shows_the_healthy_fields_and_marks_the_unreadable_one():
 
 
 def test_repr_of_a_readable_record_is_unchanged():
-    assert repr(Tile.parse(b"\x01\x05")) == (
-        "Tile(kind=<Terrain.WALL: 1>, height=5)"
-    )
+    assert repr(Tile.parse(b"\x01\x05")) == ("Tile(kind=<Terrain.WALL: 1>, height=5)")
 
 
 def test_only_a_scalar_field_can_hold_an_unreadable_value():
@@ -776,7 +776,7 @@ def test_the_repr_marker_is_clean_for_a_keyerror():
 
 
 def test_a_messageless_exception_marks_with_its_type_name():
-    """"R.v: " stripped to nothing must fall back to the type, not render a
+    """ "R.v: " stripped to nothing must fall back to the type, not render a
     blank <unreadable: > marker."""
 
     def load(wire):

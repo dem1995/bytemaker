@@ -16,7 +16,7 @@ from bytemaker.structs import Array, BytesLike, StructMeta
 from bytemaker.typing_redirect import Any, Optional, Union
 from bytemaker.utils import unwrap_alias
 
-from .extents import Extent, _INHERIT, _as_extent, count, through, unknown, until
+from .extents import _INHERIT, Extent, _as_extent, count, through, unknown, until
 from .pointers import _codec_name
 
 if TYPE_CHECKING:
@@ -43,9 +43,7 @@ def _field_info(codec: StructMeta, name: str, where: str):
         if info.name == name:
             return info
     known = ", ".join(i.name for i in fields_of(codec))
-    raise ValueError(
-        f"{where}: {codec.__name__} has no field {name!r}; it has {known}"
-    )
+    raise ValueError(f"{where}: {codec.__name__} has no field {name!r}; it has {known}")
 
 
 class Entry:
@@ -71,7 +69,14 @@ class Entry:
     """
 
     __slots__ = (
-        "addr", "codec", "extent", "name", "note", "space", "reserve", "endian",
+        "addr",
+        "codec",
+        "extent",
+        "name",
+        "note",
+        "space",
+        "reserve",
+        "endian",
     )
 
     addr: int
@@ -238,7 +243,9 @@ class Entry:
                 f"{self._name()}: item {index} is outside this entry ({where})"
             )
         return self._derive(
-            addr=self.addr + index * self.stride, extent=count(1), reserve=None,
+            addr=self.addr + index * self.stride,
+            extent=count(1),
+            reserve=None,
             name=f"{self.name}[{index}]" if self.name else "",
         )
 
@@ -363,9 +370,7 @@ class Entry:
         n = space._resolve_count(self.addr, extent, stride)
         need = n * stride
         if len(data) < need:
-            raise ValueError(
-                f"{self._name()}: needs {need} bytes, got {len(data)}"
-            )
+            raise ValueError(f"{self._name()}: needs {need} bytes, got {len(data)}")
         single = isinstance(extent, count) and extent.n == 1
         return space._decode_from(data, 0, self.codec, n, stride, single)
 
@@ -408,7 +413,8 @@ class Entry:
         limit = self.size
         if limit is not None and len(data) > limit:
             declared = (
-                f"reserve={self.reserve}" if self.reserve is not None
+                f"reserve={self.reserve}"
+                if self.reserve is not None
                 else repr(self.extent)
             )
             raise ValueError(

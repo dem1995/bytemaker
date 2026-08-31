@@ -60,6 +60,7 @@ import os
 import struct as _pystruct
 import typing
 import weakref
+
 # Straight from typing, not through typing_redirect: pyright's
 # dataclass_transform field collection does not follow a re-exported alias of
 # ClassVar. Routed through the redirect, Struct's ClassVars below become
@@ -70,7 +71,6 @@ import weakref
 from typing import ClassVar
 
 from bytemaker.adapters import Adapted, Adapter
-from bytemaker.bitvector import BitVector
 from bytemaker.bittypes import (
     BitType,
     Buffer,
@@ -83,6 +83,7 @@ from bytemaker.bittypes.bittype import (
     NarrowingWarning,
     _warn_narrowing,
 )
+from bytemaker.bitvector import BitVector
 from bytemaker.plans import Plan, PlanCompileError, _classify_scalar, compile_plan
 from bytemaker.typing_redirect import (
     Annotated,
@@ -401,7 +402,7 @@ class _BytesField:
         self._slot.__set__(obj, v)
 
 
-def _field_name_of(descriptor) -> "Optional[str]":
+def _field_name_of(descriptor) -> Optional[str]:
     """The field name a Struct field descriptor was installed under, or
     None for anything that is not one.
 
@@ -697,9 +698,7 @@ def _structs_named(name: str) -> tuple:
     registered = _STRUCT_REGISTRY.get(name)
     if not registered:
         return ()
-    return tuple(
-        sorted(registered, key=lambda c: (getattr(c, "__module__", "") or ""))
-    )
+    return tuple(sorted(registered, key=lambda c: (getattr(c, "__module__", "") or "")))
 
 
 # --------------------------------------------------------------------------
@@ -1158,9 +1157,7 @@ def field(
     adapter.
     """
     if adapt is not None and not isinstance(adapt, Adapter):
-        raise TypeError(
-            f"adapt= must be a bytemaker.adapters.Adapter, got {adapt!r}"
-        )
+        raise TypeError(f"adapt= must be a bytemaker.adapters.Adapter, got {adapt!r}")
     if endian is not None:
         validate_endianness(endian, name="field endian", exc=PlanCompileError)
     return _FieldSpec(bittype, default, adapt, endian)
@@ -1288,9 +1285,11 @@ class StructMeta(type):
         field_defs: List[Tuple[str, Any]] = [
             (
                 n,
-                specs[n].bittype
-                if n in specs
-                else _unwrap_annotation(name, n, hints[n]),
+                (
+                    specs[n].bittype
+                    if n in specs
+                    else _unwrap_annotation(name, n, hints[n])
+                ),
             )
             for n in field_names
         ]
@@ -1426,10 +1425,10 @@ class StructMeta(type):
         _STRUCT_REGISTRY.setdefault(name, weakref.WeakSet()).add(cls)
         return cls
 
-    def __mul__(cls, count: int) -> "Array":
+    def __mul__(cls, count: int) -> Array:
         return Array.of(cls, count)
 
-    def __rmul__(cls, count: int) -> "Array":
+    def __rmul__(cls, count: int) -> Array:
         return Array.of(cls, count)
 
 
@@ -1528,9 +1527,7 @@ class Struct(metaclass=StructMeta):
         """Decode one record at a byte ``offset``. This is :meth:`parse`
         without the call-site slice, and its bounds error names the
         record."""
-        return cls._bm_from_tuple(
-            next(iter(cls.plan.iter_tuples(data, offset, 1)))
-        )
+        return cls._bm_from_tuple(next(iter(cls.plan.iter_tuples(data, offset, 1))))
 
     def pack(self) -> bytes:
         """Encode this instance; trusts the store-time narrowing invariant."""
@@ -1630,7 +1627,7 @@ class BoundField(typing.Generic[V]):
 
     __slots__ = ("_owner", "_name", "_ftype")
 
-    def __init__(self, owner, name: str, ftype: "type[BitType[V]]"):
+    def __init__(self, owner, name: str, ftype: type[BitType[V]]):
         object.__setattr__(self, "_owner", owner)
         object.__setattr__(self, "_name", name)
         object.__setattr__(self, "_ftype", ftype)
@@ -1646,7 +1643,7 @@ class BoundField(typing.Generic[V]):
         setattr(self._owner, self._name, _unwrap_bound(new))
 
     @property
-    def bits(self) -> "BoundBits":
+    def bits(self) -> BoundBits:
         return BoundBits(self)
 
     @bits.setter
@@ -1675,7 +1672,7 @@ class BoundField(typing.Generic[V]):
     def num_bits(self) -> int:
         return self._ftype.num_bits
 
-    def boxed(self) -> "BitType[V]":
+    def boxed(self) -> BitType[V]:
         """Return a detached BitType snapshot of this field, in its wire
         byte order. The snapshot survives later mutation of the struct.
 
@@ -2095,10 +2092,15 @@ class Array(typing.Generic[V]):
     # Mutating one would desync the cached codec from a live read; build
     # a new Array to change any of them.
     __slots__ = (
-        "_element", "_count", "_endian", "_endian_set", "_num_bits",
-        "_scalar_codec", "_adapter",
+        "_element",
+        "_count",
+        "_endian",
+        "_endian_set",
+        "_num_bits",
+        "_scalar_codec",
+        "_adapter",
     )
-    _cache: ClassVar[Dict[tuple, "Array"]] = {}
+    _cache: ClassVar[Dict[tuple, Array]] = {}
 
     def __init__(
         self,
@@ -2128,8 +2130,7 @@ class Array(typing.Generic[V]):
             element = element.base
         if adapt is not None and not isinstance(adapt, Adapter):
             raise PlanCompileError(
-                f"Array adapt= must be a bytemaker.adapters.Adapter,"
-                f" got {adapt!r}"
+                f"Array adapt= must be a bytemaker.adapters.Adapter," f" got {adapt!r}"
             )
         self._adapter = adapt
         # ``endian=None`` means "unset": standalone parse/pack resolve it to
@@ -2157,9 +2158,7 @@ class Array(typing.Generic[V]):
             try:
                 _width, kind, letter = _classify_scalar(element)
             except PlanCompileError as exc:
-                raise PlanCompileError(
-                    f"Array of {element.__name__}: {exc}"
-                ) from None
+                raise PlanCompileError(f"Array of {element.__name__}: {exc}") from None
             struct_obj = None
             if kind in ("u", "s", "f") and letter is not None and elem_bits % 8 == 0:
                 prefix = "<" if resolved == "little" else ">"
@@ -2229,28 +2228,28 @@ class Array(typing.Generic[V]):
     @classmethod
     def of(
         cls,
-        element: "type[_S]",
+        element: type[_S],
         count: int,
         endian: Optional[Literal["big", "little"]] = None,
-    ) -> "Array[_S]": ...
+    ) -> Array[_S]: ...
 
     @typing.overload
     @classmethod
     def of(
         cls,
-        element: "type[BitType[V]]",
+        element: type[BitType[V]],
         count: int,
         endian: Optional[Literal["big", "little"]] = None,
-    ) -> "Array[V]": ...
+    ) -> Array[V]: ...
 
     @typing.overload
     @classmethod
     def of(
         cls,
-        element: "Array[V]",
+        element: Array[V],
         count: int,
         endian: Optional[Literal["big", "little"]] = None,
-    ) -> "Array[List[V]]": ...
+    ) -> Array[List[V]]: ...
 
     # A fused element codec reports the ADAPTER's user-plane type, not the
     # base's: Array.of(fixed(4) @ UInt16, 8).parse(b) reads as list[float].
@@ -2258,10 +2257,10 @@ class Array(typing.Generic[V]):
     @classmethod
     def of(
         cls,
-        element: "Adapted[V]",
+        element: Adapted[V],
         count: int,
         endian: Optional[Literal["big", "little"]] = None,
-    ) -> "Array[V]": ...
+    ) -> Array[V]: ...
 
     @classmethod
     def of(
@@ -2270,7 +2269,7 @@ class Array(typing.Generic[V]):
         count: int,
         endian: Optional[Literal["big", "little"]] = None,
         adapt: Optional[Adapter] = None,
-    ) -> "Array":
+    ) -> Array:
         try:
             key = (element, count, endian, adapt)
             return cls._cache[key]
@@ -2294,7 +2293,7 @@ class Array(typing.Generic[V]):
     #: a structs<->plans cycle) recognizes an array field via getattr.
     _is_bm_array: ClassVar[bool] = True
 
-    def field_list(self, values, label: str = "") -> "NarrowingList":
+    def field_list(self, values, label: str = "") -> NarrowingList:
         """Wrap already-decoded, in-range values into a live
         :class:`NarrowingList` for the parse path, without re-narrowing.
 
@@ -2428,10 +2427,7 @@ class Array(typing.Generic[V]):
             # Text/bytes elements are in stream order (no byte order to
             # apply, matching the plan engine's "b" fields and C
             # char[]; endian governs numeric elements only).
-            chunks = [
-                bytes(data[i : i + size])
-                for i in range(0, self.num_bytes, size)
-            ]
+            chunks = [bytes(data[i : i + size]) for i in range(0, self.num_bytes, size)]
             if issubclass(element, String):
                 return [element._decode_wire(c) for c in chunks]
             return chunks
@@ -2500,16 +2496,14 @@ class Array(typing.Generic[V]):
         size = element.num_bits // 8  # letter-less whole-byte (e.g. UInt24)
         if kind == "f":
             return b"".join(
-                element(float(v))
-                .bits.to_int(signed=False)
-                .to_bytes(size, self.endian)
+                element(float(v)).bits.to_int(signed=False).to_bytes(size, self.endian)
                 for v in coerced
             )
         return b"".join(
             v.to_bytes(size, self.endian, signed=(kind == "s")) for v in coerced
         )
 
-    def __mul__(self, count: int) -> "Array":
+    def __mul__(self, count: int) -> Array:
         return Array.of(self, count)
 
     __rmul__ = __mul__

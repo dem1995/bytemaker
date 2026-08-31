@@ -9,12 +9,11 @@ from typing import get_args
 
 import pytest
 
+import bytemaker.bitvector.bitvector_native as native_mod
+import bytemaker.bitvector.bitvector_speedup as speedup_mod
 from bytemaker.bitvector import FixedLengthBitVector
 from bytemaker.bitvector.bitvector_native import BitVector as NativeBitVector
 from bytemaker.bitvector.bitvector_speedup import BitVector as SpeedupBitVector
-
-import bytemaker.bitvector.bitvector_native as native_mod
-import bytemaker.bitvector.bitvector_speedup as speedup_mod
 
 _IMPLS = [
     pytest.param(NativeBitVector, id="native"),
@@ -22,11 +21,12 @@ _IMPLS = [
 ]
 _MODULES = [native_mod, speedup_mod]
 try:
+    import bitarray as _bitarray_pkg
+
+    import bytemaker.bitvector.bitvector_with_bitarray_speedup as bitarray_mod
     from bytemaker.bitvector.bitvector_with_bitarray_speedup import (
         BitVector as BitarrayBitVector,
     )
-    import bytemaker.bitvector.bitvector_with_bitarray_speedup as bitarray_mod
-    import bitarray as _bitarray_pkg
 
     _IMPLS.append(pytest.param(BitarrayBitVector, id="bitarray"))
     _MODULES.append(bitarray_mod)

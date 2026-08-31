@@ -7,6 +7,7 @@ import struct
 import sys
 import warnings
 from abc import ABC, ABCMeta, abstractmethod
+
 from bytemaker.bitvector import BitVector, FixedLengthBitVector
 from bytemaker.typing_redirect import (
     Any,

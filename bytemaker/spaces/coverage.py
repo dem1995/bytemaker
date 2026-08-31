@@ -23,6 +23,7 @@ from .pointers import _checkable_target, _ptr_adapter_of
 if TYPE_CHECKING:
     from .entry import Entry
 
+
 @dataclass(frozen=True)
 class Region:
     """One entry's resolved footprint in a coverage report."""
@@ -285,8 +286,7 @@ class CoverageReport:
             lines.append(f"  overlaps ({len(self.overlaps)}):")
             for o in self.overlaps:
                 lines.append(
-                    f"    {o.a} and {o.b} share {o.size} bytes at"
-                    f" 0x{o.start:08X}"
+                    f"    {o.a} and {o.b} share {o.size} bytes at" f" 0x{o.start:08X}"
                 )
         gaps = self.gaps()
         if gaps:
@@ -325,6 +325,7 @@ class CoverageReport:
             # odd", which is a different claim from "no pointer audit ran".
             lines.append("  pointers: not audited")
         return "\n".join(lines)
+
 
 # --------------------------------------------------------------------------
 # Computing a report
@@ -380,6 +381,7 @@ def _resolve_region(space, entry: "Entry"):
     # A scanned table's bytes include its terminator.
     return Region(entry, (len(values) + 1) * entry.stride)
 
+
 def _audit_pointers(space, region, regions) -> list:
     entry = region.entry
     codec = entry.codec
@@ -389,9 +391,7 @@ def _audit_pointers(space, region, regions) -> list:
     if direct is not None:
         for index, value in _enumerate_values(_safe_read(entry)):
             verdict, owner = _classify_address(space, value, regions, direct)
-            out.append(
-                PointerRef(source, None, index, value, verdict, owner)
-            )
+            out.append(PointerRef(source, None, index, value, verdict, owner))
         return out
     if not isinstance(codec, StructMeta):
         return out
@@ -412,21 +412,17 @@ def _audit_pointers(space, region, regions) -> list:
             value = getattr(rec, field_name)
             for sub, one in _enumerate_values(value):
                 index = rec_index if sub is None else (rec_index, sub)
-                verdict, owner = _classify_address(space, 
-                    one, regions, ptr_adapter
-                )
-                out.append(
-                    PointerRef(
-                        source, field_name, index, one, verdict, owner
-                    )
-                )
+                verdict, owner = _classify_address(space, one, regions, ptr_adapter)
+                out.append(PointerRef(source, field_name, index, one, verdict, owner))
     return out
+
 
 def _safe_read(entry: "Entry"):
     try:
         return entry.read()
     except (ValueError, TypeError):
         return None
+
 
 def _classify_address(space, addr, regions, adapter=None):
     if not isinstance(addr, int):
@@ -440,6 +436,7 @@ def _classify_address(space, addr, regions, adapter=None):
         if end is not None and region.start <= addr < end:
             return _verify_target(addr, region, adapter)
     return ("unclaimed", None)
+
 
 def _verify_target(addr, region, adapter):
     """Classify an address that landed inside ``region``.

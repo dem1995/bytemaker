@@ -117,7 +117,7 @@ class Trie:
 
 def validate_endianness(
     endianness: Any, name: str = "endianness", exc: type = ValueError
-) -> "Literal['big', 'little']":
+) -> Literal["big", "little"]:
     """
     Validates a byte-order argument at an API intake point.
 
@@ -393,9 +393,7 @@ def twos_complement(number, n_bits=32):
         ValueError: If ``number`` does not fit in ``n_bits`` bits.
     """
     if not -(1 << (n_bits - 1)) <= number < (1 << (n_bits - 1)):
-        raise ValueError(
-            f"{number} does not fit in {n_bits} bits in two's complement"
-        )
+        raise ValueError(f"{number} does not fit in {n_bits} bits in two's complement")
     if number < 0:
         number = (1 << n_bits) + number
     format_string = "{:0" + str(n_bits) + "b}"

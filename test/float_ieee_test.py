@@ -20,12 +20,12 @@ import pytest
 from bytemaker.bittypes import NarrowingConfig, NarrowingWarning
 from bytemaker.bittypes.bittype import StructPackedBitType
 from bytemaker.bittypes.float import (
-    BFloat16,
     FP24,
+    TF19,
+    BFloat16,
     Float,
     Float16,
     Float32,
-    TF19,
 )
 from bytemaker.bittypes.int import SInt8, UInt8, UInt16
 

@@ -315,9 +315,7 @@ def _scaled_store(user, step):
     wire = user / step
     rounded = round(wire)
     if rounded * step != user:
-        raise ValueError(
-            f"{user!r} is not a multiple of the wire step {step!r}"
-        )
+        raise ValueError(f"{user!r} is not a multiple of the wire step {step!r}")
     return rounded
 
 

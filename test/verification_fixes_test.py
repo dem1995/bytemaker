@@ -156,7 +156,11 @@ def test_bound_bits_pop_omitted_default_still_errors():
         a: UInt8
 
     bb = R(a=0b10100000).sizedview.a.bits
-    for call in (lambda: bb.pop(99), lambda: bb.pop(99, default=None), lambda: bb.pop()):
+    for call in (
+        lambda: bb.pop(99),
+        lambda: bb.pop(99, default=None),
+        lambda: bb.pop(),
+    ):
         with pytest.raises(ValueError, match="invariant"):
             call()
 

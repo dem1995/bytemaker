@@ -20,15 +20,13 @@ def docstring_example(doc: str, first_word: str) -> str:
     instead of a bare StopIteration.
     """
     lines = doc.splitlines()
-    starts = [
-        i for i, ln in enumerate(lines) if ln.strip().startswith(first_word)
-    ]
+    starts = [i for i, ln in enumerate(lines) if ln.strip().startswith(first_word)]
     assert starts, (
         f"docstring has no example line starting with {first_word!r} —"
         f" the example the test asserts against has been renamed or removed"
     )
     block = []
-    for ln in lines[starts[0]:]:
+    for ln in lines[starts[0] :]:
         if not ln.strip():
             break
         block.append(ln)

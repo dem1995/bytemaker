@@ -25,9 +25,12 @@ def test_to_bits_from_bits_deprecated():
 
 
 def test_conversions_package_reexports():
-    from bytemaker.conversions import to_bytes_aggregate, ConversionConfig  # noqa: F401
+    from bytemaker.conversions import ConversionConfig, to_bytes_aggregate  # noqa: F401
 
-    assert "to_bytes_aggregate" in __import__("bytemaker.conversions", fromlist=["x"]).__all__
+    assert (
+        "to_bytes_aggregate"
+        in __import__("bytemaker.conversions", fromlist=["x"]).__all__
+    )
 
 
 # ------------------------------------------------------------- pattern 6 (__rmul__)
@@ -69,5 +72,7 @@ def test_no_conversion_error_lists_registered_types():
     class _Weird:
         pass
 
-    with pytest.raises(TypeError, match=r"No conversion registered.*Registered pytypes:.*int"):
+    with pytest.raises(
+        TypeError, match=r"No conversion registered.*Registered pytypes:.*int"
+    ):
         pytype_to_bits(_Weird())

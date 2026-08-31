@@ -13,10 +13,10 @@ from dataclasses import make_dataclass
 
 import pytest
 
-from bytemaker.bitvector.bitvector_native import BitVector as NativeBitVector
-from bytemaker.bitvector.bitvector_speedup import BitVector as SpeedupBitVector
 from bytemaker.bittypes import Buffer, Float32, UInt8, UInt16
 from bytemaker.bittypes.int import Int, SInt
+from bytemaker.bitvector.bitvector_native import BitVector as NativeBitVector
+from bytemaker.bitvector.bitvector_speedup import BitVector as SpeedupBitVector
 from bytemaker.structs import Struct
 from bytemaker.utils import twos_complement
 
@@ -92,7 +92,10 @@ def test_one_bit_signed_constructs_and_roundtrips(fmt):
 
 
 def test_one_bit_bitstring_and_wider_widths_unchanged():
-    assert Int.to_bitstring(0, signed=True, bit_length=1, rep_format="signed_magnitude") == "0"
+    assert (
+        Int.to_bitstring(0, signed=True, bit_length=1, rep_format="signed_magnitude")
+        == "0"
+    )
     assert Int.to_pyint("1010", signed=True, bin_format="signed_magnitude") == -2
     assert Int.to_pyint("1010", signed=True, bin_format="ones_complement") == -5
 

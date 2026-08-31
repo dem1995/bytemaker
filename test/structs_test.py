@@ -9,7 +9,7 @@ from dataclasses import make_dataclass
 
 import pytest
 
-from bytemaker.conversions import _legacy_aggregate as legacy
+import bytemaker.structs as structs_mod
 from bytemaker.bittypes import (
     BFloat16,
     Buffer,
@@ -36,9 +36,9 @@ from bytemaker.bittypes import (
     bytes_to_bittype,
 )
 from bytemaker.bittypes.int import SignedConfig
+from bytemaker.conversions import _legacy_aggregate as legacy
 from bytemaker.plans import PlanCompileError
 from bytemaker.structs import Array, Codec, Struct, array, field, u8, u16, u32
-import bytemaker.structs as structs_mod
 
 
 # --------------------------------------------------------------------- decls
@@ -144,9 +144,7 @@ def test_matches_legacy_dataclass_bytes():
 def test_defaults_and_repr():
     row = ConsumableEntry(gid=0x40, icon_id=27, palette_bank=6, use_type=4)
     assert row.unk_04 == 0 and row.unk_0c == 0
-    assert row.pack() == bytes(
-        [0x40, 0, 27, 6, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0]
-    )
+    assert row.pack() == bytes([0x40, 0, 27, 6, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0])
     assert "gid=64" in repr(row)
 
 
@@ -266,9 +264,7 @@ def test_boundfield_contested_operators_absent():
         # Check the MRO's own dicts: plain hasattr() would false-positive on
         # __or__ via type.__or__ (PEP 604 class-union), which binds to the
         # class object, not to instances.
-        assert not any(
-            dunder in c.__dict__ for c in structs_mod.BoundField.__mro__
-        )
+        assert not any(dunder in c.__dict__ for c in structs_mod.BoundField.__mro__)
     f = Nibbles(low=5, high=2).sizedview.low
     with pytest.raises(TypeError):
         f & 1  # two lawful meanings: name the plane instead
@@ -362,12 +358,17 @@ def test_sizedview_pack_roundtrip():
 
 # ------------------------------------------------------------ reserved names
 def test_reserved_field_names_guarded():
-    for bad in ("pack", "parse", "plan", "num_bits", "sizedview",
-                "detach_copy", "_bm_x"):
+    for bad in (
+        "pack",
+        "parse",
+        "plan",
+        "num_bits",
+        "sizedview",
+        "detach_copy",
+        "_bm_x",
+    ):
         with pytest.raises(PlanCompileError, match="reserved"):
-            structs_mod.StructMeta(
-                "Bad", (Struct,), {"__annotations__": {bad: UInt8}}
-            )
+            structs_mod.StructMeta("Bad", (Struct,), {"__annotations__": {bad: UInt8}})
 
     class _Padded(Struct):  # leading underscore stays legal (padding fields)
         _reserved: UInt3
@@ -384,12 +385,9 @@ def test_a_field_whose_slot_would_shadow_an_internal_is_refused():
     only repr() broke), "adapters" shadowed the dict rom.Space.deref reads,
     and the rest surfaced as "'tuple' object has no attribute '__set__'" at
     construction -- all of them far from the declaration that caused it."""
-    for bad in ("repr_of", "adapters", "fields", "field_types", "endian",
-                "concrete"):
+    for bad in ("repr_of", "adapters", "fields", "field_types", "endian", "concrete"):
         with pytest.raises(PlanCompileError, match="Struct internal") as caught:
-            structs_mod.StructMeta(
-                "Bad", (Struct,), {"__annotations__": {bad: UInt8}}
-            )
+            structs_mod.StructMeta("Bad", (Struct,), {"__annotations__": {bad: UInt8}})
         assert f"_bm_{bad}" in str(caught.value)  # names the actual collision
         assert f"{bad}_" in str(caught.value)  # ... and suggests a way out
 
@@ -566,10 +564,17 @@ def test_scalar_parse_plain():
 @pytest.mark.parametrize(
     "elem",
     [
-        UInt8, UInt16, UInt32, UInt64,
-        SInt8, SInt16, SInt32, SInt64,
+        UInt8,
+        UInt16,
+        UInt32,
+        UInt64,
+        SInt8,
+        SInt16,
+        SInt32,
+        SInt64,
         UInt.specialize(24, name_="UInt24T"),  # letter-less: int.from_bytes path
-        Float32, Float64,
+        Float32,
+        Float64,
     ],
 )
 def test_scalar_array_matches_box_reference(elem, endian):
@@ -665,7 +670,11 @@ def test_scalar_array_special_float_values_match_reference():
     import math
 
     specials = [
-        math.nan, math.inf, -math.inf, 0.0, -0.0,
+        math.nan,
+        math.inf,
+        -math.inf,
+        0.0,
+        -0.0,
         5.960464477539063e-08,  # smallest Float16 subnormal
         6.103515625e-05,  # smallest Float16 normal
     ]
@@ -689,9 +698,7 @@ def test_scalar_array_special_float_values_match_reference():
 def test_struct_array_roundtrip():
     table = WarpDestination * 3
     assert table.num_bits == 96 * 3
-    rows = [
-        WarpDestination(i, i + 1, i + 2, -i, i) for i in range(3)
-    ]
+    rows = [WarpDestination(i, i + 1, i + 2, -i, i) for i in range(3)]
     blob = table.pack(rows)
     assert len(blob) == 36
     back = table.parse(blob)
@@ -714,6 +721,7 @@ def test_array_cache_identity():
 def test_array_field_numeric_matches_hand_written_scalars():
     """A numeric array field flattens to repeated leaves and is byte- and
     value-identical to the equivalent hand-written scalar fields."""
+
     class Packed(Struct, endian="little"):
         a: UInt16
         b: UInt16
@@ -734,6 +742,7 @@ def test_array_field_sugar_inherits_record_endian():
     """`UInt16 * N` (endian unset) inherits the record's byte order (C
     array), so a little-endian record's array field is little-endian and
     equals the standalone codec at the record's endian."""
+
     class LE(Struct, endian="little"):
         v: UInt16 * 2
 
@@ -764,6 +773,7 @@ def test_array_field_explicit_endian_is_honored():
 def test_array_field_item_store_narrows_d1():
     """Item and slice writes narrow C-style at the store (D1): a read never
     returns a value pack() would not serialize."""
+
     class S(Struct, endian="little"):
         vals: UInt16 * 3
 
@@ -834,6 +844,7 @@ def test_array_of_struct_field_and_dotted_offsets():
 def test_array_of_struct_field_keeps_element_endian_shiftmask():
     """A big-endian Struct element inside a little record keeps its endian,
     forcing the shiftmask tier; each leaf must still decode correctly."""
+
     class BE(Struct, endian="big"):
         x: UInt16
 
@@ -849,6 +860,7 @@ def test_array_of_struct_field_keeps_element_endian_shiftmask():
 
 def test_struct_with_array_field_as_array_element():
     """Recursion: an Array of a Struct that itself has an array field."""
+
     class Row(Struct, endian="little"):
         cells: UInt8 * 2
         flag: UInt8
@@ -863,10 +875,12 @@ def test_array_field_deferred_kinds_rejected():
     from bytemaker.bittypes import UTF8String
 
     with pytest.raises(PlanCompileError, match="text/bytes"):
+
         class BadStr(Struct):
             x: UTF8String.of(nbytes=2) * 2
 
     with pytest.raises(PlanCompileError, match="2-D array"):
+
         class Bad2D(Struct):
             x: (UInt8 * 2) * 2
 
@@ -886,6 +900,7 @@ def test_array_field_beside_subbyte_forces_record_total_guard():
     """An array field composes with the existing sub-byte record-total
     guard; it adds no new sub-byte code path."""
     with pytest.raises(PlanCompileError, match="whole number of|multiple of 8"):
+
         class Bad(Struct):
             colors: UInt16 * 3  # 48 bits
             flag: UInt4  # 4 bits -> 52 total, not a byte multiple
@@ -939,6 +954,7 @@ def test_array_field_copy_deepcopy_pickle_roundtrip():
 def test_array_int_element_rejects_non_int_like_scalar_field():
     """Item/whole stores narrow C-style through operator.index, so a float
     or str is rejected exactly as a scalar Int field rejects it."""
+
     class S(Struct, endian="little"):
         scalar: UInt16
         arr: UInt16 * 2
@@ -956,6 +972,7 @@ def test_array_int_element_rejects_non_int_like_scalar_field():
 def test_float_array_field_narrows_and_matches_scalar():
     """Float fields (scalar and array) narrow at the store (D1): a read is
     exactly what pack() serializes, and the two paths agree."""
+
     class S(Struct, endian="little"):
         v: Float32
         arr: Float32 * 2
@@ -995,6 +1012,7 @@ def test_array_field_narrowing_warning_opt_in():
 def test_array_field_oneshot_iterable_default_not_shared():
     """A generator/map default is materialized once so every instance gets
     an independent snapshot (not consumed by the first)."""
+
     class S(Struct, endian="big"):
         vals: UInt8 * 3 = (x for x in range(3))
 
@@ -1028,6 +1046,7 @@ def test_struct_valued_defaults_detach_copied_per_instance():
     detach-copied per instance at __init__ time, so default-constructed
     records never share one mutable instance; explicit assignment still
     stores by reference (live handles, like _StructField)."""
+
     class RGB(Struct, endian="big"):
         r: UInt8
 
@@ -1064,6 +1083,7 @@ def test_explicit_default_object_kept_live_via_missing_sentinel():
     """The _MISSING sentinel (deviation): passing the *exact* default object
     explicitly keeps a live reference rather than detach-copying it -- the
     corner an object-identity trigger would get wrong."""
+
     class RGB(Struct, endian="big"):
         r: UInt8
 
@@ -1147,8 +1167,9 @@ def test_field_specifier_all_kinds_roundtrip():
         child: RGB = field(RGB)
         colors: list = array(UInt16, 3)
 
-    r = Rec(hp=1, speed=1.5, name="ab", data=b"xy",
-            child=RGB(r=1, g=2), colors=[10, 20, 30])
+    r = Rec(
+        hp=1, speed=1.5, name="ab", data=b"xy", child=RGB(r=1, g=2), colors=[10, 20, 30]
+    )
     assert Rec.parse(r.pack()) == r
     assert isinstance(r.hp, int) and isinstance(r.name, str)
     assert isinstance(r.data, bytes) and isinstance(r.child, RGB)
@@ -1160,6 +1181,7 @@ def test_field_specifier_all_kinds_roundtrip():
 def test_field_specifier_matches_annotation_form_bytes():
     """A field() spec produces byte-identical layout to the equivalent
     annotation-carried spelling."""
+
     class ViaSpec(Struct, endian="little"):
         a: int = field(UInt16)
         b: int = field(UInt8)
@@ -1190,11 +1212,11 @@ def test_field_specifier_coexists_with_alias_and_bare():
         r: u8
 
     class Mix(Struct, endian="little"):
-        a: u8                                  # terse alias
-        b: int = field(UInt8)                  # specifier
-        c: Annotated[int, UInt8]               # explicit Annotated
-        d: RGB                                 # bare nested Struct
-        e: list = array(UInt8, 2)              # array specifier
+        a: u8  # terse alias
+        b: int = field(UInt8)  # specifier
+        c: Annotated[int, UInt8]  # explicit Annotated
+        d: RGB  # bare nested Struct
+        e: list = array(UInt8, 2)  # array specifier
 
     m = Mix(a=1, b=2, c=3, d=RGB(r=4), e=[5, 6])
     assert Mix.parse(m.pack()) == m
@@ -1212,6 +1234,7 @@ def test_field_specifier_array_explicit_endian_honored():
 
 def test_field_specifier_required_after_default_rejected():
     with pytest.raises(PlanCompileError, match="follows fields with defaults"):
+
         class Bad(Struct, endian="big"):
             a: int = field(UInt8, default=1)
             b: int = field(UInt8)  # required (no default) after a defaulted field
@@ -1229,12 +1252,12 @@ def test_field_specifier_annotation_must_match_wire_type():
 
     # lies -> rejected at class definition
     for ann, spec in [
-        (str, lambda: field(UInt8)),        # str over int wire
-        (bool, lambda: field(UInt8)),       # bool over int (int subclass, still a lie)
-        (float, lambda: field(UInt8)),      # float over int
-        (int, lambda: field(Float32)),      # int over float
+        (str, lambda: field(UInt8)),  # str over int wire
+        (bool, lambda: field(UInt8)),  # bool over int (int subclass, still a lie)
+        (float, lambda: field(UInt8)),  # float over int
+        (int, lambda: field(Float32)),  # int over float
         (List[str], lambda: array(UInt16, 2)),  # list[str] over list[int]
-        (int, lambda: array(UInt16, 2)),    # int over a list field
+        (int, lambda: array(UInt16, 2)),  # int over a list field
     ]:
         with pytest.raises(PlanCompileError, match="disagrees with"):
             type("Lie", (Struct,), {"__annotations__": {"x": ann}, "x": spec()})
@@ -1349,8 +1372,14 @@ def test_store_errors_name_class_and_field():
         alt: int = field(UInt8, adapt=scaled(4))
 
     r = Big(
-        a=1, b=-1, f=0.5, s="ab", raw=b"xy", inner=Inner8(x=1),
-        xs=[1, 2], alt=8,
+        a=1,
+        b=-1,
+        f=0.5,
+        s="ab",
+        raw=b"xy",
+        inner=Inner8(x=1),
+        xs=[1, 2],
+        alt=8,
     )
     with pytest.raises(TypeError, match=r"Big\.a: "):
         r.a = "x"
@@ -1370,8 +1399,7 @@ def test_store_errors_name_class_and_field():
         r.alt = 7  # scaled(4) exact-multiple store
     # __init__ stores run through the same descriptors
     with pytest.raises(TypeError, match=r"Big\.a: "):
-        Big(a="x", b=0, f=0.0, s="", raw=b"xy", inner=Inner8(x=1),
-            xs=[0, 0], alt=0)
+        Big(a="x", b=0, f=0.0, s="", raw=b"xy", inner=Inner8(x=1), xs=[0, 0], alt=0)
     # the original error survives as cause and suffix
     try:
         r.a = "x"

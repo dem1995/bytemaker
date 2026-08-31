@@ -20,6 +20,7 @@ from bytemaker.typing_redirect import Any, Optional
 if TYPE_CHECKING:
     from .spaces import Space
 
+
 def _identity(value):
     return value
 
@@ -48,8 +49,12 @@ class PtrAdapter(Adapter):
     def __init__(self, target=None, inner=None, name=None, module=None):
         if inner is not None and not isinstance(inner, Adapter):
             raise TypeError(f"Ptr adapt= must be an Adapter, got {inner!r}")
-        if not (target is None or _is_codec(target) or isinstance(target, str)
-                or callable(target)):
+        if not (
+            target is None
+            or _is_codec(target)
+            or isinstance(target, str)
+            or callable(target)
+        ):
             raise TypeError(
                 f"Ptr target must be a codec (Struct class, BitType class,"
                 f" Array, fused adapter@BitType), a name to resolve later, a"
@@ -105,7 +110,8 @@ class PtrAdapter(Adapter):
         # stale redefinitions left by a REPL or a reload, without guessing
         # between real duplicates.
         current = tuple(
-            c for c in candidates
+            c
+            for c in candidates
             if getattr(sys.modules.get(c.__module__ or ""), target, None) is c
         )
         pool = current or candidates
@@ -175,9 +181,7 @@ class PtrValue(int):
 
     def __new__(cls, value, adapter):
         if not isinstance(adapter, PtrAdapter):
-            raise TypeError(
-                f"PtrValue needs the pointer's PtrAdapter, got {adapter!r}"
-            )
+            raise TypeError(f"PtrValue needs the pointer's PtrAdapter, got {adapter!r}")
         self = super().__new__(cls, value)
         self._adapter = adapter
         return self
@@ -277,8 +281,7 @@ class Ptr(Adapted):
 
     __slots__ = ()
 
-    def __init__(self, target=None, *, base=None, adapt=None, name=None,
-                 module=None):
+    def __init__(self, target=None, *, base=None, adapt=None, name=None, module=None):
         if base is None:
             from bytemaker.bittypes import UInt32
 
@@ -325,9 +328,8 @@ class Ptr(Adapted):
         # Show a composed value convention. Two pointer tables that differ
         # only in whether bit 0 is an instruction-set selector must not read
         # identically in a map listing.
-        if (
-            self.adapter.inner is not None
-            or self.adapter.name != _default_ptr_name(raw)
+        if self.adapter.inner is not None or self.adapter.name != _default_ptr_name(
+            raw
         ):
             head += f", {self.adapter.name}"
         return head + ")"

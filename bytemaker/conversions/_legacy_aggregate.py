@@ -16,6 +16,7 @@ deliberate behavior change lands in this module and in the fast paths as one
 change, and the parity suite is re-run afterwards. It never lands in one
 path alone.
 """
+
 import ctypes
 import dataclasses
 

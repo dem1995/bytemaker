@@ -2,7 +2,7 @@
 
 import pytest
 
-from bytemaker.bittypes import UInt8, UInt16, UInt32
+from bytemaker.bittypes import UInt16, UInt32
 from bytemaker.spaces import (
     IPS_EOF_OFFSET,
     Edit,

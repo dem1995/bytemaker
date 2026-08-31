@@ -24,6 +24,7 @@ Covers both checker-friendly declaration styles:
   specifier (which returns ``Any``, so it is assignable to any annotation).
 Both produce identical runtime + identical checker types.
 """
+
 from typing import Annotated, List
 
 from bytemaker import (
@@ -53,9 +54,9 @@ Colors8 = Annotated[List[int], UInt16 * 8]
 
 
 class Palette(Struct, endian="little"):
-    colors: Colors8                              # list[int]
+    colors: Colors8  # list[int]
     coeffs: Annotated[List[float], Float32 * 4]  # list[float]
-    tiles: Annotated[List[RGB], RGB * 3]         # list[RGB]
+    tiles: Annotated[List[RGB], RGB * 3]  # list[RGB]
     count: u16
 
 
@@ -70,17 +71,17 @@ reveal_type(p.colors)  # noqa: F821  -> list[int]
 reveal_type(p.tiles)  # noqa: F821  -> list[RGB]
 
 # Positive: the list surface type-checks
-p.colors[0] = 99           # list[int] is mutable and int-valued
+p.colors[0] = 99  # list[int] is mutable and int-valued
 n: int = p.colors[3]
-p.tiles[0].r = 7           # element is a real RGB with typed fields
+p.tiles[0].r = 7  # element is a real RGB with typed fields
 c: float = p.coeffs[1]
 
 # Negative: the checker rejects wrong element / field types. Bare ignores
 # (version-robust across error codes); each is load-bearing --
 # --warn-unused-ignores fails if the checker does NOT error on that line.
-p.colors[0] = "x"          # type: ignore
-p.colors = "not a list"    # type: ignore
-p.tiles[0] = 5             # type: ignore
+p.colors[0] = "x"  # type: ignore
+p.colors = "not a list"  # type: ignore
+p.tiles[0] = 5  # type: ignore
 bad = Palette(colors="x", coeffs=[], tiles=[], count=0)  # type: ignore
 
 
@@ -95,14 +96,14 @@ class Spec(Struct, endian="little"):
 
 
 s = Spec(hp=1, speed=1.5, name="ab", data=b"xy", tags=[1, 2, 3], child=RGB(r=1, g=2))
-reveal_type(s.hp)     # noqa: F821  -> int
-reveal_type(s.name)   # noqa: F821  -> str
-reveal_type(s.data)   # noqa: F821  -> bytes
-reveal_type(s.tags)   # noqa: F821  -> list[int]
+reveal_type(s.hp)  # noqa: F821  -> int
+reveal_type(s.name)  # noqa: F821  -> str
+reveal_type(s.data)  # noqa: F821  -> bytes
+reveal_type(s.tags)  # noqa: F821  -> list[int]
 reveal_type(s.child)  # noqa: F821  -> RGB
-s.hp = "x"            # type: ignore  # field is int
-s.name = 5            # type: ignore  # field is str
-s.tags[0] = "x"       # type: ignore  # list[int]
+s.hp = "x"  # type: ignore  # field is int
+s.name = 5  # type: ignore  # field is str
+s.tags[0] = "x"  # type: ignore  # list[int]
 
 
 # --- fused wire types: adapter @ BitType (adapted-1) ---------------------
@@ -117,14 +118,14 @@ class Fused(Struct, endian="little"):
     # `Elem * N` for arrays -- the bare `fn: ThumbPtr` spelling works at
     # runtime but is not a valid *type* to a checker. The two
     # checker-friendly spellings:
-    fn: Annotated[int, ThumbPtr]              # int (THUMB_PTR.py_type)
-    scale: float = field(Mult)                # float via the adapter
+    fn: Annotated[int, ThumbPtr]  # int (THUMB_PTR.py_type)
+    scale: float = field(Mult)  # float via the adapter
 
 
 f = Fused(fn=0x0803EBA8, scale=1.5)
-reveal_type(f.fn)     # noqa: F821  -> int
+reveal_type(f.fn)  # noqa: F821  -> int
 reveal_type(f.scale)  # noqa: F821  -> float
-f.scale = "x"         # type: ignore  # field is float
+f.scale = "x"  # type: ignore  # field is float
 
 
 class BareFused(Struct, endian="little"):
@@ -150,8 +151,8 @@ class Aliased(Struct, endian="little"):
 
 al = Aliased(update_fn=0x0803EBA8, next_fn=0, scale=1.5)
 reveal_type(al.update_fn)  # noqa: F821  -> int
-reveal_type(al.scale)      # noqa: F821  -> float
-al.update_fn = "x"         # type: ignore  # the alias is still int
+reveal_type(al.scale)  # noqa: F821  -> float
+al.update_fn = "x"  # type: ignore  # the alias is still int
 
 
 # A fused element makes a standalone Array report the adapter's type.
@@ -165,15 +166,15 @@ reveal_type(ptrs.parse(b"\x00" * 8))  # noqa: F821  -> list[int]
 
 # --- adapted Array FIELDS: the element list is the USER plane (adapted-2) -
 class AdaptedArrays(Struct, endian="little"):
-    fns: List[int] = array(ThumbPtr, 2)      # THUMB_PTR.py_type is int
-    scales: List[float] = array(Mult, 2)     # fixed(4).py_type is float
+    fns: List[int] = array(ThumbPtr, 2)  # THUMB_PTR.py_type is int
+    scales: List[float] = array(Mult, 2)  # fixed(4).py_type is float
 
 
 aa = AdaptedArrays(fns=[0x0803EBA8, 0], scales=[1.5, 1.0])
-reveal_type(aa.fns)     # noqa: F821  -> list[int]
+reveal_type(aa.fns)  # noqa: F821  -> list[int]
 reveal_type(aa.scales)  # noqa: F821  -> list[float]
-aa.scales[0] = 2.5      # a live user-plane lvalue
-aa.scales[0] = "x"      # type: ignore  # elements are float
+aa.scales[0] = 2.5  # a live user-plane lvalue
+aa.scales[0] = "x"  # type: ignore  # elements are float
 
 
 # --- pointers: PtrValue is the runtime type; the annotation picks the view -
@@ -195,7 +196,7 @@ class HasPtrs(Struct, endian="little"):
 
 
 hp = HasPtrs.parse(b"\x00" * 8)
-reveal_type(hp.loose)    # noqa: F821  -> int
+reveal_type(hp.loose)  # noqa: F821  -> int
 reveal_type(hp.precise)  # noqa: F821  -> PtrValue
 hp.precise.deref(space)  # checker-visible on the precise view
-hp.loose.deref(space)    # type: ignore  # int has no .deref to a checker
+hp.loose.deref(space)  # type: ignore  # int has no .deref to a checker

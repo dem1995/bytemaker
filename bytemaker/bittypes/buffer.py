@@ -106,5 +106,5 @@ Buffer.base_bit_type = Buffer
 
 
 __all__ = [
-    'Buffer',
+    "Buffer",
 ]

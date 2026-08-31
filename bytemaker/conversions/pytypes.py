@@ -173,8 +173,7 @@ def _no_conversion_error(pytype) -> TypeError:
         sorted(t.__name__ for t in ConversionConfig._implemented_conversions)
     )
     return TypeError(
-        f"No conversion registered for {pytype}."
-        f" Registered pytypes: {registered}"
+        f"No conversion registered for {pytype}." f" Registered pytypes: {registered}"
     )
 
 
@@ -185,6 +184,7 @@ def _no_conversion_error(pytype) -> TypeError:
 #     num_bits=lambda string: len(string.encode('utf-8')) * 8
 # )
 # ConversionConfig.set_conversion_info(_string_conversion_info)
+
 
 def _char_to_bits(string: str) -> BitVector:
     """
@@ -292,9 +292,7 @@ def pytype_to_bits(py_prim) -> BitVector:
     return conversion.to_bits(py_prim)
 
 
-def pytype_to_bytes(
-    py_prim, endianness: Literal["big", "little"] = "big"
-) -> bytes:
+def pytype_to_bytes(py_prim, endianness: Literal["big", "little"] = "big") -> bytes:
     """
     Function to convert Python instances into a default number of bytes.
         Uses the conversions in ConversionConfig.

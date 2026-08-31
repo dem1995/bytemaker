@@ -45,7 +45,6 @@ class AddressError(ValueError):
     """
 
 
-
 class Space:
     """A buffer viewed as a base-mapped address space.
 
@@ -642,9 +641,7 @@ class Space:
                 f"{self._label()}: {n} x {stride} bytes at 0x{addr:08X} run"
                 f" past the end of the space (0x{self.end - 1:08X})"
             )
-        return self._decode_from(
-            self._bytes("read()"), off, codec, n, stride, single
-        )
+        return self._decode_from(self._bytes("read()"), off, codec, n, stride, single)
 
     def _decode_from(self, data, off, codec, n, stride, single):
         """Decode from bytes already in hand.
@@ -789,4 +786,3 @@ class Space:
                 return b""
             return Array(codec, len(value), self._endian).pack(value)
         return Array(codec, 1, self._endian).pack([value])
-

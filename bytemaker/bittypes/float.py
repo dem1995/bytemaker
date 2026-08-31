@@ -229,9 +229,7 @@ class Float(BitType[float]):
         if mantissa_field >= 2**num_mantissa_bits:
             # Rounded up to the smallest normal number
             return (
-                sign_bit
-                + format(1, f"0{num_exponent_bits}b")
-                + "0" * num_mantissa_bits
+                sign_bit + format(1, f"0{num_exponent_bits}b") + "0" * num_mantissa_bits
             )
         return (
             sign_bit

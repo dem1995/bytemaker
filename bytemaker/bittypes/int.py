@@ -8,6 +8,7 @@ Narrowing back to a width happens only at stores, meaning the `value` setter
 and compound assignment. It also happens at the constructor, which is the
 narrowing cast. See the `Int` docstring for the full contract.
 """
+
 from __future__ import annotations
 
 import operator

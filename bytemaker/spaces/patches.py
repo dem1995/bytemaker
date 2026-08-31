@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from bytemaker.structs import BytesLike
 from bytemaker.typing_redirect import List, Optional
 
+
 class PatchVerifyError(ValueError):
     """The bytes found are not the bytes that were expected.
 
@@ -200,9 +201,7 @@ class Patch:
                 f" is {len(new_b)} — an edit replaces bytes in place"
             )
         if offset < 0:
-            raise ValueError(
-                f"Patch.write offset must be non-negative, got {offset}"
-            )
+            raise ValueError(f"Patch.write offset must be non-negative, got {offset}")
         for i, n in enumerate(new_b):
             at = offset + i
             o = None if old_b is None else old_b[i]
@@ -344,9 +343,7 @@ class Patch:
         if not isinstance(other, Patch):
             return NotImplemented
         clash = sorted(
-            at
-            for at, n in other._new.items()
-            if at in self._new and self._new[at] != n
+            at for at, n in other._new.items() if at in self._new and self._new[at] != n
         )
         if clash:
             at = clash[0]

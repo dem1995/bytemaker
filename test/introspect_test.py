@@ -2,10 +2,9 @@
 sizeof / bitsizeof / fields_of / layout."""
 
 import re
+from test.conftest import docstring_example
 
 import pytest
-
-from test.conftest import docstring_example
 
 from bytemaker import (
     Array,
@@ -147,9 +146,7 @@ def test_endian_is_the_last_member_so_earlier_positions_are_stable():
 # ------------------------------------------- the layout renderer (intro-2)
 #: A layout row: "  +0x04.4   4b  name  Type  note...". Parsed rather than
 #: split by position so the assertions below say which COLUMN they mean.
-_ROW = re.compile(
-    r"^  \+(?P<off>\S+) +(?P<bits>\d+)b +(?P<name>\S+) +(?P<rest>.*)$"
-)
+_ROW = re.compile(r"^  \+(?P<off>\S+) +(?P<bits>\d+)b +(?P<name>\S+) +(?P<rest>.*)$")
 
 
 def rows_of(text):
@@ -176,9 +173,7 @@ def test_layout_header_names_size_tier_and_record_order():
 
 
 def test_layout_has_one_row_per_field_in_wire_order():
-    names = [
-        _ROW.match(line).group("name") for line in layout(Rec).splitlines()[1:]
-    ]
+    names = [_ROW.match(line).group("name") for line in layout(Rec).splitlines()[1:]]
     assert names == [i.name for i in fields_of(Rec)]
 
 

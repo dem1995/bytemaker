@@ -58,9 +58,7 @@ def make_buf():
     RoomHeader(width=16, height=12, flags=0xABCD).pack_into(buf, ROOM_A - BASE)
     RoomHeader(width=8, height=8, flags=0x1234).pack_into(buf, ROOM_B - BASE)
     # two warps, the second pointing at ROOM_B
-    WarpPoint(sector=1, room=2, pad=0, room_ptr=ROOM_A).pack_into(
-        buf, WARPS - BASE
-    )
+    WarpPoint(sector=1, room=2, pad=0, room_ptr=ROOM_A).pack_into(buf, WARPS - BASE)
     WarpPoint(sector=3, room=4, pad=0, room_ptr=ROOM_B).pack_into(
         buf, WARPS - BASE + WarpPoint.num_bytes
     )
@@ -129,7 +127,7 @@ def test_ptr_works_as_an_array_element_and_a_field():
         ROOM_A,
         ROOM_B,
     ]
-    (info,) = [f for f in fields_of(WarpPoint) if f.name == "room_ptr"]
+    (info,) = (f for f in fields_of(WarpPoint) if f.name == "room_ptr")
     assert isinstance(info.adapter, PtrAdapter)
     assert info.adapter.target is RoomHeader
     assert info.type is UInt32  # the plan sees the base, as for any Adapted
@@ -520,7 +518,9 @@ def test_registry_resolves_a_name_the_ptr_module_lacks():
     """The cross-module case: the Ptr is declared in a module that never
     imported the record. Module lookup misses; the registry, holding every
     concrete Struct by name, resolves it — because exactly one exists."""
-    p = Ptr("XModuleRoom", module="bytemaker.spaces")  # name not in the package's globals
+    p = Ptr(
+        "XModuleRoom", module="bytemaker.spaces"
+    )  # name not in the package's globals
     assert p.deferred
     assert p.target is XModuleRoom
 
@@ -548,9 +548,7 @@ def test_ambiguous_registry_names_refuse_with_the_module_list():
 def test_current_binding_filter_prefers_the_class_the_module_still_binds():
     """Redefinition (reload/REPL): a stale same-named class may still be
     alive, but only one is what its module currently means by the name."""
-    stale = StructMeta(
-        "XModuleRoom", (Struct,), {"__annotations__": {"a": UInt8}}
-    )
+    stale = StructMeta("XModuleRoom", (Struct,), {"__annotations__": {"a": UInt8}})
     p = Ptr("XModuleRoom", module="bytemaker.spaces")
     assert p.target is XModuleRoom  # the module-bound one, not `stale`
     del stale
@@ -637,7 +635,7 @@ def test_typed_pointer_into_a_raw_byte_region_is_not_a_defect():
         Entry(BASE + 0x10, UInt8, count(16), name="blob"),
         Entry(BASE + 0x50, Ptr(Node), count(1), name="ptr"),
     ]
-    (ref,) = [p for p in s.coverage(entries).pointers if p.source == "ptr"]
+    (ref,) = (p for p in s.coverage(entries).pointers if p.source == "ptr")
     assert ref.verdict == "claimed" and ref.claimed_by == "blob"
 
 
@@ -718,9 +716,9 @@ def test_ptrvalue_survives_pickle_and_deepcopy():
         assert clone.deref(s).width == 16
     # ... and inside a record with a pointer ARRAY field
     anim2 = pickle.loads(pickle.dumps(s.read(ANIMS, AnimSet)))
-    assert type(anim2.fns[0]) is PtrValue and anim2.pack() == s.read(
-        ANIMS, AnimSet
-    ).pack()
+    assert (
+        type(anim2.fns[0]) is PtrValue and anim2.pack() == s.read(ANIMS, AnimSet).pack()
+    )
 
 
 def test_record_repr_shows_pointers_in_hex():
@@ -835,7 +833,7 @@ def test_gaps_are_the_complement_of_the_claimed_bytes():
 
 
 def test_gap_end_is_one_past_the_last_unclaimed_byte():
-    (first, *_) = space().coverage(gap_map(), audit_pointers=False).gaps()
+    first, *_ = space().coverage(gap_map(), audit_pointers=False).gaps()
     assert first.end == first.start + first.size == BASE + 0x10
     assert first.describe() == "0x08000000-0x0800000F (16 bytes)"
 
@@ -886,9 +884,7 @@ def test_render_lists_the_largest_gaps_first_and_says_so():
     text = report.render()
     assert f"gaps (3): {report.unclaimed_bytes} bytes unclaimed" in text
     assert "largest first" in text
-    listed = [
-        line for line in text.splitlines() if line.startswith("    0x")
-    ]
+    listed = [line for line in text.splitlines() if line.startswith("    0x")]
     assert listed[0].startswith(f"    0x{BASE + 0x40:08X}")  # the big one
 
 

@@ -32,9 +32,9 @@ class Extent:
         return all(getattr(self, s) == getattr(other, s) for s in self.__slots__)
 
     def __hash__(self):
-        return hash((type(self).__name__,) + tuple(
-            getattr(self, s) for s in self.__slots__
-        ))
+        return hash(
+            (type(self).__name__,) + tuple(getattr(self, s) for s in self.__slots__)
+        )
 
 
 class count(Extent):
@@ -139,4 +139,3 @@ def _as_extent(extent) -> Extent:
         f"extent must be an int or an Extent (count/until/through/unknown),"
         f" got {extent!r}"
     )
-

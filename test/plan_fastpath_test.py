@@ -10,7 +10,6 @@ from dataclasses import make_dataclass
 
 import pytest
 
-from bytemaker.conversions import _legacy_aggregate as legacy
 from bytemaker.bittypes import (
     BitType,
     Buffer,
@@ -30,6 +29,7 @@ from bytemaker.bittypes import (
 )
 from bytemaker.bittypes.int import SignedConfig
 from bytemaker.bitvector import BitVector
+from bytemaker.conversions import _legacy_aggregate as legacy
 from bytemaker.conversions.aggregate_types import (
     from_bytes_aggregate,
     to_bytes_aggregate,
@@ -40,7 +40,16 @@ SInt24 = SInt.specialize(24, None)
 Buffer32 = Buffer.of(nbytes=4, name="Buffer32")  # 4 bytes (the named zoo is gone)
 
 INT_TYPES = [
-    UInt8, UInt16, UInt32, UInt64, SInt8, SInt16, SInt32, SInt64, UInt24, SInt24,
+    UInt8,
+    UInt16,
+    UInt32,
+    UInt64,
+    SInt8,
+    SInt16,
+    SInt32,
+    SInt64,
+    UInt24,
+    SInt24,
 ]
 FLOAT_TYPES = [Float16, Float32, Float64]
 ALL_TYPES = INT_TYPES + FLOAT_TYPES + [Buffer32]

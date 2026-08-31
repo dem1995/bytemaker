@@ -4,6 +4,7 @@ import codecs
 import re
 from abc import abstractmethod
 from collections.abc import Mapping
+
 from bytemaker.bittypes.bittype import BitType
 from bytemaker.bitvector import BitVector
 from bytemaker.typing_redirect import Optional, Tuple, TypeVar
@@ -14,7 +15,7 @@ from bytemaker.utils import FrozenDict, HashableMapping, classproperty
 StrSelf = TypeVar("StrSelf", bound="String")
 
 
-def _table_bytes_per_char(table) -> "Tuple[Optional[int], Optional[str]]":
+def _table_bytes_per_char(table) -> Tuple[Optional[int], Optional[str]]:
     """``(bytes_per_char, reason_if_undefined)`` for a ``.tbl`` mapping.
 
     Character count is well-defined only when every key is one wire-unit
@@ -27,9 +28,7 @@ def _table_bytes_per_char(table) -> "Tuple[Optional[int], Optional[str]]":
         kb = bytes((k,)) if isinstance(k, int) else bytes(k)
         key_lens.add(len(kb))
         if not (isinstance(v, str) and len(v) == 1):
-            return None, (
-                f"{kb!r} maps to {v!r}, which is not a single character"
-            )
+            return None, (f"{kb!r} maps to {v!r}, which is not a single character")
     if len(key_lens) > 1:
         return None, f"keys have mixed byte lengths {sorted(key_lens)}"
     return key_lens.pop(), None
@@ -423,6 +422,7 @@ class String(BitType[str]):
         Returns:
             Type[String]: The subclass with the specified number of bits.
         """
+
         class _String(cls):
             _num_bits = num_bits_
 

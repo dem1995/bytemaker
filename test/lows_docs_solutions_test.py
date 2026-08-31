@@ -30,7 +30,10 @@ def test_phantom_params_removed():
     assert "- integer (int)" not in Int.to_bitstring.__doc__
     assert "- self" in Int.to_bitstring.__doc__
     # pytype_to_bits no longer annotates its instance arg as `type`
-    assert inspect.signature(pytype_to_bits).parameters["py_prim"].annotation is inspect.Parameter.empty
+    assert (
+        inspect.signature(pytype_to_bits).parameters["py_prim"].annotation
+        is inspect.Parameter.empty
+    )
 
 
 # ------------------------------------------------------------- broken sentences (pattern 2/3/6)

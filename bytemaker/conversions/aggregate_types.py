@@ -22,6 +22,9 @@ ignored ``is_array`` entirely for scalar types.
 
 import struct as _struct
 
+from bytemaker.bittypes import BitType
+from bytemaker.bittypes.bittype import NarrowingConfig
+from bytemaker.bittypes.int import SignedConfig
 from bytemaker.conversions import _legacy_aggregate as _legacy
 
 # Re-exported verbatim (bit-level paths and shared helpers keep the reference
@@ -43,9 +46,6 @@ from bytemaker.conversions._legacy_aggregate import (  # noqa: F401
     to_bytes_individual,
     trycast,
 )
-from bytemaker.bittypes import BitType
-from bytemaker.bittypes.bittype import NarrowingConfig
-from bytemaker.bittypes.int import SignedConfig
 from bytemaker.plans import PlanCompileError, compile_legacy_record_plan
 from bytemaker.typing_redirect import Literal, Union
 from bytemaker.utils import (
@@ -72,6 +72,7 @@ __all__ = [
     "from_bytes_aggregate",
     "trycast",
 ]
+
 
 def count_bits_in_aggregate_type(aggregate_type: type) -> int:
     """Count the number of bits in an aggregate type.

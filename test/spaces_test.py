@@ -21,7 +21,7 @@ from bytemaker.spaces import (
     unknown,
     until,
 )
-from bytemaker.structs import Array, Struct, array, field
+from bytemaker.structs import Array, Struct, field
 
 BASE = 0x08000000
 ThumbPtr = THUMB_PTR @ UInt32
@@ -45,9 +45,7 @@ def make_buf():
     buf[0x010:0x018] = b"\xa9\xeb\x03\x08\x35\xec\x03\x08"  # 2 THUMB ptrs
     buf[0x020:0x024] = b"\x18\x00\x10\x00"  # 2 Q4 multipliers: 1.5, 1.0
     # 3 Reward records (8 bytes each), then an all-zero one as a terminator
-    for i, (frames, item) in enumerate(
-        ((14400, 91), (18000, 90), (21600, 69))
-    ):
+    for i, (frames, item) in enumerate(((14400, 91), (18000, 90), (21600, 69))):
         at = 0x030 + i * 8
         buf[at : at + 8] = (
             frames.to_bytes(2, "little") + b"\x00\x00" + item.to_bytes(4, "little")
@@ -469,7 +467,7 @@ def test_pack_into_writes_in_place_on_both_tiers():
         buf = bytearray(3 + cls.num_bytes * 2)
         rec.pack_into(buf, 3)
         assert bytes(buf[3 : 3 + cls.num_bytes]) == rec.pack()
-        assert bytes(buf[: 3]) == b"\x00\x00\x00"  # nothing else touched
+        assert bytes(buf[:3]) == b"\x00\x00\x00"  # nothing else touched
         with pytest.raises(ValueError, match="does not fit"):
             rec.pack_into(buf, len(buf) - 1)
         with pytest.raises(ValueError, match="does not fit"):
@@ -541,8 +539,10 @@ def test_expect_must_describe_the_same_bytes_as_the_value():
     s = Space(bytearray(16), base=BASE, endian="little")
     e = s.entry(BASE, Reward, count(2), name="two")
     with pytest.raises(ValueError, match="the same bytes"):
-        e.write([Reward(max_frames=1, pad=0, item_id=1)] * 2,
-                expect=Reward(max_frames=0, pad=0, item_id=0))
+        e.write(
+            [Reward(max_frames=1, pad=0, item_id=1)] * 2,
+            expect=Reward(max_frames=0, pad=0, item_id=0),
+        )
 
 
 def test_entry_write_with_expect_states_the_guard_in_its_own_codec():
@@ -619,7 +619,7 @@ def test_a_field_keeps_the_byte_order_its_record_declared():
 
 
 def test_field_needs_one_record_so_a_row_is_named_first():
-    """"Which field of a 113-row table" has no answer; the row comes first,
+    """ "Which field of a 113-row table" has no answer; the row comes first,
     and .item(i) is the one way to say it."""
     s, _ = enemy_space()
     table = s.entry(BASE, Enemy, count(3), name="enemies")
@@ -795,11 +795,13 @@ def test_expect_without_bytes_is_carried_into_the_patch():
 
 def test_geometry_only_coverage_audits_declarations_and_says_it_read_nothing():
     s = gba()
-    report = s.coverage([
-        Entry(BASE + 0x100, Reward, count(3), name="rewards"),
-        Entry(BASE + 0x108, Reward, count(2), name="overlapping"),
-        Entry(BASE + 0x400, Reward, unknown("length TBD"), name="mystery"),
-    ])
+    report = s.coverage(
+        [
+            Entry(BASE + 0x100, Reward, count(3), name="rewards"),
+            Entry(BASE + 0x108, Reward, count(2), name="overlapping"),
+            Entry(BASE + 0x400, Reward, unknown("length TBD"), name="mystery"),
+        ]
+    )
     # claimed bytes are a union, so the overlapping entry adds none of its own
     assert report.claimed_bytes == 24
     assert [(o.a, o.b, o.size) for o in report.overlaps] == [
@@ -845,9 +847,10 @@ def test_parse_and_pack_move_between_fetched_bytes_and_values():
 def test_parse_reads_a_table_and_checks_the_length_it_was_given():
     s = Space(None, size=0x100, base=BASE, endian="little")
     table = s.entry(BASE, Reward, count(2), name="two")
-    data = Reward(max_frames=1, pad=0, item_id=2).pack() + Reward(
-        max_frames=3, pad=0, item_id=4
-    ).pack()
+    data = (
+        Reward(max_frames=1, pad=0, item_id=2).pack()
+        + Reward(max_frames=3, pad=0, item_id=4).pack()
+    )
     assert [r.max_frames for r in table.parse(data)] == [1, 3]
     with pytest.raises(ValueError, match="needs 16 bytes, got 8"):
         table.parse(data[:8])
@@ -892,8 +895,9 @@ def test_the_module_docstrings_core_example_actually_runs():
     """The overview opens with ONE worked example — declare, bind, read,
     write into a patch. An example that has drifted from the code teaches
     the wrong thing, so it is executed here, chunk by chunk."""
-    import bytemaker.spaces as spaces_pkg
     from test.conftest import docstring_example
+
+    import bytemaker.spaces as spaces_pkg
 
     class EnemyDNA(Struct, endian="little"):
         hp: int = field(UInt16)
@@ -928,7 +932,8 @@ def test_field_aliases_work_anywhere_a_codec_does():
     """`u16` and `UInt16` are two spellings of one scalar. The aliases are
     how records are declared, so they arrive at every codec boundary too --
     and used to fail three layers down with an Annotated compile error."""
-    from bytemaker import u8 as u8_alias, u16 as u16_alias
+    from bytemaker import u8 as u8_alias
+    from bytemaker import u16 as u16_alias
 
     s = space()
     assert s.read(BASE + 0x200, u16_alias) == 0xABCD  # == the UInt16 read
@@ -982,7 +987,7 @@ def test_a_recording_write_lands_and_is_recorded():
     rec = s.recording(p)
     rec.write(BASE + 0x200, bytes(work[0x100:0x110]))  # relocate the table
     assert bytes(work[0x200:0x210]) == pristine[0x100:0x110]  # landed
-    assert p.apply(pristine) == bytes(work)                   # and recorded
+    assert p.apply(pristine) == bytes(work)  # and recorded
 
 
 def test_a_recording_write_claims_every_byte_it_wrote():
@@ -1015,8 +1020,8 @@ def test_a_recorded_chain_stays_a_transition_from_the_pristine_image():
     work = bytearray(pristine)
     p = Patch(name="two features")
     rec = Space(work, base=BASE, endian="little").recording(p)
-    rec.write(BASE + 0x300, b"\x01\x02")   # feature 1
-    rec.write(BASE + 0x300, b"\x03\x04")   # feature 2 overwrites it
+    rec.write(BASE + 0x300, b"\x01\x02")  # feature 1
+    rec.write(BASE + 0x300, b"\x03\x04")  # feature 2 overwrites it
     assert p.apply(pristine) == bytes(work)
     assert p.invert().apply(bytes(work)) == pristine  # undo goes all the way
     assert p.verifiable
@@ -1028,7 +1033,7 @@ def test_a_recording_space_lets_later_reads_see_earlier_writes():
     rec = s.recording(Patch())
     rec.write(BASE + 0x300, 0x1234, UInt16)
     assert rec.read(BASE + 0x300, UInt16) == 0x1234  # the chain's whole need
-    assert s.read(BASE + 0x300, UInt16) == 0x1234    # same bytes underneath
+    assert s.read(BASE + 0x300, UInt16) == 0x1234  # same bytes underneath
 
 
 def test_recording_carries_through_entries_and_field_writes():
@@ -1072,9 +1077,11 @@ def test_a_too_wide_value_wraps_at_an_address_the_way_c_converts():
     before = NarrowingConfig.warn
     NarrowingConfig.warn = True
     try:
-        for call in (lambda: s.write(BASE + 2, 0x100, UInt8),
-                     lambda: e.write(0x100),
-                     lambda: e.pack(0x100)):
+        for call in (
+            lambda: s.write(BASE + 2, 0x100, UInt8),
+            lambda: e.write(0x100),
+            lambda: e.pack(0x100),
+        ):
             with pytest.warns(NarrowingWarning, match="256 became 0"):
                 call()
     finally:
