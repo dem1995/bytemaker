@@ -37,17 +37,17 @@ the engine/tier rules):
   ``bit_order`` defaults to match ``endian`` ("lsb" under little, "msb"
   under big), the way C compilers allocate bitfields on a target of the
   same endianness. A format that mixes the two states it explicitly.
-* A Struct class is itself a **codec**: ``num_bits``, ``parse``, ``pack``
-  (see :class:`Codec`). It deliberately is NOT a BitType subclass: the
-  BitType contract (boxed ``.value``, mutable ``bits`` setter,
-  ``__init__(source, value, bits)``) is scalar-shaped and does not fit
-  composites.
+* A Struct class is itself a **codec**, with ``num_bits``, ``parse`` and
+  ``pack`` (see :class:`Codec`). It is deliberately not a BitType subclass,
+  because the BitType contract is scalar-shaped: a boxed ``.value``, a
+  mutable ``bits`` setter and ``__init__(source, value, bits)`` do not fit
+  a composite.
 * Nested Struct fields are flattened into the parent's plan (keeping their
   own endianness); ``T * N`` builds an :class:`Array` codec.
-* Bulk escape hatch: ``T.plan.unpack_tuple`` / ``T.plan.iter_tuples`` move
-  flat tuples with no per-field materialization (reads on instances go
-  through a Python-level descriptor call; the hatch is the answer for
-  tuple-hungry hot loops).
+* Bulk reads: ``T.plan.unpack_tuple`` and ``T.plan.iter_tuples`` yield
+  flat tuples with no per-field materialization. A read on an instance goes
+  through a Python-level descriptor call, so these are the faster path for
+  a loop that only needs the values.
 
 Set :data:`DEBUG_VALIDATE` (or the ``BYTEMAKER_DEBUG`` environment variable)
 to re-validate every field range at ``pack`` time during migrations.
@@ -1141,14 +1141,15 @@ def field(
     standalone codec, and a nested Struct adapts its own fields.
 
     ``endian`` overrides the record's byte order for this one multi-byte
-    numeric field. It is the C-struct rarity that a mixed-endian ROM table
-    needs::
+    numeric field. It covers the rare mixed-endian record, such as a ROM
+    table with a single big-endian column::
 
         char_number: int = field(UInt16, endian="big")   # in an LE record
 
-    Every other case is refused here, with directions. Text and bytes
-    fields have no byte order. A nested Struct declares its own at its
-    class definition. An array spells it ``array(T, n, endian=...)``.
+    Every other use of ``endian`` raises here, with a message naming the
+    right spelling. Text and bytes fields have no byte order. A nested
+    Struct declares its own at its class definition. An array spells it
+    ``array(T, n, endian=...)``.
 
     A Struct-valued ``default``, scalar or array element alike, is
     detach-copied per instance at ``__init__`` time, so default-constructed
@@ -2064,20 +2065,21 @@ class Array(typing.Generic[V]):
 
     **Adapted elements** transform each element between the wire plane and
     the user plane. Spell them ``array(THUMB_PTR @ UInt32, 8)`` or
-    ``Array.of(UInt32, 8, adapt=THUMB_PTR)``. An adapted scalar field keeps
-    its slot in the wire plane, but the live element list holds user-plane
-    values instead. A list has to hold those for ``s.fns[0] = addr`` and
-    ``s.fns == [...]`` to mean what they read as.
+    ``Array.of(UInt32, 8, adapt=THUMB_PTR)``. An adapted array's live
+    element list holds user-plane values, which it has to do so that
+    ``s.fns[0] = addr`` and ``s.fns == [...]`` operate on the values the
+    field reads as.
 
-    The accepted consequence is that an adapted array field canonicalizes
-    the wire on repack. Every element round-trips through ``load`` and then
-    ``store``, so wire the adapter cannot represent is normalized: a THUMB
-    table entry parsed with bit 0 clear repacks with it set. Therefore
-    ``parse -> pack`` is the identity for canonical wire only, the same
-    posture as a ``String`` field's terminator and pad canonicalization.
-    Read the table unadapted if exact byte preservation of malformed data
-    matters. Scalar adapted fields keep slot = wire and exact identity
-    unconditionally.
+    The consequence is that an adapted array field canonicalizes its bytes
+    on repack. Every element round-trips through ``load`` and then
+    ``store``, so a wire value the adapter cannot represent comes back
+    normalized: a THUMB table entry parsed with bit 0 clear repacks with it
+    set. ``parse -> pack`` is therefore the identity only for canonical wire
+    values, in the same way that a ``String`` field canonicalizes its
+    terminator and pad. Read the table unadapted when exact byte
+    preservation of malformed data matters. A scalar adapted field keeps
+    its slot in the wire plane instead, so it round-trips exactly in every
+    case.
     """
 
     # Immutable value object: the byte order is compiled into the scalar
