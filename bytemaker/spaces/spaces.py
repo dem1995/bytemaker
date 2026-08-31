@@ -742,9 +742,7 @@ class Space:
         )
 
     def _resolve_region(self, entry: "Entry"):
-        # Capacity, not size. A reservation claims its whole extent even
-        # when what currently lives there is shorter or not yet known.
-        declared = entry.capacity
+        declared = entry.size
         if declared is not None:
             end = entry.addr + declared
             if not (self.contains(entry.addr) and end <= self.end):
@@ -1159,7 +1157,8 @@ class Entry:
         object.__setattr__(self, "space", space)
         object.__setattr__(self, "reserve", reserve)
         object.__setattr__(self, "endian", endian)
-        declared = self.size
+        n = self.item_count
+        declared = None if n is None else n * self.stride
         if reserve is not None and declared is not None and reserve < declared:
             raise ValueError(
                 f"Entry {name or hex(addr)}: reserve={reserve} is smaller than"
@@ -1233,20 +1232,18 @@ class Entry:
 
     @property
     def size(self) -> Optional[int]:
-        """Total bytes the extent describes, or None when
-        :attr:`item_count` is unknown."""
-        n = self.item_count
-        return None if n is None else n * self.stride
-
-    @property
-    def capacity(self) -> Optional[int]:
-        """Bytes this entry may occupy: its :attr:`reserve` when it
-        declares one, otherwise what its extent describes.
+        """Bytes this entry occupies: its :attr:`reserve` when it declares
+        one, otherwise the bytes its extent describes. None when neither
+        is known.
 
         This is what a write may not outgrow, and what coverage counts as
-        claimed.
+        claimed. The extent's own byte count, ignoring a reservation, is
+        ``item_count * stride``.
         """
-        return self.reserve if self.reserve is not None else self.size
+        if self.reserve is not None:
+            return self.reserve
+        n = self.item_count
+        return None if n is None else n * self.stride
 
     @property
     def end(self) -> Optional[int]:
@@ -1256,16 +1253,8 @@ class Entry:
         Two entries abut exactly when ``a.end == b.addr``, which is the
         adjacency a table-cluster check needs to state.
         """
-        size = self.capacity
+        size = self.size
         return None if size is None else self.addr + size
-
-    @property
-    def byte_span(self):
-        """``(first_addr, last_addr)`` inclusive, or None when unknown."""
-        size = self.capacity
-        if size is None or size == 0:
-            return None
-        return (self.addr, self.addr + size - 1)
 
     # -- derived addresses -------------------------------------------------
     def item(self, index: int) -> "Entry":
@@ -1380,7 +1369,7 @@ class Entry:
         memory-domain read wants. The size comes from the declaration
         rather than from a hand-kept constant.
         """
-        size = self.capacity
+        size = self.size
         if size is None:
             raise ValueError(
                 f"{self._name()}: how many bytes to fetch is not known"
@@ -1422,7 +1411,7 @@ class Entry:
         """
         space = self._space()
         data = space._encode(value, self.codec)
-        limit = self.capacity
+        limit = self.size
         if limit is not None and len(data) > limit:
             raise ValueError(
                 f"{self._name()}: {len(data)} bytes do not fit the {limit}"
@@ -1450,7 +1439,7 @@ class Entry:
         """
         space = self._space()
         data = space._encode(value, self.codec)
-        limit = self.capacity
+        limit = self.size
         if limit is not None and len(data) > limit:
             declared = (
                 f"reserve={self.reserve}" if self.reserve is not None
@@ -1470,9 +1459,9 @@ class Entry:
         """One line: name, address range, codec and extent."""
         codec_name = getattr(self.codec, "__name__", None) or repr(self.codec)
         pieces = [f"0x{self.addr:08X}"]
-        span_ = self.byte_span
-        if span_ is not None:
-            pieces.append(f"-0x{span_[1]:08X}")
+        size = self.size
+        if size:
+            pieces.append(f"-0x{self.addr + size - 1:08X}")
         head = "".join(pieces)
         label = self.name or "(unnamed)"
         out = f"{label:<28} {head:<22} {codec_name} x {self.extent!r}"

@@ -386,17 +386,17 @@ def test_space_entry_builds_a_bound_entry():
     assert e.space is not None and e.read() == [7, 6, 8, 9]
 
 
-def test_entry_derives_stride_count_size_and_span():
+def test_entry_derives_stride_count_size_and_end():
     e = Entry(BASE + 0x030, Reward, count(3))
     assert e.stride == 8 and e.item_count == 3 and e.size == 24
-    assert e.byte_span == (BASE + 0x030, BASE + 0x047)
+    assert e.end == BASE + 0x048
     sp = Entry(BASE, UInt8, through(BASE + 3))
     assert sp.item_count == 4 and sp.size == 4
     for unresolvable in (Entry(BASE, UInt8, until(0)), Entry(BASE, UInt8, unknown())):
         assert unresolvable.item_count is None
         assert unresolvable.size is None
-        assert unresolvable.byte_span is None
-    assert Entry(BASE, UInt8, count(0)).byte_span is None
+        assert unresolvable.end is None
+    assert Entry(BASE, UInt8, count(0)).size == 0
 
 
 def test_entry_read_extent_override_honors_zero():
@@ -672,7 +672,8 @@ def test_set_needs_at_least_one_field():
 def test_reserve_bounds_a_write_and_claims_its_room():
     s = Space(bytearray(0x100), base=BASE, endian="little")
     hook = s.entry(BASE, UInt8, unknown("hook blob"), reserve=0x20, name="hook")
-    assert hook.capacity == 0x20 and hook.size is None
+    # size answers the reservation even though the extent is unknown
+    assert hook.size == 0x20 and hook.item_count is None
     hook.write(b"\xde\xad" * 8)  # 16 <= 0x20
     with pytest.raises(ValueError, match="do not fit the 32 from reserve"):
         hook.write(b"\x00" * 0x21)
