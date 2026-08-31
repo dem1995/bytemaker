@@ -9,9 +9,29 @@ Modules
 spaces
 ^^^^^^
 
-Address spaces and the entries that live in them.
+The address space itself.
 
 .. automodule:: bytemaker.spaces.spaces
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+extents
+^^^^^^^
+
+How far a table runs: ``count``, ``until``, ``through``, ``unknown``.
+
+.. automodule:: bytemaker.spaces.extents
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+entry
+^^^^^
+
+Declarations that name one mapped thing.
+
+.. automodule:: bytemaker.spaces.entry
    :members:
    :undoc-members:
    :show-inheritance:

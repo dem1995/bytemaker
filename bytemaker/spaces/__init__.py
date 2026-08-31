@@ -81,16 +81,20 @@ engine packs sub-byte fields properly.
   codec the schema declared, and ``space.deref(record, Record.field)``
   follows a record's pointer field.
 
-The layer is four modules, all re-exported here. Import from
+The layer is six modules, all re-exported here. Import from
 ``bytemaker.spaces`` and the split stays an implementation detail:
 
-* :mod:`~bytemaker.spaces.spaces` — :class:`Space`, the extents, :class:`Entry`
+* :mod:`~bytemaker.spaces.spaces` — :class:`Space` itself
+* :mod:`~bytemaker.spaces.extents` — ``count``, ``until``, ``through``, ``unknown``
+* :mod:`~bytemaker.spaces.entry` — :class:`Entry`, the declarations
 * :mod:`~bytemaker.spaces.patches` — :class:`Edit`, :class:`Patch`, IPS export
 * :mod:`~bytemaker.spaces.pointers` — :class:`Ptr`, :class:`PtrValue`
 * :mod:`~bytemaker.spaces.coverage` — :class:`CoverageReport` and its parts
 """
 
 from .coverage import CoverageReport, Gap, Overlap, PointerRef, Region
+from .entry import Entry, FetchRequest
+from .extents import Extent, count, through, unknown, until
 from .patches import (
     IPS_EOF_OFFSET,
     Edit,
@@ -100,17 +104,7 @@ from .patches import (
     PatchVerifyError,
 )
 from .pointers import Ptr, PtrAdapter, PtrValue
-from .spaces import (
-    AddressError,
-    Entry,
-    Extent,
-    FetchRequest,
-    Space,
-    count,
-    through,
-    unknown,
-    until,
-)
+from .spaces import AddressError, Space
 
 __all__ = [
     "AddressError",

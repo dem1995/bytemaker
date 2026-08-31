@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 from bytemaker.typing_redirect import Any, List, Optional, Tuple
 
 if TYPE_CHECKING:
-    from .spaces import Entry
+    from .entry import Entry
 
 @dataclass(frozen=True)
 class Region:
