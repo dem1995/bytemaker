@@ -266,11 +266,6 @@ class Space:
         """The bytes, or None for a geometry-only space."""
         return self._buf
 
-    @property
-    def backed(self) -> bool:
-        """True when this space has bytes behind it."""
-        return self._buf is not None
-
     def _as_endian(self, endian: Optional[str]) -> "Space":
         """Return this space, or a view of the same bytes in another order.
 
@@ -668,10 +663,10 @@ class Space:
             )
         value = getattr(record, field_name)
         if isinstance(value, (list, tuple)):
-            return [self.deref_value(v, ptr, extent) for v in value]
-        return self.deref_value(value, ptr, extent)
+            return [self._deref_value(v, ptr, extent) for v in value]
+        return self._deref_value(value, ptr, extent)
 
-    def deref_value(
+    def _deref_value(
         self,
         addr: int,
         ptr: Any,
@@ -679,8 +674,10 @@ class Space:
     ) -> Any:
         """Follow one address through ``ptr``.
 
-        ``ptr`` is a :class:`Ptr` codec or its adapter. This is the form for
-        elements of a pointer list.
+        ``ptr`` is a :class:`Ptr` codec or its adapter. The public
+        spellings are :meth:`deref` for a record's field and
+        :meth:`PtrValue.deref` for an address already read; both come
+        through here.
         """
         adapter = _ptr_adapter_of(ptr)
         if adapter is None:

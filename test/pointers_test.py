@@ -190,17 +190,18 @@ def test_deref_refuses_a_non_pointer_field_and_lists_the_real_ones():
         s.deref(warp, "sector")
 
 
-def test_deref_value_follows_one_address():
+def test_a_read_pointer_value_derefs_itself():
     s = space()
     ptr = Ptr(RoomHeader)
     values = s.read(PTR_TABLE, ptr, 2)
-    assert [s.deref_value(v, ptr).width for v in values] == [16, 8]
-    # the adapter alone works too (that is what a record field carries)
-    assert s.deref_value(values[0], ptr.adapter).width == 16
+    assert [v.deref(s).width for v in values] == [16, 8]
+    # the internal helper takes the adapter alone (what a record field
+    # carries) and validates its ptr argument
+    assert s._deref_value(values[0], ptr.adapter).width == 16
     with pytest.raises(TypeError, match="not a Ptr"):
-        s.deref_value(ROOM_A, UInt32)
+        s._deref_value(ROOM_A, UInt32)
     with pytest.raises(TypeError, match="has no target codec"):
-        s.deref_value(ROOM_A, Ptr(None))
+        s._deref_value(ROOM_A, Ptr(None))
 
 
 def test_deref_reports_a_wild_address_as_an_address_error():
@@ -208,7 +209,7 @@ def test_deref_reports_a_wild_address_as_an_address_error():
 
     s = space()
     with pytest.raises(AddressError, match="outside the space"):
-        s.deref_value(0x02010000, Ptr(RoomHeader))
+        s._deref_value(0x02010000, Ptr(RoomHeader))
 
 
 # ---------------------------------------------------------------- coverage
@@ -439,7 +440,7 @@ def test_callable_target_is_the_no_magic_escape_hatch():
     p = Ptr(lambda: Node)
     assert p.deferred and p.target is Node
     s = linked_space()
-    assert s.deref_value(BASE + 0x10, p).value == 7
+    assert s._deref_value(BASE + 0x10, p).value == 7
 
 
 def test_unresolvable_deferred_target_says_where_it_looked():

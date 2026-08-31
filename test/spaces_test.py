@@ -704,7 +704,7 @@ def test_a_geometry_only_space_needs_a_size_and_refuses_a_buffer_with_one():
 
 def test_geometry_only_address_math_works_without_bytes():
     s = gba()
-    assert not s.backed and s.buf is None
+    assert s.buf is None
     assert len(s) == 0x800000 and s.end == BASE + 0x800000
     assert s.offset(BASE + 0x521B8C) == 0x521B8C  # the whole point
     assert s.contains(BASE + 0x100) and not s.contains(BASE + 0x800000)

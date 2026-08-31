@@ -197,10 +197,8 @@ class PtrValue(int):
     def deref(self, space: "Space", extent: Any = 1) -> Any:
         """Read what this address points at in ``space``, decoding it with
         the target the schema declared.
-
-        This is shorthand for ``space.deref_value(self, ...)``.
         """
-        return space.deref_value(self, self._adapter, extent)
+        return space._deref_value(self, self._adapter, extent)
 
     def __repr__(self):
         return hex(self)
