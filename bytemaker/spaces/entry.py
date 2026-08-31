@@ -358,6 +358,15 @@ class Entry:
         Nothing about the transport reaches the library, whether it is
         async, batched or guarded, so the same declaration serves a file
         and a live machine.
+
+        Every live-target consumer ends up wanting the same three-line
+        helper, so write it once against your transport rather than per
+        call site::
+
+            async def fetch(entry):
+                off, size = entry.request()
+                (data,) = await conn.read_many([(off, size, DOMAIN)])
+                return entry.parse(data)
         """
         space = self._space()
         stride = space._stride(self.codec)

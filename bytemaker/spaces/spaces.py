@@ -362,7 +362,16 @@ class Space:
         every value-changing store into a
         :class:`~bytemaker.NarrowingWarning` naming what became what. It is
         off by default for the same reason ``-Wconversion`` is not on by
-        default.
+        default. A build that never wants a silent wrap, which is the
+        normal stance for randomizer-style writes, escalates the warning
+        to an error::
+
+            NarrowingConfig.warn = True
+            warnings.filterwarnings("error", category=NarrowingWarning)
+
+        Every value-changing store then raises instead of wrapping, and
+        the raise lands before any bytes do, because encoding precedes
+        the buffer mutation.
 
         That knob reports a *type* overflowing its width. It says nothing
         about a limit the target imposes, such as an opcode whose immediate
