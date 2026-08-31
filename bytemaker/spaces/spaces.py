@@ -8,7 +8,7 @@ declares one mapped thing, and it can be written with no buffer in hand.
 See :mod:`bytemaker.spaces` for the layer's overview.
 """
 
-from typing import cast
+from typing import NamedTuple, cast
 
 from bytemaker.adapters import Adapted
 from bytemaker.introspect import bitsizeof, fields_of, sizeof
@@ -23,7 +23,6 @@ from bytemaker.typing_redirect import (
     Any,
     Literal,
     Optional,
-    Tuple,
     Union,
 )
 from bytemaker.utils import unwrap_alias, validate_endianness
@@ -1069,6 +1068,17 @@ class Space:
 # --------------------------------------------------------------------------
 
 
+class FetchRequest(NamedTuple):
+    """What a transport is asked for: byte ``offset`` and ``nbytes``.
+
+    A tuple with named members, so ``off, size = entry.request()`` unpacks
+    as before and ``entry.request().nbytes`` says which number is which.
+    """
+
+    offset: int
+    nbytes: int
+
+
 def _field_info(codec: StructMeta, name: str, where: str):
     """Return the named top-level field of ``codec``.
 
@@ -1362,11 +1372,11 @@ class Entry:
         return space.read(self.addr, self.codec, extent)
 
     # -- bytes in hand -----------------------------------------------------
-    def request(self) -> "Tuple[int, int]":
-        """Return ``(offset, nbytes)``, which is what a transport is asked for.
+    def request(self) -> FetchRequest:
+        """The :class:`FetchRequest` a transport is asked for.
 
-        The offset is relative to the space's base, which is what a
-        memory-domain read wants. The size comes from the declaration
+        The ``offset`` is relative to the space's base, which is what a
+        memory-domain read wants. ``nbytes`` comes from the declaration
         rather than from a hand-kept constant.
         """
         size = self.size
@@ -1375,7 +1385,7 @@ class Entry:
                 f"{self._name()}: how many bytes to fetch is not known"
                 f" ({self.extent!r}); declare count(n)/through(last) or reserve="
             )
-        return self._space().offset(self.addr), size
+        return FetchRequest(self._space().offset(self.addr), size)
 
     def parse(self, data: BytesLike) -> Any:
         """Decode this entry out of ``data``, which someone else fetched.

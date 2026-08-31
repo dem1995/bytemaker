@@ -294,6 +294,9 @@ def test_offset_of_and_span_of_locate_a_field_in_its_record():
     assert [offset_of(Row, n) for n in "abc"] == [0, 1, 3]
     assert [span_of(Row, n) for n in "abc"] == [(0, 1), (1, 2), (3, 4)]
     assert offset_of(Row(a=1, b=2, c=3), "c") == 3  # an instance works too
+    # the pair carries names, so neither number can be misread as the other
+    span = span_of(Row, "b")
+    assert span.offset == 1 and span.width == 2
 
 
 def test_offset_of_reaches_a_nested_field_by_dotted_name():

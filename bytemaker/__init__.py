@@ -103,6 +103,7 @@ from bytemaker.fields import (
 )
 from bytemaker.introspect import (
     FieldInfo,
+    FieldSpan,
     bitsizeof,
     fields_of,
     layout,
@@ -132,6 +133,7 @@ __all__ = [
     "offset_of",
     "span_of",
     "FieldInfo",
+    "FieldSpan",
     "Adapter",
     "Adapted",
     "THUMB_PTR",

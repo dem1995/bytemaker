@@ -35,6 +35,7 @@ from bytemaker.typing_redirect import (
 
 __all__ = [
     "FieldInfo",
+    "FieldSpan",
     "bitsizeof",
     "fields_of",
     "layout",
@@ -160,19 +161,31 @@ def offset_of(struct, field: str) -> int:
     return cls.plan.byte_offset(field)
 
 
-def span_of(struct, field: str) -> Tuple[int, int]:
-    """``(byte offset, byte width)`` of ``field`` within its record.
+class FieldSpan(NamedTuple):
+    """Where a field sits in its record: byte ``offset`` and byte ``width``.
+
+    A tuple with named members, so ``off, width = span_of(...)`` unpacks
+    as before and ``span_of(...).width`` says which number is which.
+    """
+
+    offset: int
+    width: int
+
+
+def span_of(struct, field: str) -> FieldSpan:
+    """The byte offset and byte width of ``field`` within its record.
 
     :func:`offset_of` gives the start. This gives the start and the width,
     which together address the field's bytes on their own.
 
     The second number is a width, not an end offset. A ``UInt16`` after a
-    ``UInt32`` spans ``(4, 2)``, and its end is the sum, 6.
+    ``UInt32`` spans ``FieldSpan(offset=4, width=2)``, and its end is the
+    sum, 6.
 
     Raises ``ValueError`` unless the field occupies whole bytes.
     """
     cls = _record_class(struct, "span_of")
-    return cls.plan.byte_span(field)
+    return FieldSpan(*cls.plan.byte_span(field))
 
 
 def _sole(values):

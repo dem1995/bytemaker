@@ -820,6 +820,8 @@ def test_request_says_where_and_how_many_bytes_to_fetch():
     ewram = Space(None, size=0x40000, base=0x02000000, endian="little", name="EW")
     vitals = ewram.entry(0x0201327A, Vitals, count(1), name="vitals")
     assert vitals.request() == (0x1327A, 4)  # domain offset, size from the type
+    req = vitals.request()
+    assert req.offset == 0x1327A and req.nbytes == 4  # named, not just positional
     unknown_len = ewram.entry(0x02000000, UInt8, unknown("?"), name="mystery")
     with pytest.raises(ValueError, match="not known"):
         unknown_len.request()
