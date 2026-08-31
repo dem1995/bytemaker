@@ -12,7 +12,7 @@ See :mod:`bytemaker.spaces` for the layer's overview.
 from typing import cast
 
 from bytemaker.adapters import Adapted
-from bytemaker.introspect import bitsizeof, fields_of
+from bytemaker.introspect import bitsizeof
 from bytemaker.structs import (
     Array,
     BytesLike,
@@ -28,17 +28,11 @@ from bytemaker.typing_redirect import (
 )
 from bytemaker.utils import unwrap_alias, validate_endianness
 
-from .coverage import (
-    CoverageReport,
-    PointerRef,
-    Region,
-    _enumerate_values,
-    _overlaps,
-)
+from .coverage import compute_coverage
 from .entry import Entry
 from .extents import Extent, _as_extent, count, through, unknown, until
 from .patches import PatchVerifyError, _changed_runs
-from .pointers import _checkable_target, _ptr_adapter_of
+from .pointers import _ptr_adapter_of
 
 
 class AddressError(ValueError):
@@ -582,136 +576,7 @@ class Space:
         stride reports ``misaligned``. A deferred target that cannot be
         resolved verifies nothing and never fails the audit.
         """
-        bound = [e if e.space is not None else e.bind(self) for e in entries]
-        regions = tuple(self._resolve_region(e) for e in bound)
-        overlaps = _overlaps(regions)
-        # Following a pointer means reading the address it holds, so a
-        # geometry-only space cannot audit pointers. It still resolves the
-        # declarations, and pointers_audited reports how far it got.
-        audited = audit_pointers and self._buf is not None
-        pointers: list = []
-        if audited:
-            for region in regions:
-                pointers.extend(self._audit_pointers(region, regions))
-        return CoverageReport(
-            space_name=self._name,
-            space_size=len(self),
-            space_base=self._base,
-            regions=regions,
-            overlaps=overlaps,
-            pointers=tuple(pointers),
-            pointers_audited=audited,
-        )
-
-    def _resolve_region(self, entry: "Entry"):
-        declared = entry.size
-        if declared is not None:
-            end = entry.addr + declared
-            if not (self.contains(entry.addr) and end <= self.end):
-                return Region(
-                    entry,
-                    None,
-                    f"0x{entry.addr:08X}+{declared} runs outside the space",
-                )
-            return Region(entry, declared)
-        if isinstance(entry.extent, unknown):
-            note = entry.extent.note or "extent not declared"
-            return Region(entry, None, f"unknown(): {note}")
-        try:
-            values = entry.read()
-        except (ValueError, TypeError) as exc:
-            return Region(entry, None, f"{type(exc).__name__}: {exc}")
-        # A scanned table's bytes include its terminator.
-        return Region(entry, (len(values) + 1) * entry.stride)
-
-    def _audit_pointers(self, region, regions) -> list:
-        entry = region.entry
-        codec = entry.codec
-        source = region.name
-        direct = _ptr_adapter_of(codec)
-        out: list = []
-        if direct is not None:
-            for index, value in _enumerate_values(self._safe_read(entry)):
-                verdict, owner = self._classify_address(value, regions, direct)
-                out.append(
-                    PointerRef(source, None, index, value, verdict, owner)
-                )
-            return out
-        if not isinstance(codec, StructMeta):
-            return out
-        ptr_fields = [
-            (info.name, _ptr_adapter_of(info.adapter))
-            for info in fields_of(codec)
-            if _ptr_adapter_of(info.adapter) is not None
-        ]
-        if not ptr_fields:
-            return out
-        records = self._safe_read(entry)
-        if records is None:
-            return out
-        if not isinstance(records, list):
-            records = [records]
-        for rec_index, rec in enumerate(records):
-            for field_name, ptr_adapter in ptr_fields:
-                value = getattr(rec, field_name)
-                for sub, one in _enumerate_values(value):
-                    index = rec_index if sub is None else (rec_index, sub)
-                    verdict, owner = self._classify_address(
-                        one, regions, ptr_adapter
-                    )
-                    out.append(
-                        PointerRef(
-                            source, field_name, index, one, verdict, owner
-                        )
-                    )
-        return out
-
-    def _safe_read(self, entry: "Entry"):
-        try:
-            return entry.read()
-        except (ValueError, TypeError):
-            return None
-
-    def _classify_address(self, addr, regions, adapter=None):
-        if not isinstance(addr, int):
-            return ("outside", None)
-        if addr == 0:
-            return ("null", None)
-        if not self.contains(addr):
-            return ("outside", None)
-        for region in regions:
-            end = region.end
-            if end is not None and region.start <= addr < end:
-                return self._verify_target(addr, region, adapter)
-        return ("unclaimed", None)
-
-    def _verify_target(self, addr, region, adapter):
-        """Classify an address that landed inside ``region``.
-
-        The verdict is ``claimed`` unless the pointer DECLARES a record
-        type that the claiming region disagrees with.
-
-        That check only runs when the region's entry codec is a Struct
-        class and the pointer's target is a Struct class, or resolves to
-        one. A raw-byte or scalar region can legitimately contain records
-        the map has not modelled at that granularity, and ``Ptr(None)`` or
-        an unresolvable name declares nothing to check.
-
-        Two defect verdicts can come out of the check. ``mistargeted``
-        means the address lands in a region mapped as a DIFFERENT record
-        type. ``misaligned`` means the record type is right but the address
-        is not on a record boundary, which is usually an off-by-one in the
-        region's address or an interior pointer worth knowing about.
-        """
-        target = _checkable_target(adapter)
-        codec = region.entry.codec
-        if target is None or not isinstance(codec, StructMeta):
-            return ("claimed", region.name)
-        if codec is not target:
-            return ("mistargeted", region.name)
-        if (addr - region.start) % region.entry.stride:
-            return ("misaligned", region.name)
-        return ("claimed", region.name)
+        return compute_coverage(self, entries, audit_pointers=audit_pointers)
 
     # -- internals ---------------------------------------------------------
     def _stride(self, codec) -> int:
