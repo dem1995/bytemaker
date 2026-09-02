@@ -1461,6 +1461,18 @@ class Struct(metaclass=StructMeta):
     _bm_endian: ClassVar[str] = "big"
     _bm_adapters: ClassVar[Dict[str, Adapter]] = {}
 
+    def __init_subclass__(
+        cls,
+        *,
+        endian: Optional[Literal["big", "little"]] = None,
+        bit_order: Optional[Literal["lsb", "msb"]] = None,
+    ) -> None:
+        # StructMeta.__new__ consumes ``endian`` and ``bit_order`` before
+        # type.__new__ runs, so neither value reaches this hook. The signature
+        # exists for type checkers, which validate class keywords against
+        # __init_subclass__ rather than against the metaclass.
+        super().__init_subclass__()
+
     @classmethod
     def parse(cls, data: BytesLike) -> Self:
         """Decode ``num_bits // 8`` bytes into a new detached instance."""
