@@ -180,6 +180,20 @@ def test_version_ignores_a_distribution_that_is_not_this_copy(monkeypatch):
     assert bytemaker._installed_version() is None
 
 
+def test_sub_byte_width_aliases_are_exported_by_name():
+    """A bitfield width has no class spelling the way u8..u64 do, so the root
+    exports u1..u7 and s1..s7 by name; fields.pyi types them, and the root
+    __getattr__ still resolves every other width lazily."""
+    from bytemaker import fields
+
+    for width in range(1, 8):
+        for prefix in ("u", "s"):
+            name = f"{prefix}{width}"
+            assert name in bytemaker.__all__
+            assert getattr(bytemaker, name) is getattr(fields, name)
+    assert "u12" not in bytemaker.__all__ and bytemaker.u12 is fields.u12
+
+
 #: Files that must keep non-ASCII characters, because the characters are the
 #: thing under test: text-codec round trips and the replacement character a
 #: decoder emits for an unmapped byte.

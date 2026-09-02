@@ -18,7 +18,12 @@ Stores narrow or validate C-style. ``pack()`` and ``parse()`` run a layout
 plan compiled once at class definition.
 
 ``uN``/``sN`` field aliases exist for any width, so ``from bytemaker import
-u31`` just works. :mod:`bytemaker.fields` resolves those names lazily.
+u31`` just works. :mod:`bytemaker.fields` resolves those names lazily. The
+sub-byte widths ``u1``..``u7`` and ``s1``..``s7`` are exported here by name,
+because a bitfield width has no class spelling the way ``u8``..``u64`` do.
+Type checkers read a named alias as an ``int`` field and a lazily resolved
+one as ``Any``, so import an unusual width from :mod:`bytemaker.fields` when
+its checker type matters.
 
 Two layers build on the record. Both are exported from here or are one
 import away.
@@ -51,7 +56,7 @@ The legacy ``@dataclass`` aggregate API lives in
 """
 
 import os
-from typing import Optional
+from typing import Any, Optional
 
 from bytemaker.adapters import (
     THUMB_PTR,
@@ -95,10 +100,24 @@ from bytemaker.fields import (
     f16,
     f32,
     f64,
+    s1,
+    s2,
+    s3,
+    s4,
+    s5,
+    s6,
+    s7,
     s8,
     s16,
     s32,
     s64,
+    u1,
+    u2,
+    u3,
+    u4,
+    u5,
+    u6,
+    u7,
     u8,
     u16,
     u32,
@@ -172,10 +191,24 @@ __all__ = [
     "TableString",
     "UTF8String",
     "Buffer",
+    "u1",
+    "u2",
+    "u3",
+    "u4",
+    "u5",
+    "u6",
+    "u7",
     "u8",
     "u16",
     "u32",
     "u64",
+    "s1",
+    "s2",
+    "s3",
+    "s4",
+    "s5",
+    "s6",
+    "s7",
     "s8",
     "s16",
     "s32",
@@ -225,9 +258,14 @@ del _installed
 _ALIAS_PATTERN = None  # compiled on first miss
 
 
-def __getattr__(name: str):
-    """Resolve ``u31``/``s5``-style field aliases lazily via
-    :mod:`bytemaker.fields` (any width, minted and cached there)."""
+def __getattr__(name: str) -> Any:
+    """Resolve ``u31``/``s9``-style field aliases lazily via
+    :mod:`bytemaker.fields` (any width, minted and cached there).
+
+    The return type is ``Any`` because a type checker cannot know which
+    alias a name will resolve to; the widths exported by name above keep
+    their declared types.
+    """
     global _ALIAS_PATTERN
     if _ALIAS_PATTERN is None:
         import re
