@@ -44,7 +44,7 @@ What can you do with it?
 ------------------------
 
 - Declare :py:class:`~bytemaker.structs.Struct` records with C-style fields
-  of any bit width (``u8``, ``s16``, ``u31``, …), nested records, arrays,
+  of any bit width (``u8``, ``s16``, ``u31``, ...), nested records, arrays,
   strings with custom encodings, and per-field endianness.
 - Work with whole address spaces via :py:mod:`bytemaker.spaces`: a
   :py:class:`~bytemaker.spaces.Space` reads and writes records by address, a
@@ -62,7 +62,7 @@ What can you do with it?
   :py:class:`~bytemaker.bitvector.BitVector` is a ``bytes``/``bytearray``
   analogue for sub-byte bit quantities.
 - Keep using the original ``@dataclass`` aggregate API
-  (:py:mod:`bytemaker.conversions.aggregate_types`) — it remains supported.
+  (:py:mod:`bytemaker.conversions.aggregate_types`); it remains supported.
 
 
 

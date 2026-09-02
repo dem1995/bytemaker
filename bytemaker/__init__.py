@@ -1,4 +1,4 @@
-"""bytemaker — C-style binary records and bit manipulation for Python.
+"""bytemaker: C-style binary records and bit manipulation for Python.
 
 The headline API is :class:`Struct`::
 
@@ -23,8 +23,8 @@ u31`` just works. :mod:`bytemaker.fields` resolves those names lazily.
 Two layers build on the record. Both are exported from here or are one
 import away.
 
-* **Encoding conventions** — :mod:`bytemaker.adapters`. An
-  :class:`~bytemaker.adapters.Adapter` states a wire↔user transform in the
+* **Encoding conventions** live in :mod:`bytemaker.adapters`. An
+  :class:`~bytemaker.adapters.Adapter` states a wire<->user transform in the
   schema rather than at every call site. Apply it per field, or fuse it
   onto a wire type with ``@``::
 
@@ -32,7 +32,7 @@ import away.
           reward_id:  int   = field(UInt8, adapt=biased(1))  # wire = id + 1
           multiplier: float = field(UInt16, adapt=fixed(4))  # 0x10 == 1.0
 
-* **Where records live** — :mod:`bytemaker.spaces`, imported separately as
+* **Where records live** is :mod:`bytemaker.spaces`, imported separately as
   ``from bytemaker.spaces import Space, Ptr``. A :class:`~bytemaker.spaces.Space`
   is a base-mapped address space, so reads are by address and the byte
   order is stated once. A :class:`~bytemaker.spaces.Ptr` is a typed address

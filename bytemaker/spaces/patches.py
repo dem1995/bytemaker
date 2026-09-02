@@ -70,7 +70,7 @@ class Edit:
         if self.old is not None and len(self.old) != len(self.new):
             raise ValueError(
                 f"Edit at {self.offset}: old is {len(self.old)} bytes and new"
-                f" is {len(self.new)} — an edit replaces bytes in place"
+                f" is {len(self.new)}; an edit replaces bytes in place"
             )
         if not self.new:
             raise ValueError(f"Edit at {self.offset} is empty")
@@ -200,7 +200,7 @@ class Patch:
         if old_b is not None and len(old_b) != len(new_b):
             raise ValueError(
                 f"Patch.write at {offset}: old is {len(old_b)} bytes and new"
-                f" is {len(new_b)} — an edit replaces bytes in place"
+                f" is {len(new_b)}; an edit replaces bytes in place"
             )
         if offset < 0:
             raise ValueError(f"Patch.write offset must be non-negative, got {offset}")
@@ -233,7 +233,7 @@ class Patch:
         if len(base_b) != len(edited_b):
             raise ValueError(
                 f"Patch.diff: buffers are {len(base_b)} and {len(edited_b)}"
-                f" bytes — a patch replaces bytes in place, so a length"
+                f" bytes; a patch replaces bytes in place, so a length"
                 f" change is not expressible"
             )
         out = cls(name=name)
@@ -379,7 +379,7 @@ class Patch:
                 raise PatchVerifyError(
                     f"{self._label()}: buffer byte at offset {at} (0x{at:X})"
                     f" is {got:#04x}, but the patch was built against"
-                    f" {want:#04x} — wrong build, or already applied"
+                    f" {want:#04x}; wrong build, or already applied"
                 )
 
     def apply(self, buf: BytesLike, *, verify: bool = True) -> bytes:

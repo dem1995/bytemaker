@@ -2,7 +2,7 @@
 
 The package currently carries a known set of mypy errors (the baseline,
 ``test/mypy_baseline.txt``). This test runs mypy over ``bytemaker/`` and
-fails if any error appears that is not in the baseline — so typing fixes
+fails if any error appears that is not in the baseline, so typing fixes
 (Self returns, generic Array, ...) cannot silently regress while the old
 errors burn down independently.
 
@@ -11,10 +11,10 @@ Regenerate the baseline after intentional changes with::
     python test/typing_regression_test.py --regen
 
 Errors are keyed as ``path :: error-code :: message`` (line numbers are
-deliberately excluded so unrelated edits don't churn the file — including
+deliberately excluded so unrelated edits don't churn the file, including
 the ones mypy writes INSIDE a message, see :func:`_normalize`). Message
 text can drift between mypy feature releases, so the gate only enforces
-when the installed mypy matches the baseline's recorded major.minor —
+when the installed mypy matches the baseline's recorded major.minor,
 otherwise it skips and asks for a regen.
 """
 
@@ -32,7 +32,7 @@ VERSION_PREFIX = "# mypy-version: "
 #: mypy writes a line number into the message of some errors ("Name "x"
 #: already defined on line 280"). The key drops the error's OWN line number,
 #: so leaving these in made any edit that shifts lines look like a batch of
-#: new errors — nine baseline entries carried one, and adding four lines to a
+#: new errors: nine baseline entries carried one, and adding four lines to a
 #: file five modules away was enough to fire the gate. A false alarm is worse
 #: than no alarm here: it teaches a reflexive --regen, which is precisely how
 #: a real regression gets waved through.
@@ -43,7 +43,7 @@ def _normalize(message: str) -> str:
     """A message with its incidental details removed.
 
     Two kinds: line numbers written into the text (above), and mypy's
-    did-you-mean suffixes — adding an attribute elsewhere can append
+    did-you-mean suffixes, because adding an attribute elsewhere can append
     ``; maybe "x"?`` to an unrelated pre-existing error, which must not read
     as a NEW one.
     """
@@ -152,7 +152,7 @@ def test_both_sides_of_the_gate_normalize_identically(tmp_path, monkeypatch):
     repair: a baseline entry hand-pasted from raw mypy stdout must come out
     of _read_baseline as the key the run side produces, or it reports as a
     permanent false new error. Fed through the actual reader on a scratch
-    file — asserting _normalize alone passes with the read side reverted."""
+    file, asserting _normalize alone passes with the read side reverted."""
     raw = 'bytemaker/x.py :: no-redef :: Name "y" already defined on line 280'
     fixed = 'bytemaker/x.py :: no-redef :: Name "y" already defined on line N'
     suffixed = 'bytemaker/y.py :: attr-defined :: no attr; maybe "x"?'

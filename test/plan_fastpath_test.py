@@ -149,7 +149,7 @@ def test_differential_signed_magnitude_config(endianness):
 def test_ineligible_layouts_fall_back():
     """ctypes/PyType/nested-dataclass fields must still work and round-trip.
 
-    (This used to also assert equality with legacy.to_bytes_aggregate —
+    (This used to also assert equality with legacy.to_bytes_aggregate,
     a tautology: for ineligible layouts the public function DELEGATES to
     the reference implementation, so both sides ran the same code and the
     comparison could never fail. The real content is that the fallback

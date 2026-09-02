@@ -27,7 +27,7 @@ from bytemaker.typing_redirect import Annotated, List
 class ThumbPointer(UInt32):
     """The 'natural workaround' a user reaches for: a two-way value
     override. Perfect as a standalone box; silently ignored by the plan
-    engine — which is exactly why it must be refused as a field type."""
+    engine, which is exactly why it must be refused as a field type."""
 
     @property
     def value(self):

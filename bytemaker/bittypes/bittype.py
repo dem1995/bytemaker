@@ -40,8 +40,8 @@ class NarrowingWarning(UserWarning):
 class NarrowingConfig:
     """Opt-in checked stores (the ``-Wconversion`` knob).
 
-    When ``warn`` is True, integer stores that change the assigned value —
-    Struct field descriptors and Int/UInt/SInt value setters — emit a
+    When ``warn`` is True, integer stores that change the assigned value
+    (Struct field descriptors and Int/UInt/SInt value setters) emit a
     :class:`NarrowingWarning`. Default off (silent C semantics). Also
     seedable via the ``BYTEMAKER_WARN_NARROWING`` environment variable.
     """
@@ -277,7 +277,7 @@ class BitType(ABC, Generic[T], metaclass=BitTypeMeta):
         # box, and no aliased mutation can change the box's width.)
         # Validate the *constructed* width, not len(source): for byte
         # sources len() counts bytes, for "0x.." strings it counts
-        # characters — both unrelated to the bit width they construct.
+        # characters, both unrelated to the bit width they construct.
         new = FixedLengthBitVector(bits)
         if len(new) != self.num_bits:
             raise ValueError(f"Expected {self.num_bits} bits, got {len(new)}")
@@ -334,7 +334,7 @@ class BitType(ABC, Generic[T], metaclass=BitTypeMeta):
         BitsCastable protocol hook: makes ``BitVector(bittype)`` (and every
         BitsConstructible site) accept boxes.
 
-        Returns the internal bits **live and width-locked** — consistent
+        Returns the internal bits **live and width-locked**, consistent
         with the live ``.bits`` policy, and safe because ``BitVector(...)``
         copy-constructs from the result. Construct a ``BitVector`` when you
         need an independent, resizable snapshot.

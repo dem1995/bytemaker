@@ -580,7 +580,7 @@ def test_scalar_parse_plain():
 def test_scalar_array_matches_box_reference(elem, endian):
     """The fast paths must yield exactly what the config-aware box
     reference (element(bits=...).value) yields, for every kind and both
-    byte orders — and round-trip."""
+    byte orders, and round-trip."""
     arr = Array.of(elem, 4, endian=endian)
     data = bytes(range(1, 1 + arr.num_bytes))
     out = arr.parse(data)
@@ -633,7 +633,7 @@ def test_text_and_bytes_array_elements_stream_order():
 def test_non_ieee_float_carried_not_rejected():
     """Non-IEEE floats classify LETTER-LESS (never the width-keyed IEEE
     letter, which would mis-decode BFloat16 as binary16) and are carried
-    by the boxed-codec paths in both Struct fields and Arrays — the old
+    by the boxed-codec paths in both Struct fields and Arrays, the old
     hard reject, and before that Array's silent integer fallback, are
     both gone. Full coverage in test/boxed_float_test.py."""
     from bytemaker.bittypes import FP24
@@ -1486,7 +1486,7 @@ def test_a_byte_aligned_child_is_exempt_from_the_bit_order_guard():
 
 
 def test_bit_order_is_a_noop_for_whole_byte_leaves():
-    """The fact the exemption rests on, pinned differentially — ON THE
+    """The fact the exemption rests on, pinned differentially, ON THE
     SHIFTMASK TIER, the only code where bit_order exists (the aligned tier
     never reads it, so a struct-tier differential is vacuously equal and
     pins nothing). The cross-endian field is what forces the tier."""

@@ -24,7 +24,7 @@ Address spaces and patches
 
 :class:`~bytemaker.spaces.Space`, :class:`~bytemaker.spaces.Entry`,
 :class:`~bytemaker.spaces.Patch`, :class:`~bytemaker.spaces.Ptr` and coverage
-reporting — reading and editing records in place (ROM images, save files,
+reporting: reading and editing records in place (ROM images, save files,
 memory dumps).
 
 .. toctree::
@@ -35,7 +35,7 @@ memory dumps).
 Encoding conventions
 --------------------
 
-Declarative wire ↔ user transforms, applied per field or fused onto a wire
+Declarative wire <-> user transforms, applied per field or fused onto a wire
 type.
 
 .. toctree::

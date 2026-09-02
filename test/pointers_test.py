@@ -94,7 +94,7 @@ def test_ptr_is_an_adapted_scalar_codec():
 
 
 def test_ptr_decodes_to_an_int_that_knows_its_pointer():
-    """Still no proxies and no laziness — nothing is followed until asked —
+    """Still no proxies and no laziness (nothing is followed until asked),
     but the decoded value is a PtrValue: an int subclass carrying the
     adapter, indistinguishable from the address in every int way."""
     value = space().read(WARPS + 4, Ptr(RoomHeader))
@@ -486,7 +486,7 @@ def test_resolved_target_pickles_by_reference():
 
 
 def test_deferred_pointers_are_audited_and_verified_when_resolvable():
-    """coverage() classifies addresses with no pointee codec needed — and
+    """coverage() classifies addresses with no pointee codec needed, and
     when a deferred target DOES resolve (these do: "Node", "ExitList"), the
     claimed hits are additionally type/alignment-verified, which is why they
     still read "claimed" and not a defect verdict."""
@@ -517,7 +517,7 @@ class XModuleRoom(Struct, endian="little"):
 def test_registry_resolves_a_name_the_ptr_module_lacks():
     """The cross-module case: the Ptr is declared in a module that never
     imported the record. Module lookup misses; the registry, holding every
-    concrete Struct by name, resolves it — because exactly one exists."""
+    concrete Struct by name, resolves it, because exactly one exists."""
     p = Ptr(
         "XModuleRoom", module="bytemaker.spaces"
     )  # name not in the package's globals
@@ -744,9 +744,9 @@ def test_wire_plane_stays_plain():
 
 
 def test_annotation_may_be_looser_than_the_runtime_type():
-    """int (a superclass of PtrValue) stays a valid annotation — the
+    """int (a superclass of PtrValue) stays a valid annotation, the
     relaxation that keeps every existing Annotated[int, Ptr(...)] alias
-    compiling — while a WRONG tighter one is still refused."""
+    compiling, while a WRONG tighter one is still refused."""
     from bytemaker.plans import PlanCompileError
 
     class LooseOk(Struct, endian="little"):

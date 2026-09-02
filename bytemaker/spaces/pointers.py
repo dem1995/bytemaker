@@ -58,7 +58,7 @@ class PtrAdapter(Adapter):
             raise TypeError(
                 f"Ptr target must be a codec (Struct class, BitType class,"
                 f" Array, fused adapter@BitType), a name to resolve later, a"
-                f" zero-argument callable returning one, or None — got"
+                f" zero-argument callable returning one, or None; got"
                 f" {target!r}"
             )
         inner_load = inner.load if inner is not None else _identity
@@ -120,12 +120,12 @@ class PtrAdapter(Adapter):
         if len(pool) > 1:
             mods = ", ".join(sorted(c.__module__ or "?" for c in pool))
             raise TypeError(
-                f"{self.name}: deferred target {target!r} is ambiguous — a"
+                f"{self.name}: deferred target {target!r} is ambiguous; a"
                 f" concrete Struct by that name is alive in each of: {mods}."
                 f" Pass Ptr(..., module=...) to pick one"
             )
         raise TypeError(
-            f"{self.name}: cannot resolve the deferred target {target!r} —"
+            f"{self.name}: cannot resolve the deferred target {target!r};"
             f" not in module {self.module!r}, and no concrete Struct class"
             f" by that name is alive anywhere. Deferred targets resolve"
             f" against the module the Ptr was built in, then against all"

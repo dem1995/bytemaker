@@ -79,7 +79,7 @@ class String(BitType[str]):
     truncate: bool = False
     #: Fixed wire bytes per character, when the codec has one (single-byte
     #: tables derive 1; pass explicitly for e.g. UTF-16). Sizing metadata
-    #: only — the wire contract stays bytes — but when known, terminator/pad
+    #: only (the wire contract stays bytes), but when known, terminator/pad
     #: handling works on whole character units.
     bytes_per_char: Optional[int] = None
 
@@ -245,7 +245,7 @@ class String(BitType[str]):
             ):
                 return cls._reverse_codepoint_changes_regex_cache[1]
             else:
-                # Longest alternative first — see _codepoint_change_regex.
+                # Longest alternative first; see _codepoint_change_regex.
                 cls._reverse_codepoint_changes_regex_cache = (
                     hash(cls.codepoint_changes),
                     re.compile(
@@ -310,7 +310,7 @@ class String(BitType[str]):
 
     @classmethod
     def _substitute_reverse(cls, value):
-        # Truthiness, not identity — see _substitute_forward.
+        # Truthiness, not identity; see _substitute_forward.
         reverse_changes = cls._reverse_codepoint_changes
         if reverse_changes:
             value = cls.perform_codepoint_substitution(
@@ -373,8 +373,8 @@ class String(BitType[str]):
 
     @classmethod
     def _decode_wire(cls, raw) -> str:
-        """Decode wire bytes: cut at the terminator, strip trailing pad —
-        both at the byte layer, *before* decoding — then decode and
+        """Decode wire bytes: cut at the terminator, strip trailing pad
+        (both at the byte layer, *before* decoding), then decode and
         substitute. Cut and strip work in whole character units when
         ``bytes_per_char`` is known (a NUL-padded UTF-16 field must strip
         ``b"\\x00\\x00"`` pairs; byte-wise stripping would eat the high
@@ -451,15 +451,15 @@ class String(BitType[str]):
         Size the field with exactly one of (both keyword-only, so every
         declaration names its unit):
 
-        * ``nbytes`` — wire bytes, the C ``char name[N]`` count; multi-byte
+        * ``nbytes`` is wire bytes, the C ``char name[N]`` count; multi-byte
           codecs fit fewer characters.
-        * ``nchars`` — character count: sugar for ``nchars * bytes_per_char``
+        * ``nchars`` is a character count: sugar for ``nchars * bytes_per_char``
           wire bytes, so it needs a fixed, known bytes-per-char. That is
           derived for mapping codecs (defined iff every key is one wire-unit
           length and every value one character) and taken from
           ``bytes_per_char=`` (or an inherited class attribute) otherwise.
-          Codecs without one — UTF-8, Shift-JIS, tables with control codes
-          like ``"[PK]"`` — refuse ``nchars=`` at mint time: size those in
+          Codecs without one (UTF-8, Shift-JIS, tables with control codes
+          like ``"[PK]"``) refuse ``nchars=`` at mint time: size those in
           bytes, which is the only quantity they fix.
 
         The wire contract is always bytes; ``bytes_per_char`` is sizing
@@ -468,8 +468,8 @@ class String(BitType[str]):
         terminator/pad handling work on whole character units.
 
         ``encoding`` may be a Python codec name (``"ascii"``,
-        ``"shift-jis"``, …), a ``.tbl``-style mapping (``{0x80: "A",
-        0xE1: "[PK]", …}`` — see :class:`TableString`), an
+        ``"shift-jis"``, ...), a ``.tbl``-style mapping (``{0x80: "A",
+        0xE1: "[PK]", ...}}``; see :class:`TableString`), an
         ``(encode, decode)`` callable pair (``str -> bytes``,
         ``bytes -> str``), or None to inherit ``cls``'s codec (call it on a
         concrete class such as ``UTF8String``).

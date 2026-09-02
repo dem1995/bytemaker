@@ -2,7 +2,7 @@
 """
 Benchmarks the BitVector implementations against each other: the
 byte-per-bit reference (`bitvector_native`), the packed pure-Python
-implementation (`bitvector_speedup`), and — when bitarray is installed —
+implementation (`bitvector_speedup`), and (when bitarray is installed)
 the bitarray-backed implementation that actually ships
 (`bitvector_with_bitarray_speedup`).
 

@@ -5,7 +5,7 @@ Overview
 ============
 ``bytemaker`` is organized in three layers:
 
-* :py:class:`~bytemaker.structs.Struct` for declaring binary records —
+* :py:class:`~bytemaker.structs.Struct` for declaring binary records,
   the headline API
 * :py:mod:`bytemaker.spaces` for whole address spaces: reading and editing
   records in place, patches, pointers and coverage reports

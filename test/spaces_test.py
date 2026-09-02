@@ -1,6 +1,6 @@
 """bytemaker.spaces: Space, extents, Entry (rom-1).
 
-Synthetic buffers only — no binaries in test/. The addresses use a GBA-style
+Synthetic buffers only: no binaries in test/. The addresses use a GBA-style
 0x08000000 base because that is the case the layer exists for, but nothing
 here is game-specific.
 """
@@ -250,7 +250,7 @@ def test_until_scans_to_the_sentinel():
 
 def test_until_compares_the_sentinel_on_the_wire_not_the_user_plane():
     """THUMB_PTR.store(0) is 1, so a user-plane comparison would look for
-    0x00000001 — which is the FIRST entry of this table. The sentinel must
+    0x00000001, which is the FIRST entry of this table. The sentinel must
     be the unadapted encoding."""
     s = space()
     assert s.read(BASE + 0x100, ThumbPtr, until(0)) == [0x08000000]
@@ -906,7 +906,7 @@ def test_space_write_uses_the_in_place_path_for_records():
 
 # ------------------------------------------ the module's own examples (rom-17)
 def test_the_module_docstrings_core_example_actually_runs():
-    """The overview opens with ONE worked example — declare, bind, read,
+    """The overview opens with ONE worked example: declare, bind, read,
     write into a patch. An example that has drifted from the code teaches
     the wrong thing, so it is executed here, chunk by chunk."""
     from test.conftest import docstring_example

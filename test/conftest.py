@@ -12,7 +12,7 @@ collect_ignore = ["_typing_repro.py"]
 
 def docstring_example(doc: str, first_word: str) -> str:
     """The indented example block in ``doc`` that starts with ``first_word``,
-    dedented — for tests that execute or compare a docstring's own example
+    dedented, for tests that execute or compare a docstring's own example
     rather than a hand-typed copy that can drift from it.
 
     One home (two tests already grew independent copies of this in one
@@ -22,7 +22,7 @@ def docstring_example(doc: str, first_word: str) -> str:
     lines = doc.splitlines()
     starts = [i for i, ln in enumerate(lines) if ln.strip().startswith(first_word)]
     assert starts, (
-        f"docstring has no example line starting with {first_word!r} —"
+        f"docstring has no example line starting with {first_word!r};"
         f" the example the test asserts against has been renamed or removed"
     )
     block = []

@@ -1,9 +1,9 @@
 # flake8: noqa
 """
-Differential fuzz tests: each candidate BitVector implementation — the
+Differential fuzz tests: each candidate BitVector implementation, the
 packed pure-Python one (`bitvector_speedup`) and the bitarray-backed one
 that actually ships when bitarray is installed
-(`bitvector_with_bitarray_speedup`) — is driven in lockstep with the
+(`bitvector_with_bitarray_speedup`), is driven in lockstep with the
 byte-per-bit reference implementation (`bitvector_native`) through seeded
 random operation sequences. After every step the two sides must agree on
 state (to01), on return values, and on the exception type raised, and a
@@ -85,7 +85,7 @@ def _random_constructible(rng, length):
     if form == 3:
         return bytes(int(c) for c in s01)  # byte source; bytes happen to be 0/1
     # Byte-family sources with arbitrary content (13 #16: copied byte
-    # sources, 8 bits per byte — memoryview included).
+    # sources, 8 bits per byte, memoryview included).
     raw = bytes(rng.randrange(256) for _ in range(max(1, length // 8)))
     if form == 4:
         return raw

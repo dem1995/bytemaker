@@ -889,7 +889,7 @@ def _annotation_accepts(ann, expected) -> bool:
 def _spec_type_error(owner, field_name, annotation, bittype, want):
     raise PlanCompileError(
         f"{owner}.{field_name}: annotation {annotation!r} disagrees with the"
-        f" field()/array() wire type {bittype!r} — a checker would trust the"
+        f" field()/array() wire type {bittype!r}; a checker would trust the"
         f" annotation while the field really holds {want}. Annotate it as"
         f" {want} (or fix the field()/array() type)."
     )
@@ -1252,7 +1252,7 @@ class StructMeta(type):
                 raise PlanCompileError(
                     f"{name}.{n}: field name collides with the Struct API"
                     f" ({why}); rename the field"
-                    f" (e.g. {n + '_'!r} — layout is positional, so field"
+                    f" (e.g. {n + '_'!r}; layout is positional, so field"
                     f" names never affect the wire format)"
                 )
             has_default = False
@@ -2372,7 +2372,7 @@ class Array(typing.Generic[V]):
             raise ValueError(
                 f"{self!r}.{op}: standalone {op} needs whole-byte elements"
                 f" (element is {elem_bits} bits); as a Struct FIELD this"
-                f" array is supported — the plan flattens its elements"
+                f" array is supported; the plan flattens its elements"
             )
         # Multi-byte NUMERIC elements have a byte order, and an unset one
         # would be a coin flip: big by the standalone default, but
@@ -2387,7 +2387,7 @@ class Array(typing.Generic[V]):
             and elem_bits > 8
         ):
             raise ValueError(
-                f"{self!r}.{op}: no byte order declared — standalone"
+                f"{self!r}.{op}: no byte order declared; standalone"
                 f" {op} of multi-byte numeric elements needs an explicit"
                 f" endian= (as a Struct field, an unset array inherits"
                 f" the record's byte order)"

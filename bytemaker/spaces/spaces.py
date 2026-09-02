@@ -208,7 +208,7 @@ class Space:
             raise ValueError(
                 f"{self._label()}: {what} needs bytes, but this space is"
                 f" geometry only (built with size=, no buffer). Build a Space"
-                f" over the bytes once you have them — for a live target,"
+                f" over the bytes once you have them; for a live target,"
                 f" fetch the bytes yourself and decode them."
             )
         return self._buf
@@ -299,7 +299,7 @@ class Space:
         if isinstance(extent, unknown):
             raise ValueError(
                 f"{self._label()}: the extent at 0x{addr:08X} is unknown()"
-                f" — pass a count at the call site, or declare"
+                f"; pass a count at the call site, or declare"
                 f" count(n)/until(sentinel)/through(last_addr)"
                 + (f" ({extent.note})" if extent.note else "")
             )
@@ -434,7 +434,7 @@ class Space:
         if self._buf is None:
             if patch is None:
                 raise ValueError(
-                    f"{self._label()}: nothing to mutate — this space is"
+                    f"{self._label()}: nothing to mutate; this space is"
                     f" geometry only, so a write has to be recorded; pass"
                     f" patch= to collect the edit"
                 )
@@ -532,11 +532,11 @@ class Space:
         field_name = field if isinstance(field, str) else _field_name_of(field)
         if field_name is None:
             hint = (
-                " — that is the field's VALUE; pass the CLASS attribute"
+                ": that is the field's VALUE; pass the CLASS attribute"
                 " (e.g. WarpPoint.room_ptr) or the name string, or call"
                 " value.deref(space) directly"
                 if isinstance(field, int)
-                else " — pass the field's name or the class attribute"
+                else "; pass the field's name or the class attribute"
             )
             raise TypeError(f"{self._label()}: {field!r} is not a field{hint}")
         cls = record if isinstance(record, type) else type(record)
@@ -578,7 +578,7 @@ class Space:
             )
         if adapter.target is None:
             raise TypeError(
-                f"{self._label()}: {adapter.name} has no target codec —"
+                f"{self._label()}: {adapter.name} has no target codec;"
                 f" Ptr(None) documents an address whose pointee is not"
                 f" modelled; give Ptr a target to follow it"
             )
@@ -623,7 +623,7 @@ class Space:
             ) from None
         if bits % 8:
             raise ValueError(
-                f"{self._label()}: {codec!r} is {bits} bits — a byte address"
+                f"{self._label()}: {codec!r} is {bits} bits; a byte address"
                 f" has no room for a sub-byte stride; wrap it in a Struct and"
                 f" map that"
             )
@@ -643,7 +643,7 @@ class Space:
                 raise ValueError(
                     f"{self._label()}: 0x{addr:08X} through 0x{extent.last:08X}"
                     f" is {total} bytes, not a whole number of {stride}-byte"
-                    f" items — the address, the last address, or the record"
+                    f" items; the address, the last address, or the record"
                     f" shape is wrong"
                 )
             return total // stride
@@ -761,7 +761,7 @@ class Space:
         if len(expected) != nbytes:
             raise ValueError(
                 f"{self._label()}: expect= encodes to {len(expected)} bytes at"
-                f" 0x{addr:08X} but the value being written is {nbytes} — the"
+                f" 0x{addr:08X} but the value being written is {nbytes}; the"
                 f" two must describe the same bytes"
             )
         return expected
@@ -775,7 +775,7 @@ class Space:
             raise PatchVerifyError(
                 f"{where}: bytes at 0x{addr:08X} are"
                 f" {current.hex()}, but the write expected {expected.hex()}"
-                f" — wrong build, moved table, or already applied"
+                f"; wrong build, moved table, or already applied"
             )
 
     def _infer_codec(self, value):

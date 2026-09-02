@@ -209,7 +209,7 @@ class BitVector(bitarray, MutableSequence[LaxLiteral01]):
         ):
             # Source-form byte-likes are COPIED (13 #16 ruling): a buffer
             # import would make the vector read-only (bytes) or a live,
-            # resize-locking alias of the caller's object (bytearray) —
+            # resize-locking alias of the caller's object (bytearray),
             # and either way non-resizable. Sharing is buffer='s job.
             # Unbound frombytes call: FixedLengthBitVector overrides the
             # method to raise, but must still construct from bytes.

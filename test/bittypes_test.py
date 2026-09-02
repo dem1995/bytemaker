@@ -21,7 +21,7 @@ from bytemaker.bittypes.bittype import StructPackedBitType
 from bytemaker.bitvector import BitVector
 
 # Named-width String/Buffer zoos are gone; mint what these tests need.
-# (.of counts bytes — the field door; specialize counts bits — the box door.)
+# (.of counts bytes, the field door; specialize counts bits, the box door.)
 Str8 = UTF8String.of(nbytes=1, name="Str8")
 Str16 = UTF8String.of(nbytes=2, name="Str16")
 Buffer4 = Buffer.specialize(4, "Buffer4")

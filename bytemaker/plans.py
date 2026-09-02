@@ -93,7 +93,7 @@ class FieldSpec:
     """One leaf field of a compiled record layout.
 
     ``kind`` is ``"u"`` (unsigned int), ``"s"`` (signed int), ``"f"``
-    (float), or ``"b"`` (bytes payload: String/Buffer fields — the tuple
+    (float), or ``"b"`` (bytes payload: String/Buffer fields, where the tuple
     entry is the field's wire ``bytes``). Nested Structs are flattened away
     before FieldSpecs are made; ``name`` is dotted (``"child.x"``) for
     their leaves.
@@ -384,7 +384,7 @@ class Plan:
         # A negative offset would INFLATE avail ((len - -8) // size) and
         # then slice Python-style from the end: silently wrong records on
         # the shiftmask tier, a confusing struct.error on the struct tier.
-        # Record offsets are not string indices — reject out-of-buffer.
+        # Record offsets are not string indices; reject out-of-buffer.
         if offset < 0 or offset > len(view):
             raise ValueError(
                 f"iter_tuples: offset {offset} is outside the buffer"

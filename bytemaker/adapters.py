@@ -206,7 +206,7 @@ class Adapted(Generic[U]):
         if not (isinstance(base, type) and issubclass(base, BitType)):
             raise TypeError(
                 f"{getattr(adapter, 'name', adapter)!r} @ {base!r}: adapters"
-                f" fuse onto a scalar BitType class only — a nested Struct"
+                f" fuse onto a scalar BitType class only; a nested Struct"
                 f" adapts its own fields, and an Array adapts its ELEMENTS"
                 f" (adapter @ element, then Array.of(...))"
             )

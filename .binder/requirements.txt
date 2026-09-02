@@ -1,2 +1,2 @@
-﻿bitarray==2.9.2
+bitarray==2.9.2
 bytemaker
