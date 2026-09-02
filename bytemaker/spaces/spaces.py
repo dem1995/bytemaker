@@ -391,6 +391,16 @@ class Space:
         patches touching different fields of one record compose under
         ``|``.
 
+        A ``patch=`` write that finds the buffer already holding the new
+        value therefore records nothing. A feature that reads the patch
+        back as its own table of writes then sees fewer bytes than it
+        wrote. To have every written byte recorded, state ``expect=`` with
+        the current value, because a stated guard is recorded whole, or
+        build against a geometry-only space, which records every write
+        since it has no bytes to compare against. Adjacent writes also come
+        back from :attr:`Patch.edits` merged into one contiguous run rather
+        than one edit per write.
+
         The rule is safe here because the buffer is untouched, so reads
         never see pending edits. Without it, a later whole-record write
         would read the pristine bytes and record them as the original,
