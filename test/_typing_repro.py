@@ -200,3 +200,27 @@ reveal_type(hp.loose)  # noqa: F821  -> int
 reveal_type(hp.precise)  # noqa: F821  -> PtrValue
 hp.precise.deref(space)  # checker-visible on the precise view
 hp.loose.deref(space)  # type: ignore  # int has no .deref to a checker
+
+
+# --- typed surfaces beyond fields: sub-byte aliases, introspect, Patch -----
+from typing import Tuple  # noqa: E402
+
+from bytemaker import offset_of, sizeof, u4  # noqa: E402
+from bytemaker.spaces import Edit, Patch  # noqa: E402
+
+
+class Nibbles(Struct, endian="little", bit_order="lsb"):
+    lo: u4  # exported from the root by name, so it reads as int here
+    hi: u4
+
+
+nib = Nibbles(lo=1, hi=2)
+nib_total: int = nib.lo + nib.hi
+
+rgb_size: int = sizeof(RGB)
+g_offset: int = offset_of(RGB, "g")
+
+patch = Patch()
+patch.write(0, b"\x01", b"\x00")
+first_edit: Edit = patch.edits[0]
+first_guard: Tuple[int, bytes, bytes] = patch.guards()[0]

@@ -45,7 +45,7 @@ __all__ = [
 ]
 
 
-def _unwrap(obj):
+def _unwrap(obj: Any) -> Any:
     """Return the BitType inside a ``uN``/``sN`` alias.
 
     ``Annotated[int, UInt16]``, the ``u16`` alias, gives ``UInt16``. Any
@@ -58,7 +58,7 @@ def _unwrap(obj):
     return obj
 
 
-def bitsizeof(obj) -> int:
+def bitsizeof(obj: Any) -> int:
     """The bit width of any schema object.
 
     Accepts a Struct class or instance, a BitType class or box, an
@@ -75,7 +75,7 @@ def bitsizeof(obj) -> int:
     )
 
 
-def sizeof(obj) -> int:
+def sizeof(obj: Any) -> int:
     """:func:`bitsizeof` in whole bytes.
 
     Sub-byte widths round up, matching ``len(bytes(box))``.
@@ -103,7 +103,7 @@ class FieldInfo(NamedTuple):
     endian: Optional[str]
 
 
-def _record_class(struct, caller: str) -> StructMeta:
+def _record_class(struct: Any, caller: str) -> StructMeta:
     """The concrete Struct class behind a class or an instance.
 
     Every function here that reads a compiled layout calls this and passes
@@ -118,7 +118,7 @@ def _record_class(struct, caller: str) -> StructMeta:
     return cls
 
 
-def fields_of(struct) -> Tuple[FieldInfo, ...]:
+def fields_of(struct: Any) -> Tuple[FieldInfo, ...]:
     """A Struct's top-level fields as :class:`FieldInfo` tuples, in wire order.
 
     Bit offsets and byte order come from the compiled plan. A nested Struct
@@ -146,7 +146,7 @@ def fields_of(struct) -> Tuple[FieldInfo, ...]:
     )
 
 
-def offset_of(struct, field: str) -> int:
+def offset_of(struct: Any, field: str) -> int:
     """Byte offset of ``field`` within its record.
 
     This replaces a hand-counted ``+0x0A``. The number comes from the same
@@ -172,7 +172,7 @@ class FieldSpan(NamedTuple):
     width: int
 
 
-def span_of(struct, field: str) -> FieldSpan:
+def span_of(struct: Any, field: str) -> FieldSpan:
     """The byte offset and byte width of ``field`` within its record.
 
     :func:`offset_of` gives the start. This gives the start and the width,
@@ -220,7 +220,7 @@ def _offset_text(bit_offset: int) -> str:
     return f"0x{byte:02X}" + (f".{bit}" if bit else "")
 
 
-def layout(struct) -> str:
+def layout(struct: Any) -> str:
     """Return a record's compiled layout as text, for a person to read.
 
     Takes a Struct class or an instance, and raises :class:`TypeError` for

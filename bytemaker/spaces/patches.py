@@ -11,7 +11,7 @@ instead of silently.
 from dataclasses import dataclass
 
 from bytemaker.structs import BytesLike
-from bytemaker.typing_redirect import List, Optional
+from bytemaker.typing_redirect import Iterable, List, Optional, Tuple
 
 
 class PatchVerifyError(ValueError):
@@ -169,7 +169,7 @@ class Patch:
 
     __slots__ = ("_old", "_new", "name")
 
-    def __init__(self, edits=(), *, name: str = ""):
+    def __init__(self, edits: Iterable[Edit] = (), *, name: str = ""):
         self._old: dict = {}
         self._new: dict = {}
         self.name = name
@@ -242,7 +242,7 @@ class Patch:
         return out
 
     @property
-    def edits(self) -> tuple:
+    def edits(self) -> Tuple[Edit, ...]:
         """The byte map as maximal contiguous :class:`Edit` runs, in offset
         order.
 
@@ -322,7 +322,7 @@ class Patch:
         out._new = dict(self._old)
         return out
 
-    def guards(self) -> tuple:
+    def guards(self) -> Tuple[Tuple[int, bytes, bytes], ...]:
         """Return ``(offset, expected, new)`` per coalesced run.
 
         Each triple says to write ``new`` at ``offset``, but only while the
@@ -337,7 +337,14 @@ class Patch:
         iterating. A tuple can also be counted and reused.
         """
         self._require_verifiable("guards()")
-        return tuple((e.offset, e.old, e.new) for e in self.edits)
+        triples: List[Tuple[int, bytes, bytes]] = []
+        for e in self.edits:
+            # _require_verifiable() has just ruled out blind edits, so ``old``
+            # is bytes here; the check narrows it for the type checker too.
+            if e.old is None:
+                raise PatchUnverifiable(f"{self._label()}: edit at {e.offset} is blind")
+            triples.append((e.offset, e.old, e.new))
+        return tuple(triples)
 
     def __or__(self, other: "Patch") -> "Patch":
         """Compose two independent patches, raising :class:`PatchConflict`
