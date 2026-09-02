@@ -178,3 +178,56 @@ def test_version_ignores_a_distribution_that_is_not_this_copy(monkeypatch):
 
     monkeypatch.setattr(importlib.metadata, "distribution", missing)
     assert bytemaker._installed_version() is None
+
+
+#: Files that must keep non-ASCII characters, because the characters are the
+#: thing under test: text-codec round trips and the replacement character a
+#: decoder emits for an unmapped byte.
+NON_ASCII_ALLOWED = frozenset(
+    {
+        "bytemaker/bittypes/string.py",
+        "test/bittypes_tests/bitarray_test.py",
+        "test/bitvector_differential_test.py",
+        "test/text_fields_test.py",
+    }
+)
+
+
+def test_shipped_sources_and_docs_are_ascii():
+    """Prose, comments and messages stay ASCII, so no editor, terminal or
+    diff viewer has to agree about an encoding to read them."""
+    from pathlib import Path
+
+    root = Path(bytemaker.__file__).resolve().parent.parent
+    if not (root / "pyproject.toml").is_file():
+        pytest.skip("not a source checkout (vendored layout)")
+    patterns = (
+        "bytemaker/**/*.py",
+        "bytemaker/**/*.pyi",
+        "test/**/*.py",
+        "docs/**/*.rst",
+        "README.md",
+        "pyproject.toml",
+    )
+    offenders = {}
+    for pattern in patterns:
+        for path in root.glob(pattern):
+            rel = path.relative_to(root).as_posix()
+            if rel in NON_ASCII_ALLOWED:
+                continue
+            text = path.read_text(encoding="utf-8")
+            found = sorted({c for c in text if ord(c) > 127})
+            if found:
+                lines = [
+                    n
+                    for n, line in enumerate(text.splitlines(), 1)
+                    if any(ord(c) > 127 for c in line)
+                ]
+                offenders[rel] = (
+                    [f"U+{ord(c):04X}" for c in found],
+                    lines[:5],
+                )
+    assert not offenders, (
+        "non-ASCII characters outside the allowed files; use ASCII"
+        f" punctuation instead: {offenders}"
+    )
