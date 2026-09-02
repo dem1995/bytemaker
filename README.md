@@ -121,6 +121,7 @@ The main goal of the project is to ease development of projects working with com
 - `BitVector.from_bytes` and `BitVector.from_chararray` returned read-only, non-resizable vectors on the bitarray backend (they constructed through the internal buffer-import path); both now return normal vectors on every backend.
 - `String.codepoint_changes` substitution regexes now match longest-first in both directions; previously a shorter table key (`"A"`) permanently shadowed longer ones (`"AB"`), silently corrupting multi-character table entries.
 - Two aggregate error messages referenced a nonexistent `BitVector.num_bits` attribute, raising `AttributeError` before the intended error.
+- **`__version__` could report a different installation's version.** The package resolved its version through `importlib.metadata` by distribution name, which says nothing about which files were imported, so a source checkout imported ahead of an older installed release reported that release's version. The literal version is now the default, and a distribution's version replaces it only when that distribution locates its `bytemaker` package at the imported copy's directory.
 
 ### Version 0.11.0
 (11 June 2026)

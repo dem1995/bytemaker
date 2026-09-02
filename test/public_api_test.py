@@ -142,3 +142,39 @@ def test_version_fallback_matches_pyproject():
     source = (root / "bytemaker" / "__init__.py").read_text(encoding="utf-8")
     fallback = re.search(r'__version__ = "([^"]+)"', source).group(1)
     assert fallback == declared
+
+
+def test_version_ignores_a_distribution_that_is_not_this_copy(monkeypatch):
+    """The distribution that importlib.metadata finds by name need not be the
+    code that was imported, so its version is reported only when its files
+    are this package's."""
+    import importlib.metadata
+    from pathlib import Path
+
+    here = Path(bytemaker.__file__).resolve().parent
+
+    class Dist:
+        version = "9.9.9"
+
+        def __init__(self, site_packages):
+            self._site = site_packages
+
+        def locate_file(self, path):
+            return self._site / path
+
+    elsewhere = here.parent.parent / "somewhere-else" / "site-packages"
+    monkeypatch.setattr(
+        importlib.metadata, "distribution", lambda name: Dist(elsewhere)
+    )
+    assert bytemaker._installed_version() is None
+
+    monkeypatch.setattr(
+        importlib.metadata, "distribution", lambda name: Dist(here.parent)
+    )
+    assert bytemaker._installed_version() == "9.9.9"
+
+    def missing(name):
+        raise importlib.metadata.PackageNotFoundError(name)
+
+    monkeypatch.setattr(importlib.metadata, "distribution", missing)
+    assert bytemaker._installed_version() is None

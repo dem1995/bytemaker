@@ -50,6 +50,9 @@ The legacy ``@dataclass`` aggregate API lives in
 :mod:`bytemaker.conversions.aggregate_types`.
 """
 
+import os
+from typing import Optional
+
 from bytemaker.adapters import (
     THUMB_PTR,
     Adapted,
@@ -182,15 +185,41 @@ __all__ = [
     "f64",
 ]
 
-try:
-    from importlib.metadata import version as _dist_version
+# The version this package reports about itself. The distribution metadata
+# consulted below replaces it only when that metadata describes this very
+# directory. test_version_fallback_matches_pyproject keeps the literal in
+# step with pyproject.toml.
+__version__ = "0.13.0.dev0"
 
-    __version__ = _dist_version("bytemaker")
-except Exception:  # pragma: no cover - vendored copy or source checkout
-    # A literal, not a placeholder: a vendored (frozen-install) copy has no
-    # dist metadata, and it still needs to identify what it ships. Kept in
-    # sync with pyproject.toml by test_version_fallback_matches_pyproject.
-    __version__ = "0.13.0.dev0"
+
+def _installed_version() -> Optional[str]:
+    """Return the installed distribution's version when its files are this package.
+
+    ``importlib.metadata`` finds a distribution by name, and the name says
+    nothing about which files were imported. A source checkout imported ahead
+    of an older release in site-packages is one example: the metadata then
+    describes that release, while the code that imported is the checkout.
+    The version is therefore used only when the distribution locates its
+    ``bytemaker`` package at this file's directory. Otherwise, or when no
+    distribution is found, the result is None and the literal above stands.
+    """
+    try:
+        from importlib import metadata
+
+        dist = metadata.distribution("bytemaker")
+        located = os.path.realpath(str(dist.locate_file("bytemaker")))
+    except Exception:
+        return None
+    here = os.path.realpath(os.path.dirname(__file__))
+    if os.path.normcase(located) != os.path.normcase(here):
+        return None
+    return dist.version
+
+
+_installed = _installed_version()
+if _installed is not None:
+    __version__ = _installed
+del _installed
 
 
 _ALIAS_PATTERN = None  # compiled on first miss
