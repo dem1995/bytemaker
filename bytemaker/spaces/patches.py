@@ -19,7 +19,9 @@ class PatchVerifyError(ValueError):
 
     Two situations raise this. One is applying a patch to a buffer that does
     not hold the originals it recorded. The other is a write with
-    ``expect=`` that finds different bytes already in place.
+    ``expect=`` that finds different bytes already in place. When that write
+    came through an :class:`~bytemaker.spaces.Entry`, the message names the
+    entry as well as the address.
 
     Both are the same mistake caught at different moments, and the cause is
     almost always the wrong build, or a table that moved.

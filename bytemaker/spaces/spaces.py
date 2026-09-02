@@ -398,6 +398,20 @@ class Space:
         earlier ones wrote should write through :meth:`recording` instead,
         which updates the buffer and records the whole span of every write.
         """
+        self._write(addr, value, codec, patch=patch, expect=expect)
+
+    def _write(
+        self,
+        addr: int,
+        value: Any,
+        codec: Any,
+        *,
+        patch: Any,
+        expect: Any,
+        via: str = "",
+    ) -> None:
+        # The body of write(). ``via`` names the Entry a write came in
+        # through, so an expect= mismatch can say which declaration it was.
         codec = unwrap_alias(codec) if codec is not None else self._infer_codec(value)
         data = self._encode(value, codec)
         off = self.offset(addr)
@@ -426,7 +440,7 @@ class Space:
                 patch.write(off, data, expected)
             return
         if expected is not None:
-            self._check_expectation(off, expected, addr)
+            self._check_expectation(off, expected, addr, via)
         if self._record is not None:
             if patch is not None:
                 raise ValueError(
@@ -742,11 +756,14 @@ class Space:
             )
         return expected
 
-    def _check_expectation(self, off: int, expected: bytes, addr: int) -> None:
+    def _check_expectation(
+        self, off: int, expected: bytes, addr: int, via: str = ""
+    ) -> None:
         current = bytes(memoryview(self._bytes("expect="))[off : off + len(expected)])
         if current != expected:
+            where = f"{self._label()}, {via}" if via else self._label()
             raise PatchVerifyError(
-                f"{self._label()}: bytes at 0x{addr:08X} are"
+                f"{where}: bytes at 0x{addr:08X} are"
                 f" {current.hex()}, but the write expected {expected.hex()}"
                 f" — wrong build, moved table, or already applied"
             )

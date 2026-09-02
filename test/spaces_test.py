@@ -556,6 +556,20 @@ def test_entry_write_with_expect_states_the_guard_in_its_own_codec():
         e.write(Reward(max_frames=8, pad=0, item_id=9), expect=before)
 
 
+def test_an_expect_mismatch_through_an_entry_names_the_entry():
+    """The entry knows which table row and field it addresses, so the error
+    says so instead of leaving the caller to work back from the address."""
+    s = Space(bytearray(0x40), base=BASE, endian="little")
+    rewards = s.entry(BASE, Reward, count(3), name="rewards")
+    with pytest.raises(
+        PatchVerifyError, match=r"Entry rewards\[2\]\.item_id: bytes at"
+    ):
+        rewards.item(2).field("item_id").write(9, expect=1)
+    # a write straight to the space still names only the space
+    with pytest.raises(PatchVerifyError, match=r"^Space: bytes at"):
+        s.write(BASE, 9, UInt32, expect=1)
+
+
 def test_space_write_splices_raw_bytes_with_no_codec():
     buf = bytearray(8)
     s = Space(buf, base=BASE, endian="little")

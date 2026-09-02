@@ -434,7 +434,9 @@ class Entry:
         # stated in the same terms as the value. From here down both are
         # already bytes.
         expected = None if expect is None else space._encode(expect, self.codec)
-        space.write(self.addr, data, bytes, patch=patch, expect=expected)
+        space._write(
+            self.addr, data, bytes, patch=patch, expect=expected, via=self._name()
+        )
 
     def describe(self) -> str:
         """One line: name, address range, codec and extent."""
