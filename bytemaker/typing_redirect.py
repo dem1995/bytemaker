@@ -38,8 +38,7 @@ if sys.version_info < (3, 10):
         Concatenate = Any
 else:
     from types import UnionType
-    from typing import ParamSpec
-    from typing import Concatenate
+    from typing import Concatenate, ParamSpec
 
 from collections.abc import Hashable
 from typing import (
